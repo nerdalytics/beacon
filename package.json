@@ -1,0 +1,39 @@
+{
+	"name": "@nerdalytics/beacon",
+	"version": "1.0.0",
+	"description": "A lightweight reactive signal library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
+	"type": "module",
+	"main": "src/index.ts",
+	"scripts": {
+		"test": "node --test --experimental-config-file=node.config.json \"test/**/*.test.ts\"",
+		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
+		"test:unit:state": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^State$/\"",
+		"format": "biome format --write ."
+	},
+	"keywords": [
+		"reactive",
+		"signals",
+		"state-management",
+		"nodejs",
+		"typescript",
+		"reactive-programming",
+		"dependency-tracking",
+		"esm",
+		"observable",
+		"backend",
+		"server-side",
+		"computed-values",
+		"effects",
+		"batching"
+	],
+	"author": "Denny Trebbin",
+	"license": "MIT",
+	"devDependencies": {
+		"@biomejs/biome": "1.9.4",
+		"@types/node": "22.13.12",
+		"typescript": "5.8.2"
+	},
+	"engines": {
+		"node": "23.10.0"
+	}
+}

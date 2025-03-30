@@ -1,0 +1,9 @@
+{
+	"$schema": "https://nodejs.org/dist/v23.10.0/docs/node-config-schema.json",
+	"nodeOptions": {
+		"test-coverage-lines": 90,
+		"test-coverage-branches": 100,
+		"test-coverage-functions": 90,
+		"test-coverage-include": ["src/**/*.ts"]
+	}
+}
