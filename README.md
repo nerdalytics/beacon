@@ -24,28 +24,30 @@ npm install @nerdalytics/beacon
 ## Usage
 
 ```typescript
-import { state, effect } from "@nerdalytics/beacon";
+import { state, derived, effect } from "@nerdalytics/beacon";
 
 // Create reactive state
 const count = state(0);
+const doubled = derived(() => count() * 2);
 
 // Read values
 console.log(count()); // => 0
+console.log(doubled()); // => 0
 
 // Setup an effect that automatically runs when dependencies change
 // effect() returns a cleanup function that removes all subscriptions when called
 const unsubscribe = effect(() => {
-  console.log(`Count is ${count()}`);
+  console.log(`Count is ${count()}, doubled is ${doubled()}`);
 });
 // => "Count is 0, doubled is 0" (effect runs immediately when created)
 
 // Update values - effect automatically runs after each change
 count.set(5);
-// => "Count is 5
+// => "Count is 5, doubled is 10"
 
 // Update with a function
 count.update((n) => n + 1);
-// => "Count is 6
+// => "Count is 6, doubled is 12"
 
 // Unsubscribe the effect to stop it from running on future updates
 // and clean up all its internal subscriptions
@@ -57,6 +59,10 @@ unsubscribe();
 ### `state<T>(initialValue: T): Signal<T>`
 
 Creates a new reactive signal with the given initial value.
+
+### `derived<T>(fn: () => T): Signal<T>`
+
+Creates a derived signal that updates when its dependencies change.
 
 ### `effect(fn: () => void): () => void`
 
@@ -77,10 +83,16 @@ npm run test:coverage
 # Run specific test suites
 # Core functionality
 npm run test:unit:state
+npm run test:unit:derived
 npm run test:unit:effect
+
+# Advanced patterns
+npm run test:unit:cleanup    # Tests for effect cleanup behavior
+npm run test:unit:cyclic     # Tests for cyclic dependency handling
 
 # Format code
 npm run format
+```
 
 ## FAQ
 
@@ -91,8 +103,19 @@ I chose "Beacon" because it clearly represents how the library broadcasts notifi
 
 </details>
 
+<details>
+
+<summary>How does Beacon handle infinite update cycles?</summary>
+Beacon uses a queue-based update system that won't crash even with cyclical dependencies. If signals form a cycle where values constantly change (A updates B updates A...), the system will continue processing these updates without stack overflows. However, this could potentially affect performance if updates never stabilize. See the [TECHNICAL_DETAILS.md][4] document for best practices on handling cyclical dependencies.
+
+</details>
+
+<details>
+
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE][3] file for details.
+This project is licensed under the MIT License. See the [LICENSE][1] file for details.
 
 <!-- Links collection -->
+
+[1]: ./LICENSE

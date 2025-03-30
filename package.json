@@ -9,6 +9,9 @@
 		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
 		"test:unit:state": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^State$/\"",
 		"test:unit:effect": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Effect$/\"",
+		"test:unit:derived": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Derived$/\"",
+		"test:unit:cleanup": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Cleanup$/\"",
+		"test:unit:cyclic": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Cyclic Dependencies$/\"",
 		"format": "biome format --write ."
 	},
 	"keywords": [

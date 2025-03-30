@@ -135,3 +135,18 @@ export const effect = (fn: () => void): Unsubscribe => {
 		cleanupEffect(runEffect);
 	};
 };
+
+/**
+ * Creates a derived signal that computes its value from other signals
+ */
+export const derived = <T>(fn: () => T): Signal<T> => {
+	// Initialize signal with the computed value
+	const signal = state<T>(fn());
+
+	// Only run fn() again when dependencies change
+	effect((): void => {
+		signal.set(fn());
+	});
+
+	return signal;
+};
