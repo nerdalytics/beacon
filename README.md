@@ -24,22 +24,32 @@ npm install @nerdalytics/beacon
 ## Usage
 
 ```typescript
-import { state } from "@nerdalytics/beacon";
+import { state, effect } from "@nerdalytics/beacon";
 
 // Create reactive state
 const count = state(0);
 
 // Read values
 console.log(count()); // => 0
-console.log(doubled()); // => 0
 
-// Update values
+// Setup an effect that automatically runs when dependencies change
+// effect() returns a cleanup function that removes all subscriptions when called
+const unsubscribe = effect(() => {
+  console.log(`Count is ${count()}`);
+});
+// => "Count is 0, doubled is 0" (effect runs immediately when created)
+
+// Update values - effect automatically runs after each change
 count.set(5);
 // => "Count is 5
 
 // Update with a function
 count.update((n) => n + 1);
 // => "Count is 6
+
+// Unsubscribe the effect to stop it from running on future updates
+// and clean up all its internal subscriptions
+unsubscribe();
 ```
 
 ## API
@@ -47,6 +57,10 @@ count.update((n) => n + 1);
 ### `state<T>(initialValue: T): Signal<T>`
 
 Creates a new reactive signal with the given initial value.
+
+### `effect(fn: () => void): () => void`
+
+Creates an effect that runs the given function immediately and whenever its dependencies change. Returns an unsubscribe function that stops the effect and cleans up all subscriptions when called.
 
 ## Development
 
@@ -63,6 +77,7 @@ npm run test:coverage
 # Run specific test suites
 # Core functionality
 npm run test:unit:state
+npm run test:unit:effect
 
 # Format code
 npm run format

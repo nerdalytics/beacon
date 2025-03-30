@@ -1,6 +1,8 @@
 // Types
 type Subscriber = () => void;
 
+type Unsubscribe = () => void;
+
 export interface Signal<T> {
 	(): T; // get value
 	set(value: T): void; // set value directly
@@ -92,4 +94,44 @@ const processEffects = (): void => {
 	}
 
 	updateInProgress = false;
+};
+
+/**
+ * Helper to clean up effect subscriptions
+ */
+const cleanupEffect = (effect: Subscriber): void => {
+	const deps = subscriberDependencies.get(effect);
+
+	if (deps) {
+		for (const subscribers of deps) {
+			subscribers.delete(effect);
+		}
+
+		deps.clear();
+	}
+};
+
+/**
+ * Creates an effect that runs when its dependencies change
+ */
+export const effect = (fn: () => void): Unsubscribe => {
+	const runEffect = (): void => {
+		cleanupEffect(runEffect);
+
+		const prevEffect = currentEffect;
+
+		currentEffect = runEffect;
+
+		try {
+			fn();
+		} finally {
+			currentEffect = prevEffect;
+		}
+	};
+
+	runEffect();
+
+	return (): void => {
+		cleanupEffect(runEffect);
+	};
 };
