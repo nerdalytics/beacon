@@ -13,6 +13,8 @@ A lightweight reactive signal library for Node.js backends. Enables reactive sta
   - [effect](#effectfn--void--void)
   - [batch](#batchfn--t-t)
 - [Development](#development)
+  - [Node.js LTS Compatibility](#nodejs-lts-compatibility)
+- [Key Differences vs TC39 Proposal](#key-differences-between-my-library-and-the-tc39-proposal)
 - [Implementation Details](#implementation-details)
 - [FAQ](#faq)
 - [License](#license)
@@ -119,7 +121,24 @@ npm run test:unit:cyclic     # Tests for cyclic dependency handling
 
 # Format code
 npm run format
+
+# Build for Node.js LTS compatibility (v20+)
+npm run build:lts
 ```
+
+### Node.js LTS Compatibility
+
+Beacon supports the two most recent Node.js LTS versions (currently v20 and v22). When the package is published to npm, it includes transpiled code compatible with these LTS versions.
+
+## Key Differences Between My Library and the [TC39 Proposal][1]
+
+| Aspect | @nerdalytics/beacon | TC39 Proposal |
+|--------|---------------------|---------------|
+| **API Style** | Functional approach (`state()`, `derived()`) | Class-based design (`Signal.State`, `Signal.Computed`) |
+| **Reading/Writing Pattern** | Function call for reading (`count()`), methods for writing (`count.set(5)`) | Method-based access (`get()`/`set()`) |
+| **Framework Support** | High-level abstractions like `effect()` and `batch()` | Lower-level primitives (`Signal.subtle.Watcher`) that frameworks build upon |
+| **Advanced Features** | Focused on core reactivity | Includes introspection capabilities, watched/unwatched callbacks, and Signal.subtle namespace |
+| **Scope and Purpose** | Practical Node.js use cases with minimal API surface | Standardization with robust interoperability between frameworks |
 
 ## Implementation Details
 
@@ -132,7 +151,7 @@ Beacon is designed with a focus on simplicity, performance, and robust handling 
 - **Cyclical dependency handling**: Robust handling of circular references without crashing
 - **Memory management**: Automatic cleanup of subscriptions when effects are disposed
 
-For an in-depth explanation of Beacon's internal architecture, advanced features, and best practices for handling complex scenarios like cyclical dependencies, see the [TECHNICAL_DETAILS.md][4] document.
+For an in-depth explanation of Beacon's internal architecture, advanced features, and best practices for handling complex scenarios like cyclical dependencies, see the [TECHNICAL_DETAILS.md][2] document.
 
 ## FAQ
 
@@ -163,5 +182,6 @@ This project is licensed under the MIT License. See the [LICENSE][3] file for de
 
 <!-- Links collection -->
 
-[1]: ./TECHNICAL_DETAILS.md
-[2]: ./LICENSE
+[1]: https://github.com/tc39/proposal-signals
+[2]: ./TECHNICAL_DETAILS.md
+[3]: ./LICENSE
