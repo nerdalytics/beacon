@@ -10,7 +10,6 @@ This guide provides detailed information for developers who want to contribute t
 - [Development Workflow](#development-workflow)
 - [Testing Guidelines](#testing-guidelines)
 - [Performance Testing](#performance-testing)
-- [CI/CD Pipeline](#cicd-pipeline)
 - [Contribution Guidelines](#contribution-guidelines)
 - [Release Process](#release-process)
 
@@ -165,6 +164,9 @@ Performance is critical for Beacon. We use automated performance benchmarks to e
 ```bash
 # Run performance tests
 npm run test:perf
+
+# Run and update performance documentation
+npm run test:perf:update-docs
 ```
 
 ### Performance Guidelines
@@ -173,6 +175,8 @@ npm run test:perf
 - Test on consistent hardware when comparing results
 - Focus on relative improvements rather than absolute numbers
 - Document performance impacts of changes in your PR
+
+See [PERFORMANCE.md][2] for current benchmarks.
 
 ## Contribution Guidelines
 
@@ -193,7 +197,7 @@ Good PR descriptions should include:
 - Any performance implications
 - Reference to related issues
 
-Your commits should follow our [structured commit message format][2] aligned with Epoch Semantic Versioning.
+Your commits should follow our [structured commit message format][3] aligned with Epoch Semantic Versioning.
 
 ### Code Review
 
@@ -216,7 +220,7 @@ All contributions go through code review. Reviewers will check for:
 
 ### Versioning
 
-Beacon follows [Epoch Semantic Versioning][3]:
+Beacon follows [Epoch Semantic Versioning][4]:
 
 - **PATCH** (1.0.x): Backwards-compatible bug fixes
 - **MINOR** (1.x.0): Backwards-compatible new features
@@ -252,5 +256,6 @@ Thank you for contributing to Beacon! If you have questions or need clarificatio
 <!-- Links collection -->
 
 [1]: ./TECHNICAL_DETAILS.md
-[2]: ./CONTRIBUTING.md#git-commit-messages
-[3]: https://antfu.me/posts/epoch-semver
+[2]: ./PERFORMANCE.md
+[3]: ./CONTRIBUTING.md#git-commit-messages
+[4]: https://antfu.me/posts/epoch-semver
