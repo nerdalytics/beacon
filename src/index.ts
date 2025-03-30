@@ -150,3 +150,26 @@ export const derived = <T>(fn: () => T): Signal<T> => {
 
 	return signal;
 };
+
+/**
+ * Batches multiple updates to run effects only once at the end
+ */
+export const batch = <T>(fn: () => T): T => {
+	batchDepth++;
+
+	try {
+		return fn();
+	} catch (error) {
+		if (batchDepth === 1) {
+			pendingEffects.clear();
+		}
+
+		throw error;
+	} finally {
+		batchDepth--;
+
+		if (batchDepth === 0 && pendingEffects.size > 0) {
+			processEffects();
+		}
+	}
+};

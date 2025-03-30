@@ -2,6 +2,21 @@
 
 A lightweight reactive signal library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.
 
+## Table of Contents
+
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [API](#api)
+  - [state](#statetinitialvalue-t-signalt)
+  - [derived](#derivedfn--t-signalt)
+  - [effect](#effectfn--void--void)
+  - [batch](#batchfn--t-t)
+- [Development](#development)
+- [Implementation Details](#implementation-details)
+- [FAQ](#faq)
+- [License](#license)
+
 ## Features
 
 - 🔄 **Reactive signals** - Create reactive values that automatically track dependencies
@@ -24,7 +39,7 @@ npm install @nerdalytics/beacon
 ## Usage
 
 ```typescript
-import { state, derived, effect } from "@nerdalytics/beacon";
+import { state, derived, effect, batch } from "@nerdalytics/beacon";
 
 // Create reactive state
 const count = state(0);
@@ -49,6 +64,13 @@ count.set(5);
 count.update((n) => n + 1);
 // => "Count is 6, doubled is 12"
 
+// Batch updates (only triggers effects once at the end)
+batch(() => {
+  count.set(10);
+  count.set(20);
+});
+// => "Count is 20, doubled is 40" (only once)
+
 // Unsubscribe the effect to stop it from running on future updates
 // and clean up all its internal subscriptions
 unsubscribe();
@@ -68,6 +90,10 @@ Creates a derived signal that updates when its dependencies change.
 
 Creates an effect that runs the given function immediately and whenever its dependencies change. Returns an unsubscribe function that stops the effect and cleans up all subscriptions when called.
 
+### `batch<T>(fn: () => T): T`
+
+Batches multiple updates to only trigger effects once at the end.
+
 ## Development
 
 ```bash
@@ -85,6 +111,7 @@ npm run test:coverage
 npm run test:unit:state
 npm run test:unit:derived
 npm run test:unit:effect
+npm run test:unit:batch
 
 # Advanced patterns
 npm run test:unit:cleanup    # Tests for effect cleanup behavior
@@ -93,6 +120,19 @@ npm run test:unit:cyclic     # Tests for cyclic dependency handling
 # Format code
 npm run format
 ```
+
+## Implementation Details
+
+Beacon is designed with a focus on simplicity, performance, and robust handling of complex dependency scenarios.
+
+### Key Implementation Concepts
+
+- **Fine-grained reactivity**: Dependencies are tracked automatically at the signal level
+- **Efficient updates**: Changes only propagate to affected parts of the dependency graph
+- **Cyclical dependency handling**: Robust handling of circular references without crashing
+- **Memory management**: Automatic cleanup of subscriptions when effects are disposed
+
+For an in-depth explanation of Beacon's internal architecture, advanced features, and best practices for handling complex scenarios like cyclical dependencies, see the [TECHNICAL_DETAILS.md][4] document.
 
 ## FAQ
 
@@ -112,10 +152,16 @@ Beacon uses a queue-based update system that won't crash even with cyclical depe
 
 <details>
 
+<summary>How performant is Beacon?</summary>
+Beacon is designed with performance in mind for server-side Node.js environments. It achieves millions of operations per second for core operations like reading and writing signals.
+
+</details>
+
 ## License
 
-This project is licensed under the MIT License. See the [LICENSE][1] file for details.
+This project is licensed under the MIT License. See the [LICENSE][3] file for details.
 
 <!-- Links collection -->
 
-[1]: ./LICENSE
+[1]: ./TECHNICAL_DETAILS.md
+[2]: ./LICENSE
