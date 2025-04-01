@@ -3,7 +3,13 @@
 	"version": "1.0.0",
 	"description": "A lightweight reactive signal library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"type": "module",
-	"main": "src/index.ts",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"files": [
+		"dist/",
+		"src/",
+		"LICENSE"
+	],
 	"scripts": {
 		"test": "node --test --experimental-config-file=node.config.json \"test/**/*.test.ts\"",
 		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
@@ -17,7 +23,11 @@
 		"test:integration": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Deep Dependency Chains$/\"",
 		"test:perf": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Performance$/\"",
 		"test:perf:update-docs": "node scripts/update-performance-docs.ts",
-		"format": "biome format --write ."
+		"format": "biome format --write .",
+		"prebuild": "rm -rf dist/",
+		"build": "npm run build:lts",
+		"build:lts": "tsc -p tsconfig.build.json",
+		"prepublishOnly": "npm run build"
 	},
 	"keywords": [
 		"reactive",
@@ -43,6 +53,6 @@
 		"typescript": "5.8.2"
 	},
 	"engines": {
-		"node": "23.10.0"
+		"node": ">=20.0.0"
 	}
 }
