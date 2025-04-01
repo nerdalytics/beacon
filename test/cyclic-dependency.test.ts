@@ -58,8 +58,11 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 
 		// Verify the system reached a stable state
 		const lastEntry = executionLog.at(-1)
-		assert.strictEqual(lastEntry?.a, 5)
-		assert.strictEqual(lastEntry?.b, 10)
+
+		assert.ok(lastEntry !== undefined, 'Last entry should exist')
+
+		assert.strictEqual(lastEntry.a, 5)
+		assert.strictEqual(lastEntry.b, 10)
 	})
 
 	it('should demonstrate derived signals with potential cycles', (): void => {
@@ -69,14 +72,18 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		// This creates a potential infinite loop:
 		// a → b → a → b → ...
 
+		// Pre-declare variables to allow cross-references
+		let signalA: ReturnType<typeof derived<number>>
+		let signalB: ReturnType<typeof derived<number>>
+
 		// Setup derived signals with circular dependency
-		const signalA = derived((): number => {
+		signalA = derived((): number => {
 			// A depends on source and B
 			const b = signalB ? signalB() : 10 // Initial case when B isn't defined yet
 			return source() + b / 10
 		})
 
-		const signalB = derived((): number => {
+		signalB = derived((): number => {
 			// B depends on A
 			return signalA() * 2
 		})
