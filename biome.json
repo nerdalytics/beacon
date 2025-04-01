@@ -101,7 +101,7 @@
 	},
 	"files": {
 		"ignore": [".git/**/*", "node_modules/**/*", "dist/**/*"],
-		"include": ["src/**/*"],
+		"include": ["src/**/*", "scripts/**/*", "test/**/*"],
 		"ignoreUnknown": true
 	}
 }
