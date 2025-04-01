@@ -17,7 +17,7 @@
 	"scripts": {
 		"test": "node --test --experimental-config-file=node.config.json \"test/**/*.test.ts\"",
 		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
-		"test:unit": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^(State|Derived|Effect|Batch|Cleanup|Cyclic Dependencies)$/\"",
+		"test:unit": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^(State|Derived|Effect|Batch|Cleanup|Cyclic Dependencies|Selector)$/\"",
 		"test:unit:state": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^State$/\"",
 		"test:unit:update": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Update$/\"",
 		"test:unit:derived": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Derived$/\"",
@@ -25,6 +25,7 @@
 		"test:unit:batch": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Batch$/\"",
 		"test:unit:cleanup": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Cleanup$/\"",
 		"test:unit:cyclic": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Cyclic Dependencies$/\"",
+		"test:unit:selector": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Selector$/\"",
 		"test:integration": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Deep Dependency Chains$/\"",
 		"test:perf": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Performance$/\"",
 		"test:perf:update-docs": "node scripts/update-performance-docs.ts",
