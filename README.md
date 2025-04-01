@@ -12,6 +12,7 @@ A lightweight reactive signal library for Node.js backends. Enables reactive sta
   - [derived](#derivedfn--t-signalt)
   - [effect](#effectfn--void--void)
   - [batch](#batchfn--t-t)
+  - [selector](#selectorsource-signalt-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-signalr)
 - [Development](#development)
   - [Node.js LTS Compatibility](#nodejs-lts-compatibility)
 - [Key Differences vs TC39 Proposal](#key-differences-between-my-library-and-the-tc39-proposal)
@@ -26,6 +27,7 @@ A lightweight reactive signal library for Node.js backends. Enables reactive sta
 - 🔍 **Fine-grained reactivity** - Dependencies are tracked precisely at the signal level
 - 🏎️ **Efficient updates** - Only recompute values when dependencies change
 - 📦 **Batched updates** - Group multiple updates for performance
+- 🔪 **Targeted subscriptions** - Select and subscribe to specific parts of state objects
 - 🧹 **Automatic cleanup** - Effects and computations automatically clean up dependencies
 - 🔁 **Cycle handling** - Safely manages cyclic dependencies without crashing
 - 🛠️ **TypeScript-first** - Full TypeScript support with generics
@@ -41,7 +43,7 @@ npm install @nerdalytics/beacon
 ## Usage
 
 ```typescript
-import { state, derived, effect, batch } from "@nerdalytics/beacon";
+import { state, derived, effect, batch, selector } from "@nerdalytics/beacon";
 
 // Create reactive state
 const count = state(0);
@@ -73,6 +75,22 @@ batch(() => {
 });
 // => "Count is 20, doubled is 40" (only once)
 
+// Using selector to subscribe to specific parts of state
+const user = state({ name: "Alice", age: 30, email: "alice@example.com" });
+const nameSelector = selector(user, u => u.name);
+
+effect(() => {
+  console.log(`Name changed: ${nameSelector()}`);
+});
+// => "Name changed: Alice"
+
+// Updates to the selected property will trigger the effect
+user.update(u => ({ ...u, name: "Bob" }));
+// => "Name changed: Bob"
+
+// Updates to other properties won't trigger the effect
+user.update(u => ({ ...u, age: 31 })); // No effect triggered
+
 // Unsubscribe the effect to stop it from running on future updates
 // and clean up all its internal subscriptions
 unsubscribe();
@@ -96,6 +114,89 @@ Creates an effect that runs the given function immediately and whenever its depe
 
 Batches multiple updates to only trigger effects once at the end.
 
+### `selector<T, R>(source: Signal<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): Signal<R>`
+
+Creates a selector that subscribes to a specific subset of a signal's state. The selector will only notify its subscribers when the selected value actually changes according to the provided equality function (defaults to `Object.is`).
+
+## Usage
+```typescript
+import { state, derived, effect, batch, selector } from "@nerdalytics/beacon";
+
+// Create reactive state
+const count = state(0);
+const doubled = derived(() => count() * 2);
+
+// Read values
+console.log(count()); // => 0
+console.log(doubled()); // => 0
+
+// Setup an effect that automatically runs when dependencies change
+// effect() returns a cleanup function that removes all subscriptions when called
+const unsubscribe = effect(() => {
+  console.log(`Count is ${count()}, doubled is ${doubled()}`);
+});
+// => "Count is 0, doubled is 0" (effect runs immediately when created)
+
+// Update values - effect automatically runs after each change
+count.set(5);
+// => "Count is 5, doubled is 10"
+
+// Update with a function
+count.update((n) => n + 1);
+// => "Count is 6, doubled is 12"
+
+// Batch updates (only triggers effects once at the end)
+batch(() => {
+  count.set(10);
+  count.set(20);
+});
+// => "Count is 20, doubled is 40" (only once)
+
+// Using selector to subscribe to specific parts of state
+const user = state({ name: "Alice", age: 30, email: "alice@example.com" });
+const nameSelector = selector(user, u => u.name);
+
+effect(() => {
+  console.log(`Name changed: ${nameSelector()}`);
+});
+// => "Name changed: Alice"
+
+// Updates to other properties won't trigger the effect
+user.update(u => ({ ...u, age: 31 })); // No effect triggered
+
+// Updates to the selected property will trigger the effect
+user.update(u => ({ ...u, name: "Bob" }));
+// => "Name changed: Bob"
+
+// Unsubscribe the effect to stop it from running on future updates
+// and clean up all its internal subscriptions
+unsubscribe();
+```
+
+## API
+### state<T>(initialValue: T): Signal<T>
+Creates a new reactive signal with the given initial value.
+
+### derived<T>(fn: () => T): Signal<T>
+Creates a derived signal that updates when its dependencies change.
+
+### effect(fn: () => void): () => void
+Creates an effect that runs the given function immediately and whenever its dependencies change. Returns an unsubscribe function that stops the effect and cleans up all subscriptions when called.
+
+### batch<T>(fn: () => T): T
+Batches multiple updates to only trigger effects once at the end.
+
+### selector<T, R>(source: Signal<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): Signal<R>
+Creates a selector that subscribes to a specific subset of a signal's state. The selector will only notify its subscribers when the selected value actually changes according to the provided equality function (defaults to Object.is ).
+
+Parameters:
+
+- source : The source signal to select from
+- selectorFn : A function that extracts the desired value from the source state
+- equalityFn : Optional custom equality function to determine if the selected value has changed
+
+Returns a derived signal that holds the selected value.
+
 ## Development
 
 ```bash
@@ -114,6 +215,7 @@ npm run test:unit:state
 npm run test:unit:derived
 npm run test:unit:effect
 npm run test:unit:batch
+npm run test:unit:selector 
 
 # Advanced patterns
 npm run test:unit:cleanup    # Tests for effect cleanup behavior

@@ -173,3 +173,41 @@ export const batch = <T>(fn: () => T): T => {
 		}
 	}
 }
+
+/**
+ * Creates a selector that efficiently subscribes to a subset of a signal's state,
+ * reducing unnecessary subscriptions by only notifying dependents when the selected
+ * value actually changes
+ */
+export const selector = <T, R>(
+  source: Signal<T>,
+  selectorFn: (state: T) => R,
+  equalityFn: (a: R, b: R) => boolean = Object.is
+): Signal<R> => {
+  let lastSelected: R | undefined = undefined;
+  let lastSourceValue: T | undefined = undefined;
+  
+  return derived(() => {
+    const sourceValue = source();
+    
+    // If the source hasn't changed, return the cached selection
+    if (lastSourceValue !== undefined && Object.is(lastSourceValue, sourceValue)) {
+      return lastSelected as R;
+    }
+    
+    // Update the cached source value
+    lastSourceValue = sourceValue;
+    
+    // Compute the new selection
+    const selected = selectorFn(sourceValue);
+    
+    // If the selection is the same (by equality function), return the cached one
+    if (lastSelected !== undefined && equalityFn(lastSelected, selected)) {
+      return lastSelected;
+    }
+    
+    // Cache and return the new selection
+    lastSelected = selected;
+    return selected;
+  });
+}

@@ -11,6 +11,7 @@ Beacon uses a fine-grained reactivity system with automatic dependency tracking.
 3. **Effects**: Side effects that run when dependencies change
 4. **Batching**: Optimization for multiple state changes
 5. **Dependency Tracking**: Automatic tracking of dependencies
+6. **Selectors**: Targeted subscriptions to subsets of state objects
 
 ### Dependency Tracking Mechanism
 
