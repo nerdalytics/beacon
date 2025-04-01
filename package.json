@@ -15,6 +15,7 @@
 		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
 		"test:unit": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^(State|Derived|Effect|Batch|Cleanup|Cyclic Dependencies)$/\"",
 		"test:unit:state": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^State$/\"",
+		"test:unit:update": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Update$/\"",
 		"test:unit:derived": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Derived$/\"",
 		"test:unit:effect": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Effect$/\"",
 		"test:unit:batch": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Batch$/\"",
