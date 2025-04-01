@@ -15,10 +15,10 @@ describe('Selector', { concurrency: true }, (): void => {
 	it('should select a subset of state', (): void => {
 		// Arrange
 		const user = state({ name: 'Alice', age: 30, email: 'alice@example.com' })
-		
+
 		// Act
 		const nameSelector = selector(user, (u) => u.name)
-		
+
 		// Assert
 		assert.strictEqual(nameSelector(), 'Alice')
 	})
@@ -27,10 +27,10 @@ describe('Selector', { concurrency: true }, (): void => {
 		// Arrange
 		const user = state({ name: 'Alice', age: 30, email: 'alice@example.com' })
 		const nameSelector = selector(user, (u) => u.name)
-		
+
 		// Act
 		user.set({ name: 'Bob', age: 30, email: 'alice@example.com' })
-		
+
 		// Assert
 		assert.strictEqual(nameSelector(), 'Bob')
 	})
@@ -40,17 +40,17 @@ describe('Selector', { concurrency: true }, (): void => {
 		const user = state({ name: 'Alice', age: 30, email: 'alice@example.com' })
 		const nameSelector = selector(user, (u) => u.name)
 		let updateCount = 0
-		
+
 		effect(() => {
 			nameSelector() // Subscribe to name only
 			updateCount++
 		})
-		
+
 		updateCount = 0 // Reset after initial effect
-		
+
 		// Act - only change age, not name
 		user.set({ name: 'Alice', age: 31, email: 'alice@example.com' })
-		
+
 		// Assert - effect shouldn't run since selected value didn't change
 		assert.strictEqual(updateCount, 0, 'Effect should not run when unrelated state changes')
 		assert.strictEqual(nameSelector(), 'Alice')
@@ -59,7 +59,7 @@ describe('Selector', { concurrency: true }, (): void => {
 	it('should support custom equality functions', (): void => {
 		// Arrange
 		const items = state([1, 2, 3, 4, 5])
-		
+
 		// Select even numbers
 		const evenSelector = selector(
 			items,
@@ -67,25 +67,25 @@ describe('Selector', { concurrency: true }, (): void => {
 			// Custom equality function that compares arrays by values
 			(a, b) => a.length === b.length && a.every((val, idx) => val === b[idx])
 		)
-		
+
 		let updateCount = 0
 		effect(() => {
 			evenSelector() // Subscribe to even numbers
 			updateCount++
 		})
-		
+
 		updateCount = 0 // Reset after initial effect
-		
+
 		// Act - add an odd number (shouldn't change even numbers result)
 		items.set([1, 2, 3, 4, 5, 7])
-		
+
 		// Assert
 		assert.strictEqual(updateCount, 0, 'Should not trigger effect when even numbers stay the same')
 		assert.deepStrictEqual(evenSelector(), [2, 4])
-		
+
 		// Act - add an even number (should change result)
 		items.set([1, 2, 3, 4, 5, 6])
-		
+
 		// Assert
 		assert.strictEqual(updateCount, 1, 'Should trigger effect when even numbers change')
 		assert.deepStrictEqual(evenSelector(), [2, 4, 6])
@@ -99,22 +99,22 @@ describe('Selector', { concurrency: true }, (): void => {
 					name: 'Alice',
 					settings: {
 						theme: 'dark',
-						notifications: true
-					}
+						notifications: true,
+					},
 				},
-				posts: [1, 2, 3]
-			}
+				posts: [1, 2, 3],
+			},
 		})
-		
+
 		// Create nested selectors
 		const profileSelector = selector(data, (d) => d.user.profile)
 		const themeSelector = selector(profileSelector, (p) => p.settings.theme)
-		
+
 		// Act
 		assert.strictEqual(themeSelector(), 'dark')
-		
+
 		// Update a nested value
-		data.update(d => ({
+		data.update((d) => ({
 			...d,
 			user: {
 				...d.user,
@@ -122,12 +122,12 @@ describe('Selector', { concurrency: true }, (): void => {
 					...d.user.profile,
 					settings: {
 						...d.user.profile.settings,
-						theme: 'light'
-					}
-				}
-			}
+						theme: 'light',
+					},
+				},
+			},
 		}))
-		
+
 		// Assert
 		assert.strictEqual(themeSelector(), 'light')
 	})
@@ -136,28 +136,28 @@ describe('Selector', { concurrency: true }, (): void => {
 		// Arrange
 		const largeState = state(createLargeState())
 		let updateCount = 0
-		
+
 		// Select just one property from the large state
 		const singlePropSelector = selector(largeState, (s) => s.criticalValue)
-		
+
 		effect(() => {
 			singlePropSelector()
 			updateCount++
 		})
-		
+
 		updateCount = 0 // Reset after initial run
-		
+
 		// Act - update non-selected parts of state multiple times
 		for (let i = 0; i < 5; i++) {
-			largeState.update(s => ({ ...s, items: [...s.items, i] }))
+			largeState.update((s) => ({ ...s, items: [...s.items, i] }))
 		}
-		
+
 		// Assert - effect shouldn't have run since selected value didn't change
 		assert.strictEqual(updateCount, 0)
-		
+
 		// Act - update the selected value
-		largeState.update(s => ({ ...s, criticalValue: 'new-value' }))
-		
+		largeState.update((s) => ({ ...s, criticalValue: 'new-value' }))
+
 		// Assert - effect should run exactly once
 		assert.strictEqual(updateCount, 1)
 		assert.strictEqual(singlePropSelector(), 'new-value')
@@ -176,11 +176,11 @@ function createLargeState() {
 				level1: {
 					level2: {
 						level3: {
-							deep: 'value'
-						}
-					}
-				}
-			}
-		}
+							deep: 'value',
+						},
+					},
+				},
+			},
+		},
 	}
 }
