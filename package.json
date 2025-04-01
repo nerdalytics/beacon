@@ -10,6 +10,10 @@
 		"src/",
 		"LICENSE"
 	],
+	"repository": {
+		"url": "github:nerdalytics/beacon",
+		"type": "git"
+	},
 	"scripts": {
 		"test": "node --test --experimental-config-file=node.config.json \"test/**/*.test.ts\"",
 		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
