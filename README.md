@@ -165,7 +165,7 @@ I chose "Beacon" because it clearly represents how the library broadcasts notifi
 <details>
 
 <summary>How does Beacon handle infinite update cycles?</summary>
-Beacon uses a queue-based update system that won't crash even with cyclical dependencies. If signals form a cycle where values constantly change (A updates B updates A...), the system will continue processing these updates without stack overflows. However, this could potentially affect performance if updates never stabilize. See the [TECHNICAL_DETAILS.md][4] document for best practices on handling cyclical dependencies.
+Beacon uses a queue-based update system that won't crash even with cyclical dependencies. If signals form a cycle where values constantly change (A updates B updates A...), the system will continue processing these updates without stack overflows. However, this could potentially affect performance if updates never stabilize. See the <a href="./TECHNICAL_DETAILS.md">TECHNICAL_DETAILS.md</a> document for best practices on handling cyclical dependencies.
 
 </details>
 
