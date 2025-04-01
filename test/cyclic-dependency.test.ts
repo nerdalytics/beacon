@@ -57,9 +57,9 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		assert.ok(executionLog.length < 20, `Too many executions (${executionLog.length}) before stabilizing`)
 
 		// Verify the system reached a stable state
-		const lastEntry = executionLog[executionLog.length - 1]
-		assert.strictEqual(lastEntry.a, 5)
-		assert.strictEqual(lastEntry.b, 10)
+		const lastEntry = executionLog.at(-1)
+		assert.strictEqual(lastEntry?.a, 5)
+		assert.strictEqual(lastEntry?.b, 10)
 	})
 
 	it('should demonstrate derived signals with potential cycles', (): void => {
@@ -69,18 +69,14 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		// This creates a potential infinite loop:
 		// a → b → a → b → ...
 
-		// Pre-declare the signals to allow cross-references
-		let signalA: any
-		let signalB: any
-
 		// Setup derived signals with circular dependency
-		signalA = derived((): number => {
+		const signalA = derived((): number => {
 			// A depends on source and B
 			const b = signalB ? signalB() : 10 // Initial case when B isn't defined yet
 			return source() + b / 10
 		})
 
-		signalB = derived((): number => {
+		const signalB = derived((): number => {
 			// B depends on A
 			return signalA() * 2
 		})
@@ -91,7 +87,7 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 
 		// Track updates - only capture first 10 for analysis
 		let updateCount = 0
-		const values: any[] = []
+		const values: { a: number; b: number }[] = []
 
 		effect((): void => {
 			updateCount++
@@ -115,14 +111,14 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		assert.ok(Number.isFinite(b), `B should have a finite value, got ${b}`)
 
 		// For debugging and analysis
-		console.log(`Derived cycles demo - Total updates: ${updateCount}`)
-		console.log(`Initial - A: ${initialA}, B: ${initialB}`)
-		console.log(`Latest - A: ${a}, B: ${b}`)
-		console.log(`First ${values.length} values:`, values)
+		console.debug(`Derived cycles demo - Total updates: ${updateCount}`)
+		console.debug(`Initial - A: ${initialA}, B: ${initialB}`)
+		console.debug(`Latest - A: ${a}, B: ${b}`)
+		console.debug(`First ${values.length} values:`, values)
 
 		// The test is now informational, we don't assert on the number of updates
 		// Just report what happened
-		console.log(updateCount < 100 ? '✓ System eventually stabilized' : "! System didn't stabilize within 100 updates")
+		console.debug(updateCount < 100 ? '✓ System eventually stabilized' : "! System didn't stabilize within 100 updates")
 	})
 
 	it('should demonstrate three interlocked states in a cycle (A → B → C → A)', (): void => {
@@ -180,9 +176,9 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		signalA.set(7)
 
 		// For debugging and analysis
-		console.log(`Interlocked three-state cycle - Total updates: ${updateCount}`)
-		console.log(`Final values - A: ${signalA()}, B: ${signalB()}, C: ${signalC()}`)
-		console.log(`First ${valueHistory.length} states:`, valueHistory)
+		console.debug(`Interlocked three-state cycle - Total updates: ${updateCount}`)
+		console.debug(`Final values - A: ${signalA()}, B: ${signalB()}, C: ${signalC()}`)
+		console.debug(`First ${valueHistory.length} states:`, valueHistory)
 
 		// Check values are still finite (not NaN or Infinity)
 		assert.ok(Number.isFinite(signalA()), `A should have a finite value, got ${signalA()}`)
@@ -190,7 +186,7 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		assert.ok(Number.isFinite(signalC()), `C should have a finite value, got ${signalC()}`)
 
 		// Report on stability rather than asserting
-		console.log(updateCount < 100 ? '✓ System eventually stabilized' : "! System didn't stabilize within 100 updates")
+		console.debug(updateCount < 100 ? '✓ System eventually stabilized' : "! System didn't stabilize within 100 updates")
 	})
 
 	it('should demonstrate tree structures with a parent affecting multiple children (A → B, A → C)', (): void => {
@@ -227,7 +223,7 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 			totalUpdateCount++
 		})
 
-		effect(() => {
+		effect((): void => {
 			childC()
 			cUpdateCount++
 			totalUpdateCount++
@@ -260,9 +256,9 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		assert.strictEqual(childC(), 20)
 
 		// For analysis
-		console.log(`Tree structure test - B updates: ${bUpdateCount}, C updates: ${cUpdateCount}`)
-		console.log(`Final values - A: ${parent()}, B: ${childB()}, C: ${childC()}`)
-		console.log(`Value history:`, valueHistory)
+		console.debug(`Tree structure test - B updates: ${bUpdateCount}, C updates: ${cUpdateCount}`)
+		console.debug(`Final values - A: ${parent()}, B: ${childB()}, C: ${childC()}`)
+		console.debug('Value history:', valueHistory)
 	})
 
 	it('should handle linked leaves within a tree (A → B, A → C, B → D, D → A)', (): void => {
@@ -279,14 +275,14 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		}> = []
 
 		// Create derived values with complex dependencies
-		const b = derived(() => a() * 2)
-		const c = derived(() => a() + 10) // Simple dependence on A
+		const b = derived((): number => a() * 2)
+		const c = derived((): number => a() + 10) // Simple dependence on A
 
 		// D depends on B, creating a potential cycle
-		const d = derived(() => b() + 5)
+		const d = derived((): number => b() + 5)
 
 		// Monitor values for analysis
-		effect(() => {
+		effect((): void => {
 			if (valueHistory.length < 10) {
 				valueHistory.push({
 					a: a(),
@@ -298,7 +294,7 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		})
 
 		// Create cycle by making A depend on D
-		effect(() => {
+		effect((): void => {
 			const newValue = d() / 10
 			// Only update if there's an actual change to break potential infinite loops
 			if (newValue !== a()) {
@@ -318,15 +314,15 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		const initialD = d()
 
 		// Log initial values for analysis
-		console.log(`Initial values - A: ${initialA}, B: ${initialB}, C: ${initialC}, D: ${initialD}`)
+		console.debug(`Initial values - A: ${initialA}, B: ${initialB}, C: ${initialC}, D: ${initialD}`)
 
 		// Trigger the cycle
 		a.set(8)
 
 		// Check results
-		console.log(`Complex tree-cycle - Updates: ${updateCount}`)
-		console.log(`Final values - A: ${a()}, B: ${b()}, C: ${c()}, D: ${d()}`)
-		console.log(`Value history (first ${valueHistory.length}):`, valueHistory)
+		console.debug(`Complex tree-cycle - Updates: ${updateCount}`)
+		console.debug(`Final values - A: ${a()}, B: ${b()}, C: ${c()}, D: ${d()}`)
+		console.debug(`Value history (first ${valueHistory.length}):`, valueHistory)
 
 		// Check values are finite
 		assert.ok(Number.isFinite(a()), `A should have a finite value, got ${a()}`)
@@ -335,10 +331,19 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		assert.ok(Number.isFinite(d()), `D should have a finite value, got ${d()}`)
 
 		// Report stability
-		console.log(updateCount < 100 ? '✓ System eventually stabilized' : "! System didn't stabilize within 100 updates")
+		console.debug(updateCount < 100 ? '✓ System eventually stabilized' : "! System didn't stabilize within 100 updates")
 	})
 
 	it('should analyze convergence behavior in cyclic dependencies', (): void => {
+		type MultiplicationFactor = {
+			factor: number
+			totalUpdates: number
+			aStartValues: number[]
+			bStartValues: number[]
+			aFinal: number
+			bFinal: number
+			converged: boolean
+		}
 		// Create a cycle where values can either:
 		// 1. Converge to a stable value
 		// 2. Oscillate between multiple values
@@ -347,10 +352,8 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		// This test demonstrates different behaviors with multiplication factors
 
 		// Test a few different factors to demonstrate
-		const factors = [0.5, 0.9, 1.0, 1.1, 2.0]
-
-		// Record results for each factor
-		const results = factors.map((factor) => {
+		const factors = [0.5, 0.9, 1.0, 1.1, 2.0] // Record results for each factor// : { factor: number, totalUpdates: number, aStartValues: number[], bStartValues: number[], aFinal: number, bFinal: number, converged: boolean }
+		const results = factors.map((factor: number): MultiplicationFactor => {
 			// Create signals
 			const a = state(1)
 			const b = state(10)
@@ -363,17 +366,21 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 			let totalUpdates = 0
 
 			// Create the cycle
-			effect(() => {
+			effect((): void => {
 				const aVal = a()
 				b.set(aVal * factor)
-				if (aValues.length < 10) aValues.push(aVal)
+				if (aValues.length < 10) {
+					aValues.push(aVal)
+				}
 				totalUpdates++
 			})
 
-			effect(() => {
+			effect((): void => {
 				const bVal = b()
 				a.set(bVal)
-				if (bValues.length < 10) bValues.push(bVal)
+				if (bValues.length < 10) {
+					bValues.push(bVal)
+				}
 				totalUpdates++
 			})
 
@@ -398,14 +405,14 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 		})
 
 		// Log results
-		console.log('\nCycle convergence analysis:')
-		results.forEach((result) => {
-			console.log(`\nFactor: ${result.factor}`)
-			console.log(`Converged: ${result.converged ? 'Yes' : 'No'} (${result.totalUpdates} updates)`)
-			console.log(`Final values: a=${result.aFinal}, b=${result.bFinal}`)
-			console.log(`First 10 a values: ${result.aStartValues.join(', ')}`)
-			console.log(`First 10 b values: ${result.bStartValues.join(', ')}`)
-		})
+		console.debug('\nCycle convergence analysis:')
+		for (const result of results) {
+			console.debug(`\nFactor: ${result.factor}`)
+			console.debug(`Converged: ${result.converged ? 'Yes' : 'No'} (${result.totalUpdates} updates)`)
+			console.debug(`Final values: a=${result.aFinal}, b=${result.bFinal}`)
+			console.debug(`First 10 a values: ${result.aStartValues.join(', ')}`)
+			console.debug(`First 10 b values: ${result.bStartValues.join(', ')}`)
+		}
 
 		// We should see that:
 		// 1. Factors < 1 will converge to zero
@@ -414,7 +421,7 @@ describe('Cyclic Dependencies', { concurrency: true }, (): void => {
 
 		// Make sure at least some tests converged
 		assert.ok(
-			results.some((r) => r.converged),
+			results.some((r: MultiplicationFactor): boolean => r.converged),
 			'At least some factor values should converge'
 		)
 	})

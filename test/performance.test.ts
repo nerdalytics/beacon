@@ -26,8 +26,8 @@ describe('Performance', { concurrency: true }, (): void => {
 
 		const elapsed = end - start
 		const opsPerSecond = Math.floor((ITERATIONS / elapsed) * 1000)
-		console.log(`\nCreating ${formatNumber(ITERATIONS)} signals: ${elapsed.toFixed(2)}ms`)
-		console.log(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
+		console.debug(`\nCreating ${formatNumber(ITERATIONS)} signals: ${elapsed.toFixed(2)}ms`)
+		console.debug(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
 	})
 
 	it('should measure read performance', (): void => {
@@ -42,8 +42,8 @@ describe('Performance', { concurrency: true }, (): void => {
 
 		const elapsed = end - start
 		const opsPerSecond = Math.floor((ITERATIONS / elapsed) * 1000)
-		console.log(`\nReading signal ${formatNumber(ITERATIONS)} times: ${elapsed.toFixed(2)}ms`)
-		console.log(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
+		console.debug(`\nReading signal ${formatNumber(ITERATIONS)} times: ${elapsed.toFixed(2)}ms`)
+		console.debug(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
 	})
 
 	it('should measure write performance', (): void => {
@@ -58,8 +58,8 @@ describe('Performance', { concurrency: true }, (): void => {
 
 		const elapsed = end - start
 		const opsPerSecond = Math.floor((ITERATIONS / elapsed) * 1000)
-		console.log(`\nSetting signal ${formatNumber(ITERATIONS)} times: ${elapsed.toFixed(2)}ms`)
-		console.log(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
+		console.debug(`\nSetting signal ${formatNumber(ITERATIONS)} times: ${elapsed.toFixed(2)}ms`)
+		console.debug(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
 	})
 
 	it('should measure derived signal performance', (): void => {
@@ -76,8 +76,8 @@ describe('Performance', { concurrency: true }, (): void => {
 
 		const elapsed = end - start
 		const opsPerSecond = Math.floor((ITERATIONS / elapsed) * 1000)
-		console.log(`\nDerived signal with ${formatNumber(ITERATIONS)} updates: ${elapsed.toFixed(2)}ms`)
-		console.log(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
+		console.debug(`\nDerived signal with ${formatNumber(ITERATIONS)} updates: ${elapsed.toFixed(2)}ms`)
+		console.debug(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
 	})
 
 	it('should measure effect performance', (): void => {
@@ -103,9 +103,9 @@ describe('Performance', { concurrency: true }, (): void => {
 
 		const elapsed = end - start
 		const opsPerSecond = Math.floor((ITERATIONS / elapsed) * 1000)
-		console.log(`\nEffect with ${formatNumber(ITERATIONS)} triggers: ${elapsed.toFixed(2)}ms`)
-		console.log(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
-		console.log(`Effect ran ${formatNumber(effectRuns)} times`)
+		console.debug(`\nEffect with ${formatNumber(ITERATIONS)} triggers: ${elapsed.toFixed(2)}ms`)
+		console.debug(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
+		console.debug(`Effect ran ${formatNumber(effectRuns)} times`)
 	})
 
 	it('should measure batch performance', (): void => {
@@ -137,10 +137,10 @@ describe('Performance', { concurrency: true }, (): void => {
 		const elapsed = end - start
 		const totalOps = ITERATIONS * BATCH_SIZE
 		const opsPerSecond = Math.floor((totalOps / elapsed) * 1000)
-		console.log(`\nBatch with ${formatNumber(ITERATIONS)} batches of ${BATCH_SIZE} updates: ${elapsed.toFixed(2)}ms`)
-		console.log(`Total operations: ${formatNumber(totalOps)}`)
-		console.log(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
-		console.log(
+		console.debug(`\nBatch with ${formatNumber(ITERATIONS)} batches of ${BATCH_SIZE} updates: ${elapsed.toFixed(2)}ms`)
+		console.debug(`Total operations: ${formatNumber(totalOps)}`)
+		console.debug(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
+		console.debug(
 			`Effect ran ${formatNumber(effectRuns)} times (${((effectRuns / ITERATIONS) * 100).toFixed(2)}% of batches)`
 		)
 	})
@@ -188,9 +188,11 @@ describe('Performance', { concurrency: true }, (): void => {
 		const elapsed = end - start
 		const totalUpdates = ITERATIONS * COUNT
 		const opsPerSecond = Math.floor((totalUpdates / elapsed) * 1000)
-		console.log(`\nHandling ${COUNT} dependencies with ${formatNumber(ITERATIONS)} iterations: ${elapsed.toFixed(2)}ms`)
-		console.log(`Total updates: ${formatNumber(totalUpdates)}`)
-		console.log(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
+		console.debug(
+			`\nHandling ${COUNT} dependencies with ${formatNumber(ITERATIONS)} iterations: ${elapsed.toFixed(2)}ms`
+		)
+		console.debug(`Total updates: ${formatNumber(totalUpdates)}`)
+		console.debug(`Operations per second: ${formatNumber(opsPerSecond)}/s`)
 	})
 
 	it('should compare batch vs. unbatched updates', (): void => {
@@ -254,15 +256,15 @@ describe('Performance', { concurrency: true }, (): void => {
 		const batchedOps = ((UPDATES * SIGNAL_COUNT) / batchedElapsed) * 1000
 		const unbatchedOps = ((UPDATES * SIGNAL_COUNT) / unbatchedElapsed) * 1000
 
-		console.log(`\nBatch vs. Unbatched comparison (${SIGNAL_COUNT} signals, ${formatNumber(UPDATES)} iterations):`)
-		console.log(
+		console.debug(`\nBatch vs. Unbatched comparison (${SIGNAL_COUNT} signals, ${formatNumber(UPDATES)} iterations):`)
+		console.debug(
 			`Batched: ${batchedElapsed.toFixed(2)}ms, ${formatNumber(Math.floor(batchedOps))}/s, effect runs: ${formatNumber(batchedEffectCount)}`
 		)
-		console.log(
+		console.debug(
 			`Unbatched: ${unbatchedElapsed.toFixed(2)}ms, ${formatNumber(Math.floor(unbatchedOps))}/s, effect runs: ${formatNumber(unbatchedEffectCount)}`
 		)
-		console.log(`Performance ratio: ${(unbatchedElapsed / batchedElapsed).toFixed(2)}x faster with batching`)
-		console.log(`Effect runs ratio: ${(unbatchedEffectCount / batchedEffectCount).toFixed(2)}x fewer with batching`)
+		console.debug(`Performance ratio: ${(unbatchedElapsed / batchedElapsed).toFixed(2)}x faster with batching`)
+		console.debug(`Effect runs ratio: ${(unbatchedEffectCount / batchedEffectCount).toFixed(2)}x fewer with batching`)
 	})
 })
 

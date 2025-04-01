@@ -74,7 +74,7 @@ describe('Batch', { concurrency: true }, (): void => {
 				count.set(1) // Should queue an effect
 				throw new Error('Deliberate test error')
 			})
-		} catch (e) {
+		} catch {
 			errorWasThrown = true
 		}
 

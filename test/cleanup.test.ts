@@ -17,7 +17,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 		const executionLog: number[] = []
 
 		// Create an effect that depends on the counter
-		const unsubscribe = effect(() => {
+		const unsubscribe = effect((): void => {
 			executionLog.push(counter())
 		})
 
@@ -50,7 +50,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 		const log: string[] = []
 
 		// Create an effect that depends on both states
-		const unsubscribe = effect(() => {
+		const unsubscribe = effect((): void => {
 			log.push(`${a()}-${b()}`)
 		})
 
@@ -83,7 +83,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 		const multiplier = state(2)
 
 		// Create derived with internal effect that depends on both states
-		const product = derived(() => counter() * multiplier())
+		const product = derived((): number => counter() * multiplier())
 
 		// Verify initial value
 		assert.strictEqual(product(), 2)
@@ -97,7 +97,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 
 		// Keep track of effect executions for a separate effect
 		const effectLog: number[] = []
-		const effectUnsubscribe = effect(() => {
+		const effectUnsubscribe = effect((): void => {
 			effectLog.push(product())
 		})
 
@@ -141,7 +141,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 
 		// Track effect execution on the final derived value
 		const log: number[] = []
-		const unsubscribe = effect(() => {
+		const unsubscribe = effect((): void => {
 			log.push(d())
 		})
 
@@ -183,15 +183,15 @@ describe('Cleanup', { concurrency: true }, (): void => {
 		const logBoth: string[] = []
 
 		// Create three separate effects with different dependencies
-		const unsubscribeA = effect(() => {
+		const unsubscribeA = effect((): void => {
 			logA.push(a())
 		})
 
-		const unsubscribeB = effect(() => {
+		const unsubscribeB = effect((): void => {
 			logB.push(b())
 		})
 
-		const unsubscribeBoth = effect(() => {
+		const unsubscribeBoth = effect((): void => {
 			logBoth.push(`${a()}-${b()}`)
 		})
 
@@ -247,7 +247,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 	it('should handle cleanup while an update is in progress', (): void => {
 		// Set up state and derived signals
 		const a = state(1)
-		const b = derived(() => a() * 2)
+		const b = derived((): number => a() * 2)
 
 		// Flag to control effect behavior
 		let shouldCleanup = false
@@ -259,7 +259,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 		// Create an effect that reads b and potentially calls its own cleanup
 		let unsubscribe: (() => void) | null = null
 
-		unsubscribe = effect(() => {
+		unsubscribe = effect((): void => {
 			const value = b()
 			log.push(value)
 
