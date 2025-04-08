@@ -1,0 +1,89 @@
+[
+  {
+    "date": "2025-04-08T22:53:42.772Z",
+    "commitHash": "f212ed9",
+    "metrics": [
+      {
+        "name": "Signal Creation",
+        "value": 13785290,
+        "unit": "ops/sec",
+        "category": "Core",
+        "description": "Creating new state signals"
+      },
+      {
+        "name": "Signal Reading",
+        "value": 272262792,
+        "unit": "ops/sec",
+        "category": "Core",
+        "description": "Reading signal values"
+      },
+      {
+        "name": "Signal Writing",
+        "value": 138598217,
+        "unit": "ops/sec",
+        "category": "Core",
+        "description": "Setting signal values"
+      },
+      {
+        "name": "Derived Signals",
+        "value": 1743313,
+        "unit": "ops/sec",
+        "category": "Core",
+        "description": "Updates with derived values"
+      },
+      {
+        "name": "Effect Triggers",
+        "value": 1847820,
+        "unit": "ops/sec",
+        "category": "Core",
+        "description": "Effects running on state changes"
+      },
+      {
+        "name": "Update 100 States Individually",
+        "value": 66949,
+        "unit": "ops/sec",
+        "category": "Batching",
+        "description": "Updating multiple signals without batching"
+      },
+      {
+        "name": "Update 100 States with Batching",
+        "value": 4690532,
+        "unit": "ops/sec",
+        "category": "Batching",
+        "description": "Updating multiple signals in batches"
+      },
+      {
+        "name": "Deep Dependency Chain",
+        "value": 1629168,
+        "unit": "ops/sec",
+        "category": "Advanced",
+        "description": "Chain of 10 derived signals"
+      },
+      {
+        "name": "Many Dependencies",
+        "value": 4624801,
+        "unit": "ops/sec",
+        "category": "Advanced",
+        "description": "100 dependencies, 100 iterations"
+      },
+      {
+        "name": "Batch Performance Ratio",
+        "value": 70.06127051935054,
+        "unit": "x",
+        "category": "Comparison",
+        "description": "Speed improvement with batching vs. individual updates"
+      },
+      {
+        "name": "Batch Effect Reduction",
+        "value": 99.0909090909091,
+        "unit": "x",
+        "category": "Comparison",
+        "description": "Reduction in effect runs with batching"
+      }
+    ],
+    "runInfo": {
+      "runs": 5,
+      "statisticMethod": "median"
+    }
+  }
+]
