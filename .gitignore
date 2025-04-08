@@ -13,7 +13,11 @@ dist/
 lcov.info
 
 # Performance history
-performance-history.json
+metrics/*
+!metrics/performance-history.json
+
+# npm publich
+nerdalytics-beacon-*.tgz
 
 # Environment
 .env
