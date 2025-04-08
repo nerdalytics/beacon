@@ -4,15 +4,9 @@ import { state, effect, batch } from '../src/index.ts'
 
 /**
  * Unit tests for the batch functionality.
- *
- * This file contains unit tests for the batch primitive, testing:
- * - Batching multiple updates
- * - Nested batch handling
- * - Error handling within batches
- * - Multi-signal batch updates
  */
-describe('Batch', { concurrency: true }, (): void => {
-	it('should batch updates', async (): Promise<void> => {
+describe('Batch', { concurrency: true, timeout: 1000 }, (): void => {
+	it('should batch updates', (): void => {
 		const results: number[] = []
 		const count = state(0)
 
@@ -31,7 +25,7 @@ describe('Batch', { concurrency: true }, (): void => {
 		assert.deepStrictEqual(results, [0, 3]) // Effect runs once after batch
 	})
 
-	it('should handle nested batches', async (): Promise<void> => {
+	it('should handle nested batches', (): void => {
 		const results: number[] = []
 		const count = state(0)
 
@@ -54,46 +48,7 @@ describe('Batch', { concurrency: true }, (): void => {
 		assert.deepStrictEqual(results, [0, 3]) // Effect runs once at the end
 	})
 
-	it('should clear pending effects on error', async (): Promise<void> => {
-		let effectCounter = 0
-		const count = state(0)
-
-		// Create an effect that just increments a counter when run
-		effect((): void => {
-			effectCounter++
-			count() // Just read to establish dependency
-		})
-
-		// Reset counter after initial run
-		effectCounter = 0
-
-		// Trigger a batch with an error
-		let errorWasThrown = false
-		try {
-			batch((): never => {
-				count.set(1) // Should queue an effect
-				throw new Error('Deliberate test error')
-			})
-		} catch {
-			errorWasThrown = true
-		}
-
-		// Verify the error was thrown
-		assert.strictEqual(errorWasThrown, true)
-
-		// Verify no effects ran (they should have been cleared)
-		assert.strictEqual(effectCounter, 0)
-
-		// Verify normal updates still work
-		count.set(2)
-
-		// Wait for asynchronous updates
-		await new Promise((resolve: (value: unknown) => void): NodeJS.Timeout => setTimeout(resolve, 50))
-
-		assert.strictEqual(effectCounter, 1)
-	})
-
-	it('should batch updates for multiple signals', async (): Promise<void> => {
+	it('should batch updates for multiple signals', (): void => {
 		const log: string[] = []
 		const a = state(1)
 		const b = state(2)
@@ -113,5 +68,244 @@ describe('Batch', { concurrency: true }, (): void => {
 
 		// Effect should run only once with final values
 		assert.deepStrictEqual(log, ['a: 1, b: 2', 'a: 100, b: 200'])
+	})
+
+	it('should return the value from the callback function', (): void => {
+		const result = batch((): string => {
+			return 'test-result'
+		})
+
+		assert.strictEqual(result, 'test-result')
+	})
+
+	it('should handle batch with no updates', (): void => {
+		const results: number[] = []
+		const count = state(0)
+
+		effect((): void => {
+			results.push(count())
+		})
+
+		batch((): void => {
+			// No updates to any state
+			const _value = count() // Just reading
+		})
+
+		// Effect should not re-run since no state was changed
+		assert.deepStrictEqual(results, [0])
+	})
+
+	it('should handle multiple separate batches', (): void => {
+		const results: number[] = []
+		const count = state(0)
+
+		effect((): void => {
+			results.push(count())
+		})
+
+		batch((): void => {
+			count.set(1)
+		})
+
+		assert.deepStrictEqual(results, [0, 1])
+
+		batch((): void => {
+			count.set(2)
+			count.set(3)
+		})
+
+		assert.deepStrictEqual(results, [0, 1, 3])
+	})
+
+	it('should maintain order of effects when batching', (): void => {
+		const log: string[] = []
+		const a = state(0)
+		const b = state(0)
+
+		// First effect
+		effect((): void => {
+			log.push(`A: ${a()}`)
+		})
+
+		// Second effect
+		effect((): void => {
+			log.push(`B: ${b()}`)
+		})
+
+		// Both signals in one batch
+		batch((): void => {
+			a.set(1)
+			b.set(1)
+		})
+
+		// Effects should run in creation order
+		assert.deepStrictEqual(log, ['A: 0', 'B: 0', 'A: 1', 'B: 1'])
+	})
+
+	it('should maintain proper batching with shared dependencies', (): void => {
+		const log: string[] = []
+		const a = state(0)
+		const b = state(0)
+
+		// First effect depends on a only
+		effect((): void => {
+			log.push(`A: ${a()}`)
+		})
+
+		// Second effect depends on both a and b
+		effect((): void => {
+			log.push(`A+B: ${a() + b()}`)
+		})
+
+		// Both signals in one batch
+		batch((): void => {
+			a.set(1)
+			b.set(1)
+		})
+
+		// Both effects run once after batch completes
+		assert.deepStrictEqual(log, ['A: 0', 'A+B: 0', 'A: 1', 'A+B: 2'])
+	})
+
+	it('should define clear behavior for effects created inside batches', (): void => {
+		const immediateResults: number[] = []
+		const batchResults: number[] = []
+		const count = state(0)
+
+		// Create an effect outside batch
+		effect((): void => {
+			immediateResults.push(count())
+		})
+
+		assert.deepStrictEqual(immediateResults, [0], 'Effects outside batch should run immediately')
+
+		batch((): void => {
+			// Create an effect inside batch
+			effect((): void => {
+				batchResults.push(count())
+			})
+
+			count.set(1)
+		})
+
+		// Verify the effect created inside batch runs with final state value
+		assert.deepStrictEqual(batchResults, [1], 'Effects inside batch should run after batch with final values')
+	})
+
+	it('should propagate errors from batch callbacks and prevent effects', (): void => {
+		const results: number[] = []
+		const count = state(0)
+
+		effect((): void => {
+			results.push(count())
+		})
+
+		assert.throws(
+			(): void => {
+				batch((): never => {
+					count.set(1)
+					throw new Error('Batch error')
+				})
+			},
+			{
+				name: 'Error',
+				message: 'Batch error',
+			}
+		)
+
+		// Verify effects didn't run when batch failed
+		assert.deepStrictEqual(results, [0])
+
+		// Verify system still works after error
+		count.set(2)
+		assert.deepStrictEqual(results, [0, 2])
+	})
+
+	it('should handle errors in effects created during a batch', (): void => {
+		const results: number[] = []
+		const count = state(0)
+
+		// Setup initial effect and state
+		effect((): void => {
+			results.push(count())
+		})
+
+		assert.deepStrictEqual(results, [0])
+
+		// Error in an effect created inside a batch
+		assert.throws(
+			() => {
+				batch((): void => {
+					count.set(1)
+
+					// Effect that throws on initial run
+					effect((): void => {
+						throw new Error('Effect error')
+					})
+				})
+			},
+			{
+				name: 'Error',
+				message: 'Effect error',
+			}
+		)
+
+		// Original effect didn't run because the error interrupted processing
+		assert.deepStrictEqual(results, [0])
+
+		// System still works after error recovery
+		count.set(2)
+		assert.deepStrictEqual(results, [0, 2])
+	})
+
+	it('should maintain reactivity after recovering from errors', (): void => {
+		const results: number[] = []
+		const count = state(0)
+
+		effect((): void => {
+			results.push(count())
+		})
+
+		// First batch with error
+		try {
+			batch((): void => {
+				count.set(1)
+				throw new Error('First batch error')
+			})
+		} catch {
+			// Ignore error
+		}
+
+		// Second batch should work normally
+		batch((): void => {
+			count.set(2)
+			count.set(3)
+		})
+
+		// Verify system still works after error recovery
+		assert.deepStrictEqual(results, [0, 3])
+	})
+
+	it('should correctly apply a sequence of update transformations in a batch', (): void => {
+		// Arrange
+		const counter = state(0)
+		const values: number[] = []
+
+		effect((): void => {
+			values.push(counter())
+		})
+
+		values.length = 0 // Reset after initial run
+
+		// Act - multiple updates in a batch should only trigger effects once
+		batch((): void => {
+			counter.update((c): number => c + 1)
+			counter.update((c): number => c * 2)
+			counter.update((c): number => c + 10)
+		})
+
+		// Assert
+		assert.strictEqual(counter(), 12) // (0+1)*2+10 = 12
+		assert.deepStrictEqual(values, [12]) // Effect should run only once with final value
 	})
 })

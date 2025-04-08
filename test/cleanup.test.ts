@@ -1,14 +1,11 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, effect, derived } from '../src/index.ts'
+import { state, effect, derive, batch } from '../src/index.ts'
 
 /**
  * Tests for cleanup/unsubscribe behavior.
- *
- * These tests verify how the library handles state changes after
- * an effect has been cleaned up (unsubscribed).
  */
-describe('Cleanup', { concurrency: true }, (): void => {
+describe('Cleanup', { concurrency: true, timeout: 1000 }, (): void => {
 	it('should stop running effects after cleanup', (): void => {
 		// Set up initial state
 		const counter = state(1)
@@ -83,7 +80,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 		const multiplier = state(2)
 
 		// Create derived with internal effect that depends on both states
-		const product = derived((): number => counter() * multiplier())
+		const product = derive((): number => counter() * multiplier())
 
 		// Verify initial value
 		assert.strictEqual(product(), 2)
@@ -129,9 +126,9 @@ describe('Cleanup', { concurrency: true }, (): void => {
 	it('should handle complex dependency chains after cleanup', (): void => {
 		// Set up a chain: a -> b -> c -> d
 		const a = state(1)
-		const b = derived(() => a() * 2)
-		const c = derived(() => b() + 3)
-		const d = derived(() => c() * 2)
+		const b = derive((): number => a() * 2)
+		const c = derive((): number => b() + 3)
+		const d = derive((): number => c() * 2)
 
 		// Initial values
 		assert.strictEqual(a(), 1)
@@ -247,7 +244,7 @@ describe('Cleanup', { concurrency: true }, (): void => {
 	it('should handle cleanup while an update is in progress', (): void => {
 		// Set up state and derived signals
 		const a = state(1)
-		const b = derived((): number => a() * 2)
+		const b = derive((): number => a() * 2)
 
 		// Flag to control effect behavior
 		let shouldCleanup = false
@@ -290,5 +287,133 @@ describe('Cleanup', { concurrency: true }, (): void => {
 		// Further updates should not trigger the effect
 		a.set(4)
 		assert.deepStrictEqual(log, [2, 4, 6])
+	})
+
+	it('should handle multiple unsubscribe calls safely', (): void => {
+		// Set up state
+		const counter = state(0)
+
+		// Track executions
+		const log: number[] = []
+
+		// Create effect
+		const unsubscribe = effect((): void => {
+			log.push(counter())
+		})
+
+		// Initial execution
+		assert.deepStrictEqual(log, [0])
+
+		// Update state
+		counter.set(1)
+		assert.deepStrictEqual(log, [0, 1])
+
+		// Call unsubscribe
+		unsubscribe()
+
+		// First unsubscribe works
+		counter.set(2)
+		assert.deepStrictEqual(log, [0, 1], 'Effect should not run after first unsubscribe')
+
+		// Call unsubscribe again - should be safe
+		unsubscribe() // Second call
+		unsubscribe() // Third call
+
+		// Effect should still be unsubscribed
+		counter.set(3)
+		assert.deepStrictEqual(log, [0, 1], 'Multiple unsubscribe calls should not cause errors')
+	})
+
+	it('should cleanup child effects when parent effect is unsubscribed', (): void => {
+		// Set up state
+		const a = state(0)
+		const b = state(10)
+
+		// Track executions
+		const parentLog: number[] = []
+		const childLog: string[] = []
+
+		// Create parent effect that creates a child effect
+		const parentUnsubscribe = effect((): void => {
+			parentLog.push(a())
+
+			// Create child effect inside parent
+			// Each time parent runs, it creates a new child effect
+			effect((): void => {
+				childLog.push(`${a()}-${b()}`)
+			})
+		})
+
+		// Initial execution
+		assert.deepStrictEqual(parentLog, [0])
+		assert.deepStrictEqual(childLog, ['0-10'])
+
+		// Change a - parent reruns and creates another child
+		a.set(1)
+		assert.deepStrictEqual(parentLog, [0, 1])
+		assert.ok(childLog.includes('1-10'), 'Child effect should run with updated a value')
+
+		// Change b - child effect(s) should update
+		b.set(20)
+		assert.ok(childLog.includes('1-20'), 'Child effect should run with updated b value')
+
+		// Record log lengths before unsubscribing parent
+		const parentLogLength = parentLog.length
+		const childLogLength = childLog.length
+
+		// Unsubscribe parent - this should clean up all child effects too
+		parentUnsubscribe()
+
+		// Update states
+		a.set(2)
+		b.set(30)
+
+		// No new parent logs (parent was unsubscribed)
+		assert.strictEqual(parentLog.length, parentLogLength, 'Parent effect should be cleaned up')
+
+		// No new child logs (children should be cleaned up when parent is unsubscribed)
+		assert.strictEqual(
+			childLog.length,
+			childLogLength,
+			'Child effects should be automatically cleaned up when parent is unsubscribed'
+		)
+	})
+
+	it('should handle cleanup with batched updates', (): void => {
+		// Set up state
+		const a = state(0)
+		const b = state(10)
+
+		// Track executions
+		const log: string[] = []
+
+		// Create effect
+		const unsubscribe = effect((): void => {
+			log.push(`${a()}-${b()}`)
+		})
+
+		// Initial execution
+		assert.deepStrictEqual(log, ['0-10'])
+
+		// Batch update without cleanup
+		batch((): void => {
+			a.set(1)
+			b.set(20)
+		})
+
+		// Effect should run once after batch
+		assert.deepStrictEqual(log, ['0-10', '1-20'])
+
+		// Cleanup effect
+		unsubscribe()
+
+		// Batch update after cleanup
+		batch((): void => {
+			a.set(2)
+			b.set(30)
+		})
+
+		// Effect should not run after cleanup
+		assert.deepStrictEqual(log, ['0-10', '1-20'], 'Effect should not run after cleanup, even with batched updates')
 	})
 })
