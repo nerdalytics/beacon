@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg fill="none" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<clipPath id="ad" class="frame-clip frame-clip-def">
+<rect width="128" height="128" rx="0" ry="0"/>
+</clipPath>
+<linearGradient id="ae" x1=".5" x2=".5" y2="1">
+<stop stop-color="#020231" offset="0"/>
+<stop stop-color="#020231" stop-opacity=".25" offset="1"/>
+</linearGradient>
+<pattern id="ac" width="128" height="128" patternUnits="userSpaceOnUse">
+<rect width="128" height="128" fill="url(#ae)"/>
+</pattern>
+</defs>
+<g clip-path="url(#ad)">
+<g class="fills">
+<rect class="frame-background" width="128" height="128" rx="0" ry="0" fill="url(#ac)"/>
+</g>
+<g class="frame-children">
+<g clip-path="url(#ab)" mask="url(#aa)" style="mix-blend-mode:screen">
+<defs>
+<filter id="z">
+<feFlood flood-color="#fff" result="FloodResult"/>
+<feComposite in="FloodResult" in2="SourceGraphic" operator="in" result="comp"/>
+</filter>
+<clipPath id="ab" class="mask-clip-path">
+<polyline points="0 -1.4211e-14 128 -1.4211e-14 128 128 0 128"/>
+</clipPath>
+<mask id="aa" class="mask-shape" x="0" y="0" width="128" height="128" data-old-height="128" data-old-width="128" data-old-x="0" data-old-y="0" maskUnits="userSpaceOnUse">
+<g filter="url(#z)">
+<g style="mix-blend-mode:screen">
+<path class="fills" d="m0-0h128v128h-128v-128z" fill="#fff"/>
+</g>
+</g>
+</mask>
+</defs>
+<defs>
+<filter id="y" x="-.784" y="-.853" width="2.892" height="3.059" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+<feOffset dx="4" dy="4"/>
+<feGaussianBlur stdDeviation="2"/>
+<feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0"/>
+<feBlend in2="BackgroundImageFix" result="filter_364ca7a6-794c-8070-8005-f895fe5eef24"/>
+<feBlend in="SourceGraphic" in2="filter_364ca7a6-794c-8070-8005-f895fe5eef24" result="shape"/>
+</filter>
+<linearGradient id="j" x1=".5" x2=".5" y2="1">
+<stop stop-color="#e1b632" stop-opacity=".33" offset="0"/>
+<stop stop-color="#d1b70f" offset="1"/>
+</linearGradient>
+<pattern id="x" x="47" y="16" width="37" height="34" patternUnits="userSpaceOnUse">
+<rect width="37" height="34" fill="url(#j)"/>
+</pattern>
+</defs>
+<path class="fills" d="m63 16h5a16 16 0 0 1 16 16v18h-37v-18a16 16 0 0 1 16-16z" fill="url(#x)" filter="url(#y)"/>
+<g class="strokes">
+<g class="outer-stroke-shape">
+<defs>
+<mask id="w" x="45.586" y="14.586" width="39.828" height="36.828" maskUnits="userSpaceOnUse">
+<use fill="none" stroke="white" stroke-width="2" href="#j"/>
+<use fill="black" href="#j"/>
+</mask>
+</defs>
+<use fill="none" mask="url(#w)" stroke="url(#j)" stroke-width="2" href="#j"/>
+<use fill="none" href="#j"/>
+</g>
+</g>
+<defs>
+<filter id="v" x="-1.688" y="-.719" width="5.125" height="2.757" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+<feOffset dx="4" dy="4"/>
+<feGaussianBlur stdDeviation="2"/>
+<feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0"/>
+<feBlend in2="BackgroundImageFix" result="filter_364ca7a6-794c-8070-8005-f895fe5eef24"/>
+<feBlend in="SourceGraphic" in2="filter_364ca7a6-794c-8070-8005-f895fe5eef24" result="shape"/>
+</filter>
+<pattern id="u" x="57.317" y="43.371" width="16" height="37.567" patternUnits="userSpaceOnUse">
+<rect width="16" height="37.567" fill="url(#j)"/>
+</pattern>
+</defs>
+<path class="fills" transform="matrix(-0 1 -1 0 127.47 -3.1628)" d="m63.317 43.371h9a1 1 0 0 1 1 1v36.567h-14a2 2 0 0 1-2-2v-29.567a6 6 0 0 1 6-6z" fill="url(#u)" filter="url(#v)"/>
+<g class="strokes">
+<g class="inner-stroke-shape" transform="matrix(-0 1 -1 0 127.47 -3.1628)">
+<defs>
+<clipPath id="t">
+<use href="#p"/>
+</clipPath>
+</defs>
+<use clip-path="url(#t)" href="#p"/>
+</g>
+</g>
+<defs>
+<filter id="s" x="-1.688" y="-.719" width="5.125" height="2.757" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+<feOffset dx="4" dy="4"/>
+<feGaussianBlur stdDeviation="2"/>
+<feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0"/>
+<feBlend in2="BackgroundImageFix" result="filter_364ca7a6-794c-8070-8005-f895fe5eef24"/>
+<feBlend in="SourceGraphic" in2="filter_364ca7a6-794c-8070-8005-f895fe5eef24" result="shape"/>
+</filter>
+<pattern id="q" x="57.317" y="63.063" width="16" height="37.567" patternUnits="userSpaceOnUse">
+<rect width="16" height="37.567" fill="url(#j)"/>
+</pattern>
+</defs>
+<path class="fills" transform="matrix(0 1 -1 0 147.16 16.529)" d="m58.317 63.063h9a6 6 0 0 1 6 6v29.567a2 2 0 0 1-2 2h-14v-36.567a1 1 0 0 1 1-1z" fill="url(#q)" filter="url(#s)"/>
+<g class="strokes">
+<g class="inner-stroke-shape" transform="matrix(0 1 -1 0 147.16 16.529)">
+<defs>
+<clipPath id="p">
+<use href="#v"/>
+</clipPath>
+</defs>
+<use clip-path="url(#p)" href="#v"/>
+</g>
+</g>
+<defs>
+<filter id="an" x="-.551" y="-1.463" width="2.347" height="4.575" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0"/>
+<feOffset dx="4" dy="4"/>
+<feGaussianBlur stdDeviation="2"/>
+<feColorMatrix values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.2 0"/>
+<feBlend in2="BackgroundImageFix" result="filter_364ca7a6-794c-8070-8005-f895fe5eef24"/>
+<feBlend in="SourceGraphic" in2="filter_364ca7a6-794c-8070-8005-f895fe5eef24" result="shape"/>
+</filter>
+<pattern id="m" x="40" y="93.538" width="49" height="18.462" patternUnits="userSpaceOnUse">
+<rect width="49" height="18.462" fill="url(#j)"/>
+</pattern>
+</defs>
+<rect class="fills" x="40" y="93.538" width="49" height="18.462" rx="1" ry="1" fill="url(#m)" filter="url(#an)"/>
+<g class="strokes">
+<g class="inner-stroke-shape">
+<defs>
+<clipPath id="am">
+<use href="#B"/>
+</clipPath>
+</defs>
+<use clip-path="url(#am)" href="#B"/>
+</g>
+</g>
+</g>
+<g style="mix-blend-mode:exclusion">
+<defs>
+<filter id="al" x="-.063" y="-.205" width="1.125" height="1.41" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur result="filter_f530550b-fb8b-808b-8005-f89c9679ee08" stdDeviation="4"/>
+</filter>
+<linearGradient id="l" x1=".5" x2=".5" y2="1">
+<stop stop-color="#08257b" stop-opacity=".25" offset="0"/>
+<stop stop-color="#042178" stop-opacity=".75" offset="1"/>
+</linearGradient>
+<pattern id="ak" x="-27" y="101" width="128" height="39" patternUnits="userSpaceOnUse">
+<rect width="128" height="39" fill="url(#l)"/>
+</pattern>
+</defs>
+<ellipse class="fills" cx="37" cy="120.5" rx="64" ry="19.5" fill="url(#ak)" filter="url(#al)"/>
+</g>
+<g style="mix-blend-mode:exclusion">
+<defs>
+<filter id="ai" x="-.093" y="-.25" width="1.186" height="1.5" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur result="filter_f530550b-fb8b-808b-8005-f89ca0bc26b3" stdDeviation="4"/>
+</filter>
+<linearGradient id="aj" x1=".5" x2=".5" y2="1">
+<stop stop-color="#08257b" stop-opacity=".5" offset="0"/>
+<stop stop-color="#042178" stop-opacity=".75" offset="1"/>
+</linearGradient>
+<pattern id="ah" x="58" y="106" width="86" height="32" patternUnits="userSpaceOnUse">
+<rect width="86" height="32" fill="url(#aj)"/>
+</pattern>
+</defs>
+<ellipse class="fills" cx="101" cy="122" rx="43" ry="16" fill="url(#ah)" filter="url(#ai)"/>
+</g>
+<g style="mix-blend-mode:exclusion">
+<defs>
+<filter id="ag" x="-.065" y="-.114" width="1.129" height="1.229" color-interpolation-filters="sRGB">
+<feFlood flood-opacity="0" result="BackgroundImageFix"/>
+<feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
+<feGaussianBlur result="filter_f530550b-fb8b-808b-8005-f89c9c2118a2" stdDeviation="4"/>
+</filter>
+<pattern id="af" x="-26" y="104" width="124" height="70" patternUnits="userSpaceOnUse">
+<rect width="124" height="70" fill="url(#l)"/>
+</pattern>
+</defs>
+<ellipse class="fills" cx="36" cy="139" rx="62" ry="35" fill="url(#af)" filter="url(#ag)"/>
+</g>
+</g>
+</g>
+</svg>

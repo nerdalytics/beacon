@@ -1,7 +1,7 @@
 {
 	"name": "@nerdalytics/beacon",
 	"version": "1.0.0",
-	"description": "A lightweight reactive signal library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
+	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
