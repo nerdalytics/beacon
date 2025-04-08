@@ -10,7 +10,7 @@ import {} from /* import components */ '../src/index.ts'
  * - [FEATURE 2]
  * - [FEATURE 3]
  */
-describe('[COMPONENT NAME]', { concurrency: true }, (): void => {
+describe('[COMPONENT NAME]', { concurrency: true, timeout: 1000 }, (): void => {
 	it('should [EXPECTED BEHAVIOR]', (): void => {
 		// Arrange
 		// Act
