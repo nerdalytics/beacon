@@ -17,22 +17,21 @@
 	"scripts": {
 		"test": "node --test --experimental-config-file=node.config.json \"test/**/*.test.ts\"",
 		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
-		"test:unit": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^(State|Derived|Effect|Batch|Cleanup|Cyclic Dependencies|Selector)$/\"",
-		"test:unit:state": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^State$/\"",
-		"test:unit:update": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Update$/\"",
-		"test:unit:derived": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Derived$/\"",
-		"test:unit:effect": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Effect$/\"",
-		"test:unit:batch": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Batch$/\"",
-		"test:unit:cleanup": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Cleanup$/\"",
-		"test:unit:cyclic": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Cyclic Dependencies$/\"",
-		"test:unit:selector": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Selector$/\"",
-		"test:integration": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Deep Dependency Chains$/\"",
-		"test:perf": "node --test --experimental-config-file=node.config.json --test-name-pattern=\"/^Performance$/\"",
-		"test:perf:update-docs": "node scripts/update-performance-docs.ts",
+		"test:unit:state": "node --test --experimental-config-file=node.config.json test/state.test.ts",
+		"test:unit:effect": "node --test --experimental-config-file=node.config.json test/effect.test.ts",
+		"test:unit:batch": "node --test --experimental-config-file=node.config.json test/batch.test.ts",
+		"test:unit:derive": "node --test --experimental-config-file=node.config.json test/derive.test.ts",
+		"test:unit:select": "node --test --experimental-config-file=node.config.json test/select.test.ts",
+		"test:unit:cleanup": "node --test --experimental-config-file=node.config.json test/cleanup.test.ts",
+		"test:unit:cyclic-dependency": "node --test --experimental-config-file=node.config.json test/cyclic-dependency.test.ts",
+		"test:unit:deep-chain": "node --test --experimental-config-file=node.config.json test/deep-chain.test.ts",
+		"test:unit:infinite-loop": "node --test --experimental-config-file=node.config.json test/infinite-loop.test.ts",
+		"benchmark": "node --experimental-config-file=node.config.json scripts/benchmark.ts",
+		"update-performance-docs": "node --experimental-config-file=node.config.json scripts/update-performance-docs.ts",
 		"format": "biome format --write .",
 		"prebuild": "rm -rf dist/",
 		"build": "npm run build:lts",
-		"build:lts": "tsc -p tsconfig.build.json",
+		"build:lts": "tsc -p tsconfig.lts.json",
 		"prepublishOnly": "npm run build"
 	},
 	"keywords": [
@@ -55,8 +54,8 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@biomejs/biome": "1.9.4",
-		"@types/node": "22.13.16",
-		"typescript": "5.8.2"
+		"@types/node": "22.14.0",
+		"typescript": "5.8.3"
 	},
 	"engines": {
 		"node": ">=20.0.0"
