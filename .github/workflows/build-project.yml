@@ -27,4 +27,7 @@ jobs:
     - name: Build project
       run: npm run build
     - name: Test project
-      run: npm run test
+      run: |
+        ls -la
+        cat node.config.json
+        node --test --experimental-config-file="${GITHUB_WORKSPACE}/node.config.json" "test/**/*.test.ts"
