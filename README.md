@@ -1,15 +1,6 @@
-# Beacon
+# Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
 
-<div style="display: flex; align-items: flex-start;">
-  <div style="flex: 1;">
-    A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.
-  </div>
-  <div style="margin-left: 20px; margin-top: 0px; position: sticky; top: 0px;">
-    <picture>
-      <source srcset="./assets/beacon-logo.svg" type="image/svg+xml" />
-    </picture>
-  </div>
-</div>
+A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.
 
 ## Table of Contents
 
@@ -18,12 +9,12 @@
 - [Usage](#usage)
 - [API](#api)
   - [state](#statetinitialvalue-t-statet)
-  - [derive](#derivefn--t-readonlyt)
-  - [effect](#effectfn--void--void)
-  - [batch](#batchfn--t-t)
-  - [select](#selectsource-readonlyt-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlyr)
-  - [readonly](#readonlystate-statet-readonlyt)
-  - [protectedState](#protectedstateinitialvalue-t-readonlyt-writemethodst)
+  - [derive](#derivetfn---t-readonlyt)
+  - [effect](#effectfn---void---void)
+  - [batch](#batchtfn---t-t)
+  - [select](#selectt-rsource-readonlyt-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlyr)
+  - [readonlyState](#readonlystatetstate-statet-readonlyt)
+  - [protectedState](#protectedstatetinitialvalue-t-readonlyt-writemethodst)
 - [Development](#development)
   - [Node.js LTS Compatibility](#nodejs-lts-compatibility)
 - [Key Differences vs TC39 Proposal](#key-differences-between-my-library-and-the-tc39-proposal)
@@ -33,14 +24,14 @@
 
 ## Features
 
-- 🔄 **Reactive state** - Create reactive values that automatically track dependencies
+- 📶 **Reactive state** - Create reactive values that automatically track dependencies
 - 🧮 **Computed values** - Derive values from other states with automatic updates
 - 🔍 **Fine-grained reactivity** - Dependencies are tracked precisely at the state level
 - 🏎️ **Efficient updates** - Only recompute values when dependencies change
 - 📦 **Batched updates** - Group multiple updates for performance
-- 🔪 **Targeted subscriptions** - Select and subscribe to specific parts of state objects
+- 🎯 **Targeted subscriptions** - Select and subscribe to specific parts of state objects
 - 🧹 **Automatic cleanup** - Effects and computations automatically clean up dependencies
-- 🔁 **Cycle handling** - Safely manages cyclic dependencies without crashing
+- ♻️ **Cycle handling** - Safely manages cyclic dependencies without crashing
 - 🚨 **Infinite loop detection** - Automatically detects and prevents infinite update loops
 - 🛠️ **TypeScript-first** - Full TypeScript support with generics
 - 🪶 **Lightweight** - Zero dependencies, < 200 LOC
@@ -55,7 +46,7 @@ npm install @nerdalytics/beacon
 ## Usage
 
 ```typescript
-import { state, derive, effect, batch, select, readonly, protectedState } from "@nerdalytics/beacon";
+import { state, derive, effect, batch, select, readonlyState, protectedState } from "@nerdalytics/beacon";
 
 // Create reactive state
 const count = state(0);
@@ -107,9 +98,9 @@ user.update(u => ({ ...u, age: 31 })); // No effect triggered
 // and clean up all its internal subscriptions
 unsubscribe();
 
-// Using readonly to create a read-only view
+// Using readonlyState to create a read-only view
 const counter = state(0);
-const readonlyCounter = readonly(counter);
+const readonlyCounter = readonlyState(counter);
 // readonlyCounter() works, but readonlyCounter.set() is not available
 
 // Using protectedState to separate read and write capabilities
@@ -157,124 +148,12 @@ Batches multiple updates to only trigger effects once at the end.
 
 Creates an efficient subscription to a subset of a state value. The selector will only notify its subscribers when the selected value actually changes according to the provided equality function (defaults to `Object.is`).
 
-### `readonly<T>(state: State<T>): ReadOnly<T>`
+### `readonlyState<T>(state: State<T>): ReadOnly<T>`
 
 Creates a read-only view of a state, hiding mutation methods. Useful when you want to expose a state to other parts of your application without allowing direct mutations.
 
 ### `protectedState<T>(initialValue: T): [ReadOnly<T>, WriteMethods<T>]`
 
-Creates a state with access control, returning a tuple of reader and writer. This pattern separates read and write capabilities, allowing you to expose only the reading capability to consuming code while keeping the writing capability private.
-
-## Usage
-```typescript
-import { state, derive, effect, batch, select, readonly, protectedState } from "@nerdalytics/beacon";
-
-// Create reactive state
-const count = state(0);
-const doubled = derive(() => count() * 2);
-
-// Read values
-console.log(count()); // => 0
-console.log(doubled()); // => 0
-
-// Setup an effect that automatically runs when dependencies change
-// effect() returns a cleanup function that removes all subscriptions when called
-const unsubscribe = effect(() => {
-  console.log(`Count is ${count()}, doubled is ${doubled()}`);
-});
-// => "Count is 0, doubled is 0" (effect runs immediately when created)
-
-// Update values - effect automatically runs after each change
-count.set(5);
-// => "Count is 5, doubled is 10"
-
-// Update with a function
-count.update((n) => n + 1);
-// => "Count is 6, doubled is 12"
-
-// Batch updates (only triggers effects once at the end)
-batch(() => {
-  count.set(10);
-  count.set(20);
-});
-// => "Count is 20, doubled is 40" (only once)
-
-// Using select to subscribe to specific parts of state
-const user = state({ name: "Alice", age: 30, email: "alice@example.com" });
-const nameSelector = select(user, u => u.name);
-
-effect(() => {
-  console.log(`Name changed: ${nameSelector()}`);
-});
-// => "Name changed: Alice"
-
-// Updates to other properties won't trigger the effect
-user.update(u => ({ ...u, age: 31 })); // No effect triggered
-
-// Updates to the selected property will trigger the effect
-user.update(u => ({ ...u, name: "Bob" }));
-// => "Name changed: Bob"
-
-// Unsubscribe the effect to stop it from running on future updates
-// and clean up all its internal subscriptions
-unsubscribe();
-
-// Using readonly to create a read-only view
-const counter = state(0);
-const readonlyCounter = readonly(counter);
-// readonlyCounter() works, but readonlyCounter.set() is not available
-
-// Using protectedState to separate read and write capabilities
-const [getUser, setUser] = protectedState({ name: 'Alice' });
-// getUser() works to read the state
-// setUser.set() and setUser.update() work to modify the state
-// but getUser has no mutation methods
-
-// Infinite loop detection example (would throw an error)
-try {
-  effect(() => {
-    const value = counter();
-    // The following would throw an error because it attempts to
-    // update a state that the effect depends on:
-    // "Infinite loop detected: effect() cannot update a state() it depends on!"
-    // counter.set(value + 1);
-
-    // Instead, use a safe pattern with proper dependencies:
-    console.log(`Current counter value: ${value}`);
-  });
-} catch (error) {
-  console.error('Prevented infinite loop:', error.message);
-}
-```
-
-## API
-### state<T>(initialValue: T): State<T>
-Creates a new reactive state container with the provided initial value.
-
-### derive<T>(fn: () => T): ReadOnly<T>
-Creates a read-only computed value that updates when its dependencies change.
-
-### effect(fn: () => void): () => void
-Creates an effect that runs the given function immediately and whenever its dependencies change. Returns an unsubscribe function that stops the effect and cleans up all subscriptions when called.
-
-### batch<T>(fn: () => T): T
-Batches multiple updates to only trigger effects once at the end.
-
-### select<T, R>(source: ReadOnly<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): ReadOnly<R>
-Creates an efficient subscription to a subset of a state value. The selector will only notify its subscribers when the selected value actually changes according to the provided equality function (defaults to Object.is ).
-
-Parameters:
-
-- source : The source state to select from
-- selectorFn : A function that extracts the desired value from the source state
-- equalityFn : Optional custom equality function to determine if the selected value has changed
-
-Returns a read-only value that holds the selected value.
-
-### readonly<T>(state: State<T>): ReadOnly<T>
-Creates a read-only view of a state, hiding mutation methods. This is useful when you want to expose a state to other parts of your application without allowing direct mutations.
-
-### protectedState<T>(initialValue: T): [ReadOnly<T>, WriteMethods<T>]
 Creates a state with access control, returning a tuple of reader and writer. This pattern separates read and write capabilities, allowing you to expose only the reading capability to consuming code while keeping the writing capability private.
 
 ## Development
@@ -292,17 +171,26 @@ npm run test:coverage
 # Run specific test suites
 # Core functionality
 npm run test:unit:state
-npm run test:unit:derive
 npm run test:unit:effect
+npm run test:unit:derive
 npm run test:unit:batch
 npm run test:unit:select
+npm run test:unit:readonly
+npm run test:unit:protected
 
 # Advanced patterns
-npm run test:unit:cleanup    # Tests for effect cleanup behavior
-npm run test:unit:cyclic     # Tests for cyclic dependency handling
+npm run test:unit:cleanup              # Tests for effect cleanup behavior
+npm run test:unit:cyclic-dependency    # Tests for cyclic dependency handling
+npm run test:unit:deep-chain           # Tests for deep chain handling
+npm run test:unit:infinite-loop        # Tests for infinite loop detection
+
+# Benchmarking
+npm run test:perf    # Tests for infinite loop detection
 
 # Format code
 npm run format
+npm run lint
+npm run check    # Runs Bioms lint + format
 
 # Build for Node.js LTS compatibility (v20+)
 npm run build:lts
