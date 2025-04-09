@@ -15,7 +15,7 @@
 		"type": "git"
 	},
 	"scripts": {
-		"test": "node --test --experimental-config-file=node.config.json \"test/**/*.test.ts\"",
+		"test": "node --test --experimental-config-file=./node.config.json \"test/**/*.test.ts\"",
 		"test:coverage": "node --test --experimental-config-file=node.config.json --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info \"test/**/*.test.ts\"",
 		"test:unit:state": "node --test --experimental-config-file=node.config.json test/state.test.ts",
 		"test:unit:effect": "node --test --experimental-config-file=node.config.json test/effect.test.ts",
