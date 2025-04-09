@@ -24,10 +24,9 @@ jobs:
       with:
         path: node_modules
         key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+    - name: Lint & format code
+      run: npm run check
     - name: Build project
       run: npm run build
     - name: Test project
-      run: |
-        ls -la
-        cat node.config.json
-        node --test --experimental-config-file="${GITHUB_WORKSPACE}/node.config.json" "test/**/*.test.ts"
+      run: npm run test
