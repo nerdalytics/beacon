@@ -38,11 +38,6 @@ interface PerformanceEntry {
 	}
 }
 
-// Helper to format numbers with commas
-const formatNumber = (num: number): string => {
-	return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
-
 // Format numbers to a more readable form with appropriate units
 const formatMetricValue = (value: number): string => {
 	if (value >= 1_000_000) {
@@ -196,7 +191,7 @@ function calculateTrends(
 	const previousEntry = history[1]
 
 	for (const metric of currentEntry.metrics) {
-		const previousMetric = previousEntry.metrics.find((m) => m.name === metric.name)
+		const previousMetric = previousEntry.metrics.find((m: PerformanceMetric): boolean => m.name === metric.name)
 
 		if (previousMetric) {
 			const current = metric.value
@@ -239,10 +234,10 @@ function generatePerformanceMarkdown(metrics: PerformanceMetric[], history: Perf
 	const trends = calculateTrends(history)
 
 	// Group metrics by category
-	const coreMetrics = metrics.filter((m) => m.category === 'Core')
-	const advancedMetrics = metrics.filter((m) => m.category === 'Advanced')
-	const batchingMetrics = metrics.filter((m) => m.category === 'Batching')
-	const comparisonMetrics = metrics.filter((m) => m.category === 'Comparison')
+	const coreMetrics = metrics.filter((m: PerformanceMetric): boolean => m.category === 'Core')
+	const advancedMetrics = metrics.filter((m: PerformanceMetric): boolean => m.category === 'Advanced')
+	const batchingMetrics = metrics.filter((m: PerformanceMetric): boolean => m.category === 'Batching')
+	const comparisonMetrics = metrics.filter((m: PerformanceMetric): boolean => m.category === 'Comparison')
 
 	let md = `# Beacon Performance Benchmarks
 
@@ -313,8 +308,8 @@ These metrics measure performance in more complex scenarios:
 	}
 
 	// Find the specific ratio metrics
-	const perfRatio = comparisonMetrics.find((m) => m.name === 'Batch Performance Ratio')?.value || 0
-	const effectReduction = comparisonMetrics.find((m) => m.name === 'Batch Effect Reduction')?.value || 0
+	const perfRatio = comparisonMetrics.find((m: PerformanceMetric): boolean => m.name === 'Batch Performance Ratio')?.value || 0
+	const effectReduction = comparisonMetrics.find((m: PerformanceMetric): boolean => m.name === 'Batch Effect Reduction')?.value || 0
 
 	// Add batch comparison results with detailed explanation and measured values
 	const effectPercentage = (100 / effectReduction).toFixed(1)
@@ -351,8 +346,8 @@ The effect reduction is calculated from the measured effect runs:
 
 The Beacon library shows excellent performance characteristics:
 
-- **Reading is extremely fast**: At ~${formatMetricValue(coreMetrics.find((m) => m.name === 'Signal Reading')?.value || 0)} ops/sec, reading signals has minimal overhead
-- **Writing is highly efficient**: At ~${formatMetricValue(coreMetrics.find((m) => m.name === 'Signal Writing')?.value || 0)} ops/sec, setting values is extremely fast
+- **Reading is extremely fast**: At ~${formatMetricValue(coreMetrics.find((m: PerformanceMetric): boolean => m.name === 'Signal Reading')?.value || 0)} ops/sec, reading signals has minimal overhead
+- **Writing is highly efficient**: At ~${formatMetricValue(coreMetrics.find((m: PerformanceMetric): boolean => m.name === 'Signal Writing')?.value || 0)} ops/sec, setting values is extremely fast
 - **Batching provides dual benefits**:
   1. ~${perfRatio.toFixed(1)}x faster throughput (operations per second)
   2. ~${effectReduction.toFixed(1)}x reduction in effect executions (${(100 / effectReduction).toFixed(1)}% of original)
@@ -385,8 +380,8 @@ Batching is particularly important when:
 
 The following chart shows performance trends over the last ${history.length} measurements:
 
-| Metric | ${history.map((h, i) => `${i === 0 ? 'Current' : history.length - i + ' ago'}`).join(' | ')} |
-|--------|${history.map(() => '------').join('|')}|
+| Metric | ${history.map((_h: PerformanceEntry, i: number): string => `${i === 0 ? 'Current' : `${history.length - i} ago`}`).join(' | ')} |
+|--------|${history.map((): string => '------').join('|')}|
 `
 
 		// Add rows for each metric from the latest entry
@@ -395,7 +390,7 @@ The following chart shows performance trends over the last ${history.length} mea
 
 			// Add values from each historical entry for this metric
 			for (const entry of history) {
-				const entryMetric = entry.metrics.find((m) => m.name === metric.name)
+				const entryMetric = entry.metrics.find((m: PerformanceMetric): boolean => m.name === metric.name)
 				if (entryMetric) {
 					// Format differently based on metric type (ratio/reduction vs regular metrics)
 					if (entryMetric.name.includes('Ratio') || entryMetric.name.includes('Reduction')) {
@@ -420,8 +415,8 @@ The following chart shows performance trends over the last ${history.length} mea
 The Beacon library provides excellent performance for reactive state management in Node.js applications, with:
 
 - Core operations in the tens of millions per second range
-- State reading at ~${formatMetricValue(coreMetrics.find((m) => m.name === 'Signal Reading')?.value || 0)} operations/second
-- State writing at ~${formatMetricValue(coreMetrics.find((m) => m.name === 'Signal Writing')?.value || 0)} operations/second
+- State reading at ~${formatMetricValue(coreMetrics.find((m: PerformanceMetric): boolean => m.name === 'Signal Reading')?.value || 0)} operations/second
+- State writing at ~${formatMetricValue(coreMetrics.find((m: PerformanceMetric): boolean => m.name === 'Signal Writing')?.value || 0)} operations/second
 
 For real-world usage scenarios, these benchmarks demonstrate clear performance guidelines:
 
