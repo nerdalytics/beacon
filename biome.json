@@ -11,11 +11,11 @@
 				"all": true,
 				"noNodejsModules": {
 					"level": "off"
-				}
+				},
+				"noUnusedVariables": "error"
 			},
 			"performance": {
-				"all": true,
-				"noAccumulatingSpread": "off"
+				"all": true
 			},
 			"complexity": {
 				"all": true
@@ -24,20 +24,7 @@
 				"all": true
 			},
 			"style": {
-				"all": true,
-				"noInferrableTypes": {
-					"level": "error"
-				},
-				"useNamingConvention": {
-					"level": "off",
-					"options": {
-						"strictCase": true,
-						"requireAscii": true
-					}
-				},
-				"useTemplate": {
-					"level": "off"
-				}
+				"all": true
 			},
 			"suspicious": {
 				"all": true,
@@ -53,14 +40,7 @@
 			},
 			"nursery": {
 				"all": true,
-				"useImportRestrictions": {
-					"level": "off"
-				},
-				"noProcessEnv": {
-					"level": "off"
-				},
-				"noSecrets": "off",
-				"useGuardForIn": "off"
+				"useExplicitType": "error"
 			},
 			"a11y": {
 				"all": true
@@ -100,7 +80,7 @@
 		"root": "."
 	},
 	"files": {
-		"ignore": [".git/**/*", "node_modules/**/*", "dist/**/*"],
+		"ignore": [".git/**/*", "node_modules/**/*", "dist/**/*", "test/template.test.ts"],
 		"include": ["src/**/*", "scripts/**/*", "test/**/*"],
 		"ignoreUnknown": true
 	}
