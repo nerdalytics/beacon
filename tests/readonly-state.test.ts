@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, readonly, effect } from '../src/index.ts'
+import { state, readonlyState, effect } from '../src/index.ts'
 
 /**
  * Unit tests for readonly state function.
@@ -8,15 +8,14 @@ import { state, readonly, effect } from '../src/index.ts'
 describe('Readonly State', { concurrency: true, timeout: 1000 }, (): void => {
 	it('should create a read-only view of a state', (): void => {
 		const original = state(10)
-		const readonlyView = readonly(original)
+		const readonlyView = readonlyState(original)
 
 		assert.strictEqual(readonlyView(), 10, 'Readonly view should return the same value as original')
-
 	})
 
 	it('should reflect changes to the original state', (): void => {
 		const original = state({ count: 0 })
-		const readonlyView = readonly(original)
+		const readonlyView = readonlyState(original)
 
 		// Initial check
 		assert.deepStrictEqual(readonlyView(), { count: 0 })
@@ -28,7 +27,7 @@ describe('Readonly State', { concurrency: true, timeout: 1000 }, (): void => {
 
 	it('should work with effects for dependency tracking', (): void => {
 		const original = state(0)
-		const readonlyView = readonly(original)
+		const readonlyView = readonlyState(original)
 		const values: number[] = []
 
 		// Setup effect with readonly view

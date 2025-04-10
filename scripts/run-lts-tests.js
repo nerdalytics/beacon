@@ -14,7 +14,7 @@ const rootDir = join(__dirname, '..')
 /**
  * prepare test files for testing with lts version
  */
-const testDir = join(rootDir, 'test')
+const testDir = join(rootDir, 'tests')
 const tempDir = join(rootDir, 'temp')
 
 // Create temp directory if it doesn't exist
