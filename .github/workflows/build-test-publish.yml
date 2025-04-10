@@ -1,4 +1,4 @@
-name: Build & Test Project
+name: Build & Test & Publish
 
 on:
   push:
@@ -9,6 +9,7 @@ on:
       - trunk
 
 jobs:
+
   build:
     runs-on: ubuntu-latest
     steps:
@@ -44,3 +45,17 @@ jobs:
         key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
     - name: Test project
       run: npm run test:lts
+
+  publish-npm:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-node@v4.3.0
+        with:
+          node-version: '23.11.0'
+          registry-url: https://registry.npmjs.org/
+      - run: npm pack
+      - run: npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
