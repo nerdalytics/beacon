@@ -42,7 +42,6 @@
 		"build:lts": "tsc -p tsconfig.lts.json",
 		"prepublishOnly": "npm run build:lts",
 
-		"pretest:lts": "npm run build:lts",
 		"test:lts": "node scripts/run-lts-tests.js",
 
 		"update-performance-docs": "node --experimental-config-file=node.config.json scripts/update-performance-docs.ts"

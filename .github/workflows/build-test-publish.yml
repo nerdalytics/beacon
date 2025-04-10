@@ -9,7 +9,6 @@ on:
       - trunk
 
 jobs:
-
   build:
     runs-on: ubuntu-latest
     steps:
@@ -22,10 +21,15 @@ jobs:
       with:
         path: node_modules
         key: ${{ runner.os }}-node-23.11.0-${{ hashFiles('**/package-lock.json') }}
-    - name: Check lintintg & code formatting
+    - name: Check linting & code formatting
       run: npm run check
     - name: Build project
       run: npm run build:lts
+    - name: Upload dist directory
+      uses: actions/upload-artifact@v4.6.2
+      with:
+        name: dist
+        path: dist/
 
   test:
     needs: build
@@ -43,8 +47,13 @@ jobs:
       with:
         path: node_modules
         key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+    - name: Download dist directory
+      uses: actions/upload-artifact@v4.6.2
+      with:
+        name: dist
+        path: dist/
     - name: Test project
-      run: npm run test:lts
+      run: SKIP_BUILD=true npm run test:lts
 
   publish-npm:
     needs: [build, test]
@@ -55,6 +64,11 @@ jobs:
         with:
           node-version: '23.11.0'
           registry-url: https://registry.npmjs.org/
+      - name: Download dist directory
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: dist
+          path: dist/
       - run: npm pack
       - run: npm publish
         env:
