@@ -8,6 +8,7 @@ yarn-debug.log
 # Build
 *.tsbuildinfo
 dist/
+temp/
 
 # Test coverage
 lcov.info

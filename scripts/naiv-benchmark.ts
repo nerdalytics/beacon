@@ -5,11 +5,11 @@ const errors = state(0);
 const processed = state(0);
 
 const disposeErrors = effect((): void => {
-	console.log({ errors: errors() });
+	console.debug({ errors: errors() });
 });
 
 const disposeProcessed = effect((): void => {
-	console.log({ processed: processed() });
+	console.debug({ processed: processed() });
 });
 
 const incrementErrors = (): void => {
@@ -65,10 +65,10 @@ const batchEffectLoop = ({
 		for (let i = 0; i <= LOOP_LENGTH; i++) {
 			if (i % ERROR_FREQUENCY === 0) {
 				incrementErrors();
-				console.log({ errors: errors() });
+				console.debug({ errors: errors() });
 			} else {
 				incrementProcessed();
-				console.log({ processed: processed() });
+				console.debug({ processed: processed() });
 			}
 		}
 	});
@@ -88,9 +88,9 @@ const classicLoop = (): { duration: number } => {
 	let totals = 0;
 	for (let i = 0; i <= LOOP_LENGTH; i++) {
 		if (i % ERROR_FREQUENCY === 0) {
-			console.log({ errors: errors++ });
+			console.debug({ errors: errors++ });
 		} else {
-			console.log({ processed: processed++ });
+			console.debug({ processed: processed++ });
 		}
 		totals++;
 	}
@@ -115,7 +115,7 @@ const main = (): void => {
 
 	const classicDuration = classicLoop();
 
-	console.log({
+	console.debug({
 		signalDuration,
 		batchDuration,
 		classicDuration,

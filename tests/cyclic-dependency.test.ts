@@ -70,9 +70,9 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 		// 2. The cycle has logically completed with the if-condition preventing further updates
 		// 3. There's no need to change values further to reach a stable state
 
-		const lastAValue = aValues[aValues.length - 1]
-		const lastBValue = bValues[bValues.length - 1]
-		assert.strictEqual(lastBValue / 2, lastAValue, 'Last B/2 should equal last A, proving cycle stabilized')
+		const lastValueA = aValues[aValues.length - 1]
+		const lastValueB = bValues[bValues.length - 1]
+		assert.strictEqual(lastValueB / 2, lastValueA, 'Last B/2 should equal last A, proving cycle stabilized')
 	})
 
 	it('should stabilize derived signals with cyclic dependencies', (): void => {
@@ -250,7 +250,6 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 		const a = state(10)
 
 		// Track updates and values
-		let updateCount = 0
 		const aValues: number[] = []
 		const bValues: number[] = []
 
@@ -266,11 +265,9 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 			// This should converge since each cycle reduces value by 10%
 			a.set(bVal)
 			aValues.push(a())
-			updateCount++
 		})
 
 		// Reset for test
-		updateCount = 0
 		aValues.length = 0
 		bValues.length = 0
 
@@ -537,7 +534,7 @@ function hasStabilized<T>(values: T[], minLength: number, stableCount: number): 
 	const firstValue = lastValues[0]
 
 	// Consistent epsilon for all number comparisons
-	const EPSILON = 0.001
+	const Epsilon = 0.001
 
 	// Case 1: All values are numbers - check for bounded oscillation
 	if (lastValues.every((val) => typeof val === 'number')) {
@@ -546,14 +543,14 @@ function hasStabilized<T>(values: T[], minLength: number, stableCount: number): 
 		const max = Math.max(...numValues)
 
 		// If the oscillation is within a small range, consider it stable
-		return max - min < EPSILON
+		return max - min < Epsilon
 	}
 
 	// Case 2: Mixed types or non-numbers - compare each value with the first
 	return lastValues.every((val) => {
 		// Special handling for number comparisons to handle floating point issues
 		if (typeof val === 'number' && typeof firstValue === 'number') {
-			return Math.abs(val - firstValue) < EPSILON
+			return Math.abs(val - firstValue) < Epsilon
 		}
 
 		// For all other types, use reference equality

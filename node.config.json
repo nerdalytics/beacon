@@ -3,7 +3,8 @@
 	"nodeOptions": {
 		"test-coverage-lines": 90,
 		"test-coverage-branches": 100,
-		"test-coverage-functions": 90,
-		"test-coverage-include": ["src/**/*.ts"]
+		"test-coverage-functions": 100,
+		"test-coverage-include": ["src/**/*.ts"],
+		"test-coverage-exclude": ["scripts/**/*.ts"]
 	}
 }

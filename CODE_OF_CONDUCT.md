@@ -48,6 +48,17 @@ This Code of Conduct is adapted from the [Contributor Covenant][1], version 2.1,
 
 *By contributing to **@nerdalytics/beacon**, you agree to abide by this Code of Conduct.*
 
+---
+
+## License
+
+By contributing, you agree that your contributions will be licensed under the [MIT License][2]. This means that your contributions become part of **@nerdalytics/beacon** and are distributed under the same terms as the rest of the project.
+
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nerdalytics/nerdalytics/refs/heads/main/nerdalytics-logo-gray-transparent.svg" width="128px">
+</div>
+
 <!-- Links collection -->
 
 [1]: https://www.contributor-covenant.org/version/2/1/code_of_conduct.html
+[2]: ./LICENSE

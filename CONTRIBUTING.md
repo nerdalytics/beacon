@@ -172,6 +172,10 @@ By contributing, you agree that your contributions will be licensed under the [M
 
 *Thank you for helping improve **@nerdalytics/beacon**. Your contributions make this project better for everyone!*
 
+<div align="center">
+  <img src="https://raw.githubusercontent.com/nerdalytics/nerdalytics/refs/heads/main/nerdalytics-logo-gray-transparent.svg" width="128px">
+</div>
+
 <!-- Links collection -->
 
 [1]: ./CODE_OF_CONDUCT.md

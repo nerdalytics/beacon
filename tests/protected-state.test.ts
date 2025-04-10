@@ -8,6 +8,7 @@ import { protectedState, effect } from '../src/index.ts'
 describe('Protected State', { concurrency: true, timeout: 1000 }, (): void => {
 	it('should separate read and write capabilities', (): void => {
 		const [getState, setState] = protectedState(10)
+
 		// Reader should work as a function
 		assert.strictEqual(getState(), 10, 'Reader should return the current state value')
 
@@ -28,6 +29,7 @@ describe('Protected State', { concurrency: true, timeout: 1000 }, (): void => {
 
 		setState.update((current) => ({ count: current.count + 1 }))
 
+		// Assert: should reflect update
 		assert.deepStrictEqual(getState(), { count: 6 })
 	})
 
@@ -46,6 +48,7 @@ describe('Protected State', { concurrency: true, timeout: 1000 }, (): void => {
 		setState.set(1)
 		setState.set(2)
 
+		// Effect should have tracked the reader as a dependency
 		assert.deepStrictEqual(values, [0, 1, 2])
 
 		unsubscribe()
