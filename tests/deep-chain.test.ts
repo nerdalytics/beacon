@@ -3,10 +3,10 @@
  */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, derive, batch, type State, type ReadOnly } from '../src/index.ts'
+import { state, derive, batch, type State, type ReadOnlyState } from '../src/index.ts'
 
 describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): void => {
-	type StateOrReadOnly<T> = State<T> | ReadOnly<T>
+	type StateOrReadOnly<T> = State<T> | ReadOnlyState<T>
 
 	it('should handle a small dependency chain', (): void => {
 		// Create a small chain for basic testing
