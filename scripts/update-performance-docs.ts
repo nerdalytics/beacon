@@ -11,11 +11,10 @@
 import { execSync } from 'node:child_process'
 import { readFileSync, writeFileSync, existsSync } from 'node:fs'
 import { join } from 'node:path'
-import type { BenchmarkResult } from './benchmark.ts'
-import { runAllBenchmarks } from './benchmark.ts'
+import { runAllBenchmarks, type BenchmarkResult } from './benchmark.ts'
 
 // Configuration
-const METRICS_HISTORY_FILE = join(process.cwd(), 'performance-history.json')
+const METRICS_HISTORY_FILE = join(process.cwd(), join('metrics', 'performance-history.json'))
 const PERFORMANCE_MD_FILE = join(process.cwd(), 'PERFORMANCE.md')
 const HISTORY_LIMIT = 10 // Number of historical entries to keep
 
@@ -308,8 +307,10 @@ These metrics measure performance in more complex scenarios:
 	}
 
 	// Find the specific ratio metrics
-	const perfRatio = comparisonMetrics.find((m: PerformanceMetric): boolean => m.name === 'Batch Performance Ratio')?.value || 0
-	const effectReduction = comparisonMetrics.find((m: PerformanceMetric): boolean => m.name === 'Batch Effect Reduction')?.value || 0
+	const perfRatio =
+		comparisonMetrics.find((m: PerformanceMetric): boolean => m.name === 'Batch Performance Ratio')?.value || 0
+	const effectReduction =
+		comparisonMetrics.find((m: PerformanceMetric): boolean => m.name === 'Batch Effect Reduction')?.value || 0
 
 	// Add batch comparison results with detailed explanation and measured values
 	const effectPercentage = (100 / effectReduction).toFixed(1)
@@ -325,14 +326,14 @@ When comparing batched and unbatched operations for the same workload (100 state
 These complementary metrics measure different aspects of the same optimization:
 
 1. **Performance Ratio (${perfRatio.toFixed(1)}x)**:
-   - Measures raw throughput in operations per second
-   - Shows how many more operations you can perform in the same time period
-   - Higher is better (more operations per second)
+- Measures raw throughput in operations per second
+- Shows how many more operations you can perform in the same time period
+- Higher is better (more operations per second)
 
 2. **Effect Reduction (${effectReduction.toFixed(1)}x)**:
-   - Measures efficiency in triggering effects
-   - Shows how many fewer side effects run with batching
-   - Higher is better (fewer unnecessary effect executions)
+- Measures efficiency in triggering effects
+- Shows how many fewer side effects run with batching
+- Higher is better (fewer unnecessary effect executions)
 
 The effect reduction is calculated from the measured effect runs:
 - Without batching: ~${(effectReduction * 99).toFixed(0)} effect runs (one per state update)
@@ -349,8 +350,8 @@ The Beacon library shows excellent performance characteristics:
 - **Reading is extremely fast**: At ~${formatMetricValue(coreMetrics.find((m: PerformanceMetric): boolean => m.name === 'Signal Reading')?.value || 0)} ops/sec, reading signals has minimal overhead
 - **Writing is highly efficient**: At ~${formatMetricValue(coreMetrics.find((m: PerformanceMetric): boolean => m.name === 'Signal Writing')?.value || 0)} ops/sec, setting values is extremely fast
 - **Batching provides dual benefits**:
-  1. ~${perfRatio.toFixed(1)}x faster throughput (operations per second)
-  2. ~${effectReduction.toFixed(1)}x reduction in effect executions (${(100 / effectReduction).toFixed(1)}% of original)
+1. ~${perfRatio.toFixed(1)}x faster throughput (operations per second)
+2. ~${effectReduction.toFixed(1)}x reduction in effect executions (${(100 / effectReduction).toFixed(1)}% of original)
 
 ### Areas of Strength
 
@@ -421,14 +422,14 @@ The Beacon library provides excellent performance for reactive state management 
 For real-world usage scenarios, these benchmarks demonstrate clear performance guidelines:
 
 1. **Always use batching for multiple updates**:
-   - ${perfRatio.toFixed(1)}x faster operation throughput
-   - ${effectReduction.toFixed(1)}x reduction in effect triggers
-   - Most important for components with shared dependencies
+- ${perfRatio.toFixed(1)}x faster operation throughput
+- ${effectReduction.toFixed(1)}x reduction in effect triggers
+- Most important for components with shared dependencies
 
 2. **Optimize dependency tracking**:
-   - Minimize deep dependency chains when possible
-   - Be mindful of effects with many dependencies
-   - Performance can drop with overly complex dependency networks
+- Minimize deep dependency chains when possible
+- Be mindful of effects with many dependencies
+- Performance can drop with overly complex dependency networks
 
 For most applications, Beacon will not be a performance bottleneck and provides an excellent balance of developer experience and runtime efficiency.
 `
