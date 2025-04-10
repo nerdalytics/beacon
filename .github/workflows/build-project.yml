@@ -1,4 +1,4 @@
-name: Build Project
+name: Build & Test Project
 
 on:
   push:
@@ -10,9 +10,6 @@ on:
 
 jobs:
   build:
-    strategy:
-      matrix:
-        node-version: ['20.x', '22.x']
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4.2.2
@@ -23,10 +20,27 @@ jobs:
       uses: actions/cache@v4.2.3
       with:
         path: node_modules
-        key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
-    - name: Lint & format code
+        key: ${{ runner.os }}-node-23.11.0-${{ hashFiles('**/package-lock.json') }}
+    - name: Check lintintg & code formatting
       run: npm run check
     - name: Build project
-      run: npm run build
+      run: npm run build:lts
+
+  test:
+    needs: build
+    strategy:
+      matrix:
+        node-version: ['20.x', '22.x']
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4.2.2
+    - uses: actions/setup-node@v4.3.0
+      with:
+        node-version: ${{ matrix.node-version }}
+    - id: cache-dependencies
+      uses: actions/cache@v4.2.3
+      with:
+        path: node_modules
+        key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
     - name: Test project
-      run: npm run test
+      run: npm run test:lts
