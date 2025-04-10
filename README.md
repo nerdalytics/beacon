@@ -9,12 +9,12 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
 - [Usage](#usage)
 - [API](#api)
   - [state](#statetinitialvalue-t-statet)
-  - [derive](#derivetfn---t-readonlyt)
+  - [derive](#derivetfn---t-readonlystatet)
   - [effect](#effectfn---void---void)
   - [batch](#batchtfn---t-t)
-  - [select](#selectt-rsource-readonlyt-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlyr)
-  - [readonlyState](#readonlystatetstate-statet-readonlyt)
-  - [protectedState](#protectedstatetinitialvalue-t-readonlyt-writemethodst)
+  - [select](#selectt-rsource-readonlystatet-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlystater)
+  - [readonlyState](#readonlystatetstate-statet-readonlystatet)
+  - [protectedState](#protectedstatetinitialvalue-t-readonlystatet-writeablestatet)
 - [Development](#development)
   - [Node.js LTS Compatibility](#nodejs-lts-compatibility)
 - [Key Differences vs TC39 Proposal](#key-differences-between-my-library-and-the-tc39-proposal)
@@ -39,7 +39,7 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
 
 ## Installation
 
-```bash
+```sh
 npm install @nerdalytics/beacon
 ```
 
@@ -132,7 +132,7 @@ try {
 
 Creates a new reactive state container with the provided initial value.
 
-### `derive<T>(fn: () => T): ReadOnly<T>`
+### `derive<T>(fn: () => T): ReadOnlyState<T>`
 
 Creates a read-only computed value that updates when its dependencies change.
 
@@ -144,21 +144,21 @@ Creates an effect that runs the given function immediately and whenever its depe
 
 Batches multiple updates to only trigger effects once at the end.
 
-### `select<T, R>(source: ReadOnly<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): ReadOnly<R>`
+### `select<T, R>(source: ReadOnlyState<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): ReadOnlyState<R>`
 
 Creates an efficient subscription to a subset of a state value. The selector will only notify its subscribers when the selected value actually changes according to the provided equality function (defaults to `Object.is`).
 
-### `readonlyState<T>(state: State<T>): ReadOnly<T>`
+### `readonlyState<T>(state: State<T>): ReadOnlyState<T>`
 
 Creates a read-only view of a state, hiding mutation methods. Useful when you want to expose a state to other parts of your application without allowing direct mutations.
 
-### `protectedState<T>(initialValue: T): [ReadOnly<T>, WriteMethods<T>]`
+### `protectedState<T>(initialValue: T): [ReadOnlyState<T>, WriteableState<T>]`
 
 Creates a state with access control, returning a tuple of reader and writer. This pattern separates read and write capabilities, allowing you to expose only the reading capability to consuming code while keeping the writing capability private.
 
 ## Development
 
-```bash
+```sh
 # Install dependencies
 npm install
 
@@ -185,15 +185,12 @@ npm run test:unit:deep-chain           # Tests for deep chain handling
 npm run test:unit:infinite-loop        # Tests for infinite loop detection
 
 # Benchmarking
-npm run test:perf    # Tests for infinite loop detection
+npm run benchmark    # Tests for infinite loop detection
 
 # Format code
 npm run format
 npm run lint
 npm run check    # Runs Bioms lint + format
-
-# Build for Node.js LTS compatibility (v20+)
-npm run build:lts
 ```
 
 ### Node.js LTS Compatibility
