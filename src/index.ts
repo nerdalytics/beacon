@@ -1,8 +1,8 @@
 // Core types for reactive primitives
 type Subscriber = () => void
 type Unsubscribe = () => void
-export type ReadOnly<T> = () => T
-export interface WriteMethods<T> {
+export type ReadOnlyState<T> = () => T
+export interface WriteableState<T> {
 	set(value: T): void
 	update(fn: (value: T) => T): void
 }
@@ -10,8 +10,8 @@ export interface WriteMethods<T> {
 // Special symbol used for internal tracking
 const STATE_ID = Symbol()
 
-export type State<T> = ReadOnly<T> &
-	WriteMethods<T> & {
+export type State<T> = ReadOnlyState<T> &
+	WriteableState<T> & {
 		[STATE_ID]?: symbol
 	}
 
@@ -33,32 +33,32 @@ export const batch = <T>(fn: () => T): T => StateImpl.executeBatch(fn)
 /**
  * Creates a read-only computed value that updates when its dependencies change.
  */
-export const derive = <T>(computeFn: () => T): ReadOnly<T> => StateImpl.createDerive(computeFn)
+export const derive = <T>(computeFn: () => T): ReadOnlyState<T> => StateImpl.createDerive(computeFn)
 
 /**
  * Creates an efficient subscription to a subset of a state value.
  */
 export const select = <T, R>(
-	source: ReadOnly<T>,
+	source: ReadOnlyState<T>,
 	selectorFn: (state: T) => R,
 	equalityFn: (a: R, b: R) => boolean = Object.is
-): ReadOnly<R> => StateImpl.createSelect(source, selectorFn, equalityFn)
+): ReadOnlyState<R> => StateImpl.createSelect(source, selectorFn, equalityFn)
 
 /**
  * Creates a read-only view of a state, hiding mutation methods.
  */
-export const readonly =
-	<T>(state: State<T>): ReadOnly<T> =>
+export const readonlyState =
+	<T>(state: State<T>): ReadOnlyState<T> =>
 	(): T =>
 		state()
 
 /**
  * Creates a state with access control, returning a tuple of reader and writer.
  */
-export const protectedState = <T>(initialValue: T): [ReadOnly<T>, WriteMethods<T>] => {
+export const protectedState = <T>(initialValue: T): [ReadOnlyState<T>, WriteableState<T>] => {
 	const fullState = state(initialValue)
 	return [
-		(): T => readonly(fullState)(),
+		(): T => readonlyState(fullState)(),
 		{
 			set: (value: T): void => fullState.set(value),
 			update: (fn: (value: T) => T): void => fullState.update(fn),
@@ -303,7 +303,7 @@ class StateImpl<T> {
 	}
 
 	// Creates a derived state that memoizes computations and updates only when dependencies change
-	static createDerive = <T>(computeFn: () => T): ReadOnly<T> => {
+	static createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
 		const valueState = StateImpl.createState<T | undefined>(undefined)
 		let initialized = false
 		let cachedValue: T
@@ -336,10 +336,10 @@ class StateImpl<T> {
 
 	// Creates a selector that monitors a slice of state with performance optimizations
 	static createSelect = <T, R>(
-		source: ReadOnly<T>,
+		source: ReadOnlyState<T>,
 		selectorFn: (state: T) => R,
 		equalityFn: (a: R, b: R) => boolean = Object.is
-	): ReadOnly<R> => {
+	): ReadOnlyState<R> => {
 		let lastSourceValue: T | undefined
 		let lastSelectedValue: R | undefined
 		let initialized = false
