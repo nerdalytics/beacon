@@ -8,7 +8,6 @@ yarn-debug.log
 # Build
 *.tsbuildinfo
 dist/
-temp/
 
 # Test coverage
 lcov.info
@@ -33,6 +32,11 @@ nerdalytics-beacon-*.tgz
 .idea/
 *.sublime-workspace
 *.sublime-project
+.zed/*
+!.tasks.json
+
+# Claude Code memory
+CLAUDE.md
 
 # OS
 .DS_Store
