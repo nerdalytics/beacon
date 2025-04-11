@@ -26,6 +26,10 @@ jobs:
     - name: Ensure cache exists
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
       run: exit 1        
+    - name: Setup Biome
+      uses: biomejs/setup-biome@v2.5.0
+      with:
+        version: latest
     - name: Check linting & code formatting
       run: npm run check
     - name: Build project
