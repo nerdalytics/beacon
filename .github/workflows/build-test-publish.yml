@@ -118,7 +118,7 @@ jobs:
 
 
   publish-npm:
-    needs: [build, test-lts-20, test-lts-22]
+    needs: [test-lts-20, test-lts-22]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
@@ -141,7 +141,6 @@ jobs:
         with:
           name: dist
           path: dist/
-      - run: npm pack
       - run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_BEACON_PUBLISH_TOKEN}}
