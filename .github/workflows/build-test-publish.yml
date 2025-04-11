@@ -20,7 +20,7 @@ jobs:
       uses: actions/cache@v4.2.3
       with:
         path: node_modules
-        key: ${{ runner.os }}-node-23.11.0-${{ hashFiles('**/package-lock.json') }}
+        key: ${{ runner.os }}-node-23.x-${{ hashFiles('**/package-lock.json') }}
     - name: Ensure cache exists
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
       run: exit 1        
@@ -59,7 +59,7 @@ jobs:
         name: dist
         path: dist/
     - name: Test project
-      run: SKIP_BUILD=true npm run test:lts
+      run: npm run test:lts
 
   publish-npm:
     needs: [build, test]
@@ -74,7 +74,7 @@ jobs:
         uses: actions/cache@v4.2.3
         with:
           path: node_modules
-          key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-node-23.x-${{ hashFiles('**/package-lock.json') }}
       - name: Ensure cache exists
         if: steps.cache-dependencies.outputs.cache-hit != 'true'
         run: exit 1
