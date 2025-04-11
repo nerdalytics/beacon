@@ -58,12 +58,23 @@ jobs:
         key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
     - name: Ensure cache exists
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
-      run: exit 1
+      run: |
+        echo "Cache miss! Update cached dependencies required.
+        exit 1
     - name: Download dist directory
       uses: actions/download-artifact@v4.2.1
       with:
         name: dist
         path: dist/
+    - name: Diagnostic checks
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Directory structure:"
+        ls -la
+        echo "Dist directory content:"
+        ls -la dist/ || echo "dist directory not found!"
+        echo "Find test files:"
+        find . -name "*.js" | grep -i test || echo "No test files found!"
     - name: Test project
       run: npm run test:lts:20
   
@@ -85,12 +96,23 @@ jobs:
         key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
     - name: Ensure cache exists
       if: steps.cache-dependencies.outputs.cache-hit != 'true'
-      run: exit 1
+      run: |
+        echo "Cache miss! Update cached dependencies required.
+        exit 1
     - name: Download dist directory
       uses: actions/download-artifact@v4.2.1
       with:
         name: dist
         path: dist/
+    - name: Diagnostic checks
+      run: |
+        echo "Current directory: $(pwd)"
+        echo "Directory structure:"
+        ls -la
+        echo "Dist directory content:"
+        ls -la dist/ || echo "dist directory not found!"
+        echo "Find test files:"
+        find . -name "*.js" | grep -i test || echo "No test files found!"
     - name: Test project
       run: npm run test:lts:22
 
@@ -111,7 +133,9 @@ jobs:
           key: ${{ runner.os }}-node-23.x-${{ hashFiles('**/package-lock.json') }}
       - name: Ensure cache exists
         if: steps.cache-dependencies.outputs.cache-hit != 'true'
-        run: exit 1
+        run: |
+          echo "Cache miss! Update cached dependencies required.
+          exit 1
       - name: Download dist directory
         uses: actions/download-artifact@v4.2.1
         with:
