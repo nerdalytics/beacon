@@ -48,14 +48,14 @@ npm install @nerdalytics/beacon
 
 ```typescript
 import {
-	state,
-	derive,
-	effect,
-	batch,
-	select,
-	lens,
-	readonlyState,
-	protectedState
+  state,
+  derive,
+  effect,
+  batch,
+  select,
+  lens,
+  readonlyState,
+  protectedState
 } from "@nerdalytics/beacon";
 
 // Create reactive state
