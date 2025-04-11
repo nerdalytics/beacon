@@ -7,7 +7,8 @@ on:
   pull_request:
     paths:
       - '**/package-lock.json'
-
+  workflow_dispatch:
+    
 jobs:
   cache-deps:
     strategy:
