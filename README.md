@@ -13,6 +13,7 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
   - [effect](#effectfn---void---void)
   - [batch](#batchtfn---t-t)
   - [select](#selectt-rsource-readonlystatet-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlystater)
+  - [lens](#lenst-ksource-statet-accessor-state-t--k-statek)
   - [readonlyState](#readonlystatetstate-statet-readonlystatet)
   - [protectedState](#protectedstatetinitialvalue-t-readonlystatet-writeablestatet)
 - [Development](#development)
@@ -94,6 +95,29 @@ user.update(u => ({ ...u, name: "Bob" }));
 // Updates to other properties won't trigger the effect
 user.update(u => ({ ...u, age: 31 })); // No effect triggered
 
+// Using lens for two-way binding with nested properties
+const nested = state({
+  user: {
+    profile: {
+      settings: {
+        theme: "dark",
+        notifications: true
+      }
+    }
+  }
+});
+
+// Create a lens focused on a deeply nested property
+const themeLens = lens(nested, n => n.user.profile.settings.theme);
+
+// Read the focused value
+console.log(themeLens()); // => "dark"
+
+// Update the focused value directly (maintains referential integrity)
+themeLens.set("light");
+console.log(themeLens()); // => "light"
+console.log(nested().user.profile.settings.theme); // => "light"
+
 // Unsubscribe the effect to stop it from running on future updates
 // and clean up all its internal subscriptions
 unsubscribe();
@@ -148,6 +172,10 @@ Batches multiple updates to only trigger effects once at the end.
 
 Creates an efficient subscription to a subset of a state value. The selector will only notify its subscribers when the selected value actually changes according to the provided equality function (defaults to `Object.is`).
 
+### `lens<T, K>(source: State<T>, accessor: (state: T) => K): State<K>`
+
+Creates a lens for direct updates to nested properties of a state. A lens combines the functionality of `select` (for reading) with the ability to update the nested property while maintaining referential integrity throughout the object tree.
+
 ### `readonlyState<T>(state: State<T>): ReadOnlyState<T>`
 
 Creates a read-only view of a state, hiding mutation methods. Useful when you want to expose a state to other parts of your application without allowing direct mutations.
@@ -175,6 +203,7 @@ npm run test:unit:effect
 npm run test:unit:derive
 npm run test:unit:batch
 npm run test:unit:select
+npm run test:unit:lens
 npm run test:unit:readonly
 npm run test:unit:protected
 

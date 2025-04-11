@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, effect, derive, batch } from '../src/index.ts'
+import { state, effect, derive, batch, type State } from '../src/index.ts'
 
 /**
  * Tests for cyclical dependencies between states.
@@ -23,13 +23,14 @@ import { state, effect, derive, batch } from '../src/index.ts'
 describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void => {
 	it('should eventually stabilize direct cyclic dependencies between states', (): void => {
 		// Set up two signals with initial values
-		const signalA = state(1)
-		const signalB = state(10)
+		const signalA = state(1) as State<number>
+		const signalB = state(10) as State<number>
 
 		// Track values for convergence analysis
 		const aValues: number[] = []
 		const bValues: number[] = []
-		const executionCount: number[] = [0]
+		// Use a non-empty array with known index 0
+		const executionCount = [0]
 
 		// Set up effects that create the cycle:
 		// A changes → update B → B changes → update A → ...
@@ -39,7 +40,10 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 			const valueA = signalA()
 			aValues.push(valueA)
 			signalB.set(valueA * 2)
-			executionCount[0]++
+			// Safe incrementing
+			if (executionCount[0] !== undefined) {
+				executionCount[0] += 1
+			}
 		})
 
 		// When B changes, update A = B / 2
@@ -70,13 +74,13 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 		// 2. The cycle has logically completed with the if-condition preventing further updates
 		// 3. There's no need to change values further to reach a stable state
 
-		const lastValueA = aValues[aValues.length - 1]
-		const lastValueB = bValues[bValues.length - 1]
+		const lastValueA = aValues.at(-1) ?? 0
+		const lastValueB = bValues.at(-1) ?? 0
 		assert.strictEqual(lastValueB / 2, lastValueA, 'Last B/2 should equal last A, proving cycle stabilized')
 	})
 
 	it('should stabilize derived signals with cyclic dependencies', (): void => {
-		const source = state(5)
+		const source = state(5) as State<number>
 		const valueHistory: Array<{ a: number; b: number }> = []
 
 		// Pre-declare variables to allow cross-references
@@ -131,9 +135,9 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 
 	it('should stabilize cycles between multiple states and prevent infinite loops', (): void => {
 		// Create a cycle: A → B → C → A
-		const signalA = state(5)
-		const signalB = state(10)
-		const signalC = state(15)
+		const signalA = state(5) as State<number>
+		const signalB = state(10) as State<number>
+		const signalC = state(15) as State<number>
 
 		// Track values and update count
 		const aValues: number[] = []
@@ -202,7 +206,7 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 
 	it('should handle diamond dependencies correctly (A → B, A → C, B+C → D)', (): void => {
 		// Create a diamond structure
-		const parent = state(10)
+		const parent = state(10) as State<number>
 
 		// Children depend on parent
 		const childB = derive((): number => parent() * 2)
@@ -247,7 +251,7 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 	it('should handle cycle with convergent behavior (diminishing changes)', (): void => {
 		// Create a cycle where updates get smaller each time
 		// This should naturally converge
-		const a = state(10)
+		const a = state(10) as State<number>
 
 		// Track updates and values
 		const aValues: number[] = []
@@ -286,7 +290,7 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 		if (lastValues.length >= 2) {
 			for (let i = 1; i < lastValues.length; i++) {
 				assert.ok(
-					Math.abs(lastValues[i] - lastValues[i - 1]) < errorMargin,
+					Math.abs((lastValues[i] as number) - (lastValues[i - 1] as number)) < errorMargin,
 					'Values should converge with small differences near the end'
 				)
 			}
@@ -296,7 +300,7 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 	it('should handle cycle with divergent behavior but break before overflow', (): void => {
 		// Create a cycle where updates get larger each time
 		// This would diverge to infinity without a breaker
-		const a = state(1)
+		const a = state(1) as State<number>
 
 		// Track updates and values
 		let updateCount = 0
@@ -338,8 +342,8 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 
 	it('should allow manual cycle detection and breaking', (): void => {
 		// This test demonstrates how cycles can be manually detected and broken
-		const a = state({ value: 5, generation: 0 })
-		const b = state({ value: 10, generation: 0 })
+		const a = state({ value: 5, generation: 0 }) as State<{ value: number; generation: number }>
+		const b = state({ value: 10, generation: 0 }) as State<{ value: number; generation: number }>
 
 		// Track update counts for cycle detection
 		let aUpdateCount = 0
@@ -395,15 +399,15 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 
 		// Verify the cycle was broken at the right generation
 		if (bValues.length > 0) {
-			const lastB = bValues[bValues.length - 1]
-			assert.ok(lastB.generation <= 5, `Last B generation should not exceed limit, got ${lastB.generation}`)
+			const lastB = bValues.at(-1)
+			assert.ok(lastB && lastB.generation <= 5, `Last B generation should not exceed limit, got ${lastB?.generation}`)
 		}
 	})
 
 	it('should remain responsive after cycles are broken', (): void => {
 		// Verify system remains responsive after a cycle is broken
-		const a = state(5)
-		const b = state(10)
+		const a = state(5) as State<number>
+		const b = state(10) as State<number>
 
 		// Value trackers
 		const aResponses: number[] = []
@@ -459,10 +463,10 @@ describe('Cyclic Dependencies', { concurrency: true, timeout: 1000 }, (): void =
 
 	it('should handle multiple independent cycles simultaneously', (): void => {
 		// Test multiple independent cycles running simultaneously
-		const a1 = state(5)
-		const b1 = state(10)
-		const a2 = state(15)
-		const b2 = state(30)
+		const a1 = state(5) as State<number>
+		const b1 = state(10) as State<number>
+		const a2 = state(15) as State<number>
+		const b2 = state(30) as State<number>
 
 		// Cycle counters
 		let cycle1Count = 0

@@ -1,10 +1,10 @@
-/**
- * Integration tests for deep dependency chains.
- */
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { state, derive, batch, type State, type ReadOnlyState } from '../src/index.ts'
 
+/**
+ * Integration tests for deep dependency chains.
+ */
 describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): void => {
 	type StateOrReadOnly<T> = State<T> | ReadOnlyState<T>
 
@@ -52,10 +52,10 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 
 		const chain: StateOrReadOnly<number>[] = [source]
 		for (let i = 0; i < depth; i++) {
-			chain.push(derive((): number => chain[i]() + 1))
+			chain.push(derive((): number => (chain[i] as StateOrReadOnly<number>)() + 1))
 		}
 
-		const leaf = chain[depth]
+		const leaf = chain[depth] as StateOrReadOnly<number>
 
 		// Check initial values
 		assert.strictEqual(source(), 0)
@@ -71,7 +71,11 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 		// Verify the entire chain
 		for (let i = 0; i <= depth; i++) {
 			const expected = i === 0 ? 10 : 10 + i
-			assert.strictEqual(chain[i](), expected, `Node at depth ${i} should have value ${expected}`)
+			assert.strictEqual(
+				(chain[i] as StateOrReadOnly<number>)(),
+				expected,
+				`Node at depth ${i} should have value ${expected}`
+			)
 		}
 	})
 
@@ -83,10 +87,10 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 		// Create the chain and store nodes
 		const chain: StateOrReadOnly<number>[] = [source]
 		for (let i = 0; i < depth; i++) {
-			chain.push(derive((): number => chain[i]() + 1))
+			chain.push(derive((): number => (chain[i] as StateOrReadOnly<number>)() + 1))
 		}
 
-		const leaf = chain[depth]
+		const leaf = chain[depth] as StateOrReadOnly<number>
 
 		// Check initial values
 		assert.strictEqual(source(), 0)
@@ -102,10 +106,10 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 		assert.strictEqual(leaf(), 10 + depth)
 
 		// Spot check a few nodes in the chain
-		assert.strictEqual(chain[1](), 11)
-		assert.strictEqual(chain[5](), 15)
-		assert.strictEqual(chain[10](), 20)
-		assert.strictEqual(chain[15](), 25)
+		assert.strictEqual((chain[1] as StateOrReadOnly<number>)(), 11)
+		assert.strictEqual((chain[5] as StateOrReadOnly<number>)(), 15)
+		assert.strictEqual((chain[10] as StateOrReadOnly<number>)(), 20)
+		assert.strictEqual((chain[15] as StateOrReadOnly<number>)(), 25)
 	})
 
 	it('should not cause stack overflow with very deep chains (depth=30)', (): void => {
@@ -115,10 +119,10 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 		// Create a chain of 30 derived states
 		const chain: StateOrReadOnly<number>[] = [source]
 		for (let i = 0; i < depth; i++) {
-			chain.push(derive((): number => chain[i]() + 1))
+			chain.push(derive((): number => (chain[i] as StateOrReadOnly<number>)() + 1))
 		}
 
-		const leaf = chain[depth]
+		const leaf = chain[depth] as StateOrReadOnly<number>
 
 		// Verify initial values
 		assert.strictEqual(source(), 0)
@@ -141,10 +145,10 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 		// Create a chain of 100 derived states
 		const chain: StateOrReadOnly<number>[] = [source]
 		for (let i = 0; i < depth; i++) {
-			chain.push(derive((): number => chain[i]() + 1))
+			chain.push(derive((): number => (chain[i] as StateOrReadOnly<number>)() + 1))
 		}
 
-		const leaf = chain[depth]
+		const leaf = chain[depth] as StateOrReadOnly<number>
 
 		// Verify initial values
 		assert.strictEqual(source(), 0)
@@ -158,10 +162,10 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 		assert.strictEqual(leaf(), 10 + depth)
 
 		// Verify nodes at different depths
-		assert.strictEqual(chain[1](), 11)
-		assert.strictEqual(chain[25](), 35)
-		assert.strictEqual(chain[50](), 60)
-		assert.strictEqual(chain[75](), 85)
+		assert.strictEqual((chain[1] as StateOrReadOnly<number>)(), 11)
+		assert.strictEqual((chain[25] as StateOrReadOnly<number>)(), 35)
+		assert.strictEqual((chain[50] as StateOrReadOnly<number>)(), 60)
+		assert.strictEqual((chain[75] as StateOrReadOnly<number>)(), 85)
 	})
 
 	it('should handle multiple rapid updates to deep chains', (): void => {
@@ -171,10 +175,10 @@ describe('Deep Dependency Chains', { concurrency: true, timeout: 1000 }, (): voi
 		// Create the chain
 		const chain: StateOrReadOnly<number>[] = [source]
 		for (let i = 0; i < depth; i++) {
-			chain.push(derive((): number => chain[i]() + 1))
+			chain.push(derive((): number => (chain[i] as StateOrReadOnly<number>)() + 1))
 		}
 
-		const leaf = chain[depth]
+		const leaf = chain[depth] as StateOrReadOnly<number>
 
 		// Initial check
 		assert.strictEqual(leaf(), depth)

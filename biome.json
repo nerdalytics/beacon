@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
+	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
 	"organizeImports": {
 		"enabled": true
 	},
@@ -75,13 +75,13 @@
 	"vcs": {
 		"enabled": true,
 		"clientKind": "git",
-		"defaultBranch": "main",
+		"defaultBranch": "trunk",
 		"useIgnoreFile": true,
 		"root": "."
 	},
 	"files": {
-		"ignore": [".git/**/*", "node_modules/**/*", "dist/**/*", "test/template.test.ts"],
-		"include": ["src/**/*.*", "scripts/**/*.*", "test/**/*.ts"],
-		"ignoreUnknown": true
+		"ignoreUnknown": true,
+		"include": ["**/*.{ts,js,json}"],
+		"ignore": ["tests/template.test.ts", "dist/**/*", "temp/**/*", "node_modules/**/*"]
 	}
 }
