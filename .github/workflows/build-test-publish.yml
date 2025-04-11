@@ -119,6 +119,7 @@ jobs:
 
   publish-npm:
     needs: [test-lts-20, test-lts-22]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4.2.2
