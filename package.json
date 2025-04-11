@@ -1,16 +1,11 @@
 {
 	"name": "@nerdalytics/beacon",
-	"version": "1000.0.0",
+	"version": "1000.1.0",
 	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"type": "module",
 	"main": "dist/index.js",
 	"types": "dist/index.d.ts",
-	"files": [
-		"dist/index.js",
-		"dist/index.d.ts",
-		"src/",
-		"LICENSE"
-	],
+	"files": ["dist/index.js", "dist/index.d.ts", "src/", "LICENSE"],
 	"repository": {
 		"url": "github:nerdalytics/beacon",
 		"type": "git"
@@ -19,10 +14,9 @@
 		"lint": "npx @biomejs/biome lint --config-path=./biome.json",
 		"lint:fix": "npx @biomejs/biome lint --fix --config-path=./biome.json",
 		"lint:fix:unsafe": "npx @biomejs/biome lint --fix --unsafe --config-path=./biome.json",
-		"format": "npx @biomejs/biome format src --write --config-path=./biome.json",
-		"check": "npx @biomejs/biome check src --config-path=./biome.json",
-		"check:fix": "npx @biomejs/biome format src --fix --config-path=./biome.json",
-
+		"format": "npx @biomejs/biome format --write --config-path=./biome.json",
+		"check": "npx @biomejs/biome check --config-path=./biome.json",
+		"check:fix": "npx @biomejs/biome format --fix --config-path=./biome.json",
 		"test": "node --test --test-skip-pattern=\"COMPONENT NAME\" tests/**/*.ts",
 		"test:coverage": "node --test --experimental-config-file=node.config.json --test-skip-pattern=\"[COMPONENT NAME]\" --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.ts",
 		"test:unit:state": "node --test tests/state.test.ts",
@@ -30,20 +24,18 @@
 		"test:unit:batch": "node --test tests/batch.test.ts",
 		"test:unit:derive": "node --test tests/derive.test.ts",
 		"test:unit:select": "node --test tests/select.test.ts",
+		"test:unit:lens": "node --test tests/lens.test.ts",
 		"test:unit:cleanup": "node --test tests/cleanup.test.ts",
 		"test:unit:cyclic-dependency": "node --test tests/cyclic-dependency.test.ts",
 		"test:unit:deep-chain": "node --test tests/deep-chain.test.ts",
 		"test:unit:infinite-loop": "node --test tests/infinite-loop.test.ts",
-
 		"benchmark": "node scripts/benchmark.ts",
-
 		"build": "npm run build:lts",
 		"prebuild:lts": "rm -rf dist/",
 		"build:lts": "tsc -p tsconfig.lts.json",
 		"prepublishOnly": "npm run build:lts",
-
+		"pretest:lts": "npm run build:lts",
 		"test:lts": "node scripts/run-lts-tests.js",
-
 		"update-performance-docs": "node --experimental-config-file=node.config.json scripts/update-performance-docs.ts"
 	},
 	"keywords": [

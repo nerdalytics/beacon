@@ -66,6 +66,12 @@ export const protectedState = <T>(initialValue: T): [ReadOnlyState<T>, Writeable
 	]
 }
 
+/**
+ * Creates a lens for direct updates to nested properties of a state.
+ */
+export const lens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> =>
+	StateImpl.createLens(source, accessor)
+
 class StateImpl<T> {
 	// Static fields track global reactivity state - this centralized approach allows
 	// for coordinated updates while maintaining individual state isolation
@@ -92,8 +98,10 @@ class StateImpl<T> {
 		this.value = initialValue
 	}
 
-	// Creates a callable function that both reads and writes state -
-	// this design maintains JavaScript idioms while adding reactivity
+	/**
+	 * Creates a reactive state container with the provided initial value.
+	 * Implementation of the public 'state' function.
+	 */
 	static createState = <T>(initialValue: T): State<T> => {
 		const instance = new StateImpl<T>(initialValue)
 		const get = (): T => instance.get()
@@ -172,7 +180,10 @@ class StateImpl<T> {
 		this.set(fn(this.value))
 	}
 
-	// Creates an effect that automatically tracks and responds to state changes
+	/**
+	 * Registers a function to run whenever its reactive dependencies change.
+	 * Implementation of the public 'effect' function.
+	 */
 	static createEffect = (fn: () => void): Unsubscribe => {
 		const runEffect = (): void => {
 			// Prevent re-entrance to avoid cascade updates during effect execution
@@ -265,7 +276,10 @@ class StateImpl<T> {
 		}
 	}
 
-	// Batches state updates to improve performance by reducing redundant effect runs
+	/**
+	 * Groups multiple state updates to trigger effects only once at the end.
+	 * Implementation of the public 'batch' function.
+	 */
 	static executeBatch = <T>(fn: () => T): T => {
 		// Increment depth counter to handle nested batches correctly
 		StateImpl.batchDepth++
@@ -302,7 +316,10 @@ class StateImpl<T> {
 		}
 	}
 
-	// Creates a derived state that memoizes computations and updates only when dependencies change
+	/**
+	 * Creates a read-only computed value that updates when its dependencies change.
+	 * Implementation of the public 'derive' function.
+	 */
 	static createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
 		const valueState = StateImpl.createState<T | undefined>(undefined)
 		let initialized = false
@@ -334,7 +351,10 @@ class StateImpl<T> {
 		}
 	}
 
-	// Creates a selector that monitors a slice of state with performance optimizations
+	/**
+	 * Creates an efficient subscription to a subset of a state value.
+	 * Implementation of the public 'select' function.
+	 */
 	static createSelect = <T, R>(
 		source: ReadOnlyState<T>,
 		selectorFn: (state: T) => R,
@@ -381,6 +401,85 @@ class StateImpl<T> {
 		}
 	}
 
+	/**
+	 * Creates a lens for direct updates to nested properties of a state.
+	 * Implementation of the public 'lens' function.
+	 */
+	static createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
+		// Extract the property path once during lens creation
+		const extractPath = (): (string | number)[] => {
+			const path: (string | number)[] = []
+			const proxy = new Proxy(
+				{},
+				{
+					get: (_: object, prop: string | symbol): unknown => {
+						if (typeof prop === 'string' || typeof prop === 'number') {
+							path.push(prop)
+						}
+						return proxy
+					},
+				}
+			)
+
+			try {
+				accessor(proxy as unknown as T)
+			} catch {
+				// Ignore errors, we're just collecting the path
+			}
+
+			return path
+		}
+
+		// Capture the path once
+		const path = extractPath()
+
+		// Create a state with the initial value from the source
+		const lensState = StateImpl.createState<K>(accessor(source()))
+
+		// Prevent circular updates
+		let isUpdating = false
+
+		// Set up an effect to sync from source to lens
+		StateImpl.createEffect((): void => {
+			if (isUpdating) {
+				return
+			}
+
+			isUpdating = true
+			try {
+				lensState.set(accessor(source()))
+			} finally {
+				isUpdating = false
+			}
+		})
+
+		// Override the lens state's set method to update the source
+		const originalSet = lensState.set
+		lensState.set = (value: K): void => {
+			if (isUpdating) {
+				return
+			}
+
+			isUpdating = true
+			try {
+				// Update lens state
+				originalSet(value)
+
+				// Update source by modifying the value at path
+				source.update((current: T): T => setValueAtPath(current, path, value))
+			} finally {
+				isUpdating = false
+			}
+		}
+
+		// Add update method for completeness
+		lensState.update = (fn: (value: K) => K): void => {
+			lensState.set(fn(lensState()))
+		}
+
+		return lensState
+	}
+
 	// Processes queued subscriber notifications in a controlled, non-reentrant way
 	private static notifySubscribers = (): void => {
 		// Prevent reentrance to avoid cascading notification loops when
@@ -424,4 +523,111 @@ class StateImpl<T> {
 			StateImpl.subscriberDependencies.delete(effect)
 		}
 	}
+}
+// Helper for array updates
+const updateArrayItem = <V>(arr: unknown[], index: number, value: V): unknown[] => {
+	const copy = [...arr]
+	copy[index] = value
+	return copy
+}
+
+// Helper for single-level updates (optimization)
+const updateShallowProperty = <V>(
+	obj: Record<string | number, unknown>,
+	key: string | number,
+	value: V
+): Record<string | number, unknown> => {
+	const result = { ...obj }
+	result[key] = value
+	return result
+}
+
+// Helper to create the appropriate container type
+const createContainer = (key: string | number): Record<string | number, unknown> | unknown[] => {
+	const isArrayKey = typeof key === 'number' || !Number.isNaN(Number(key))
+	return isArrayKey ? [] : {}
+}
+
+// Helper for handling array path updates
+const updateArrayPath = <V>(array: unknown[], pathSegments: (string | number)[], value: V): unknown[] => {
+	const index = Number(pathSegments[0])
+
+	if (pathSegments.length === 1) {
+		// Simple array item update
+		return updateArrayItem(array, index, value)
+	}
+
+	// Nested path in array
+	const copy = [...array]
+	const nextPathSegments = pathSegments.slice(1)
+	const nextKey = nextPathSegments[0]
+
+	// For null/undefined values in arrays, create appropriate containers
+	let nextValue = array[index]
+	if (nextValue === undefined || nextValue === null) {
+		// Use empty object as default if nextKey is undefined
+		nextValue = nextKey !== undefined ? createContainer(nextKey) : {}
+	}
+
+	copy[index] = setValueAtPath(nextValue, nextPathSegments, value)
+	return copy
+}
+
+// Helper for handling object path updates
+const updateObjectPath = <V>(
+	obj: Record<string | number, unknown>,
+	pathSegments: (string | number)[],
+	value: V
+): Record<string | number, unknown> => {
+	// Ensure we have a valid key
+	const currentKey = pathSegments[0]
+	if (currentKey === undefined) {
+		// This shouldn't happen given our checks in the main function
+		return obj
+	}
+
+	if (pathSegments.length === 1) {
+		// Simple object property update
+		return updateShallowProperty(obj, currentKey, value)
+	}
+
+	// Nested path in object
+	const nextPathSegments = pathSegments.slice(1)
+	const nextKey = nextPathSegments[0]
+
+	// For null/undefined values, create appropriate containers
+	let currentValue = obj[currentKey]
+	if (currentValue === undefined || currentValue === null) {
+		// Use empty object as default if nextKey is undefined
+		currentValue = nextKey !== undefined ? createContainer(nextKey) : {}
+	}
+
+	// Create new object with updated property
+	const result = { ...obj }
+	result[currentKey] = setValueAtPath(currentValue, nextPathSegments, value)
+	return result
+}
+
+// Simplified function to update a nested value at a path
+const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], value: V): O => {
+	// Handle base cases
+	if (pathSegments.length === 0) {
+		return value as unknown as O
+	}
+
+	if (obj === undefined || obj === null) {
+		return setValueAtPath({} as O, pathSegments, value)
+	}
+
+	const currentKey = pathSegments[0]
+	if (currentKey === undefined) {
+		return obj
+	}
+
+	// Delegate to specialized handlers based on data type
+	if (Array.isArray(obj)) {
+		return updateArrayPath(obj, pathSegments, value) as unknown as O
+	}
+
+	return updateObjectPath(obj as Record<string | number, unknown>, pathSegments, value) as unknown as O
 }

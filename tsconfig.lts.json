@@ -1,6 +1,9 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
+	"include": ["**/*.ts", "**/*.json"],
+	"exclude": ["dist", "node_modules", "temp", "tests/template.test.ts"],
 	"compilerOptions": {
+		"types": ["node"],
 		"target": "ES2022",
 		"module": "NodeNext",
 		"moduleResolution": "NodeNext",
@@ -19,8 +22,11 @@
 		"noUncheckedIndexedAccess": false,
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
-		"allowSyntheticDefaultImports": true,
 		"useDefineForClassFields": true,
+		"allowUnreachableCode": false,
+		"noPropertyAccessFromIndexSignature": false,
+		"allowSyntheticDefaultImports": true,
+		"rewriteRelativeImportExtensions": true,
 
 		"esModuleInterop": true,
 		"skipLibCheck": true,
@@ -29,9 +35,5 @@
 		"forceConsistentCasingInFileNames": true,
 
 		"allowJs": false
-	},
-	"include": ["src/**/*", "temp/**/*"],
-	"exclude": ["node_modules", "dist"],
-
-	"types": ["node"]
+	}
 }
