@@ -31,7 +31,7 @@ jobs:
       with:
         version: latest
     - name: Check linting & code formatting
-      run: npm run check
+      run: biome check --config-path=./biome.json
     - name: Build project
       run: npm run build:lts
     - name: Upload dist directory
