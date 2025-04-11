@@ -35,7 +35,8 @@
 		"build:lts": "tsc -p tsconfig.lts.json",
 		"prepublishOnly": "npm run build:lts",
 		"pretest:lts": "node scripts/run-lts-tests.js",
-		"test:lts": "node --test --test-skip-pattern=\"COMPONENT NAME\" dist/tests/**/*.js",
+		"test:lts:20": "node --test dist/tests/**/*.js",
+		"test:lts:22": "node --test --test-skip-pattern=\"COMPONENT NAME\" dist/tests/**/*.js",
 		"update-performance-docs": "node --experimental-config-file=node.config.json scripts/update-performance-docs.ts"
 	},
 	"keywords": [
