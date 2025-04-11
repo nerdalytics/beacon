@@ -11,7 +11,7 @@ jobs:
   cache-deps:
     strategy:
       matrix:
-        node-version: ['20.x', '22.x', '23.x']
+        node-version: ['20.x', '22.x', '23.11.0']
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4.2.2
