@@ -1,27 +1,49 @@
 # Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
 
+> Lightweight reactive state management for Node.js backends
+
+![license:mit](https://flat.badgen.net/static/license/MIT/blue)
+![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)
+
+![tech:nodejs](https://img.shields.io/badge/Node%20js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)
+![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
+![linter:biome](https://img.shields.io/badge/biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white)
+
 A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.
 
-## Table of Contents
+<details>
+<summary><Strong>Table of Contents</Strong></summary>
 
 - [Features](#features)
-- [Installation](#installation)
-- [Usage](#usage)
-- [API](#api)
-  - [state](#statetinitialvalue-t-statet)
-  - [derive](#derivetfn---t-readonlystatet)
-  - [effect](#effectfn---void---void)
-  - [batch](#batchtfn---t-t)
-  - [select](#selectt-rsource-readonlystatet-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlystater)
-  - [lens](#lenst-ksource-statet-accessor-state-t--k-statek)
-  - [readonlyState](#readonlystatetstate-statet-readonlystatet)
-  - [protectedState](#protectedstatetinitialvalue-t-readonlystatet-writeablestatet)
+- [Quick Start](#quick-start)
+- [Core Concepts](#core-concepts)
+- [API Reference](#api-reference)
+   - [Core Primitives](#core-primitives)
+      - [state](#statetinitialvalue-t-statet)
+      - [derive](#derivetfn---t-readonlystatet)
+      - [effect](#effectfn---void---void)
+      - [batch](#batchtfn---t-t)
+      - [select](#selectt-rsource-readonlystatet-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlystater)
+      - [lens](#lenst-ksource-statet-accessor-state-t--k-statek)
+   - [Access Control](#access-control)
+      - [readonlyState](#readonlystatetstate-statet-readonlystatet)
+      - [protectedState](#protectedstatetinitialvalue-t-readonlystatet-writeablestatet)
+- [Advanced Features](#advanced-features)
+   - [Infinite Loop Protection](#infinite-loop-protection)
+   - [Automatic Cleanup](#automatic-cleanup)
+   - [Custom Equality Functions](#custom-equality-functions)
+- [Design Philosophy](#design-philosophy)
+- [Architecture](#architecture)
 - [Development](#development)
-  - [Node.js LTS Compatibility](#nodejs-lts-compatibility)
-- [Key Differences vs TC39 Proposal](#key-differences-between-my-library-and-the-tc39-proposal)
-- [Implementation Details](#implementation-details)
+- [Key Differences vs TC39 Proposal](#key-differences-vs-tc39-proposal)
 - [FAQ](#faq)
+   - [Why "Beacon" Instead of "Signal"?](#why-beacon-instead-of-signal)
+   - [How does Beacon handle memory management?](#how-does-beacon-handle-memory-management)
+   - [Can I use Beacon with Express or other frameworks?](#can-i-use-beacon-with-express-or-other-frameworks)
+   - [Can Beacon be used in browser applications?](#can-beacon-be-used-in-browser-applications)
 - [License](#license)
+
+</details>
 
 ## Features
 
@@ -35,76 +57,179 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
 - ♻️ **Cycle handling** - Safely manages cyclic dependencies without crashing
 - 🚨 **Infinite loop detection** - Automatically detects and prevents infinite update loops
 - 🛠️ **TypeScript-first** - Full TypeScript support with generics
-- 🪶 **Lightweight** - Zero dependencies, < 200 LOC
+- 🪶 **Lightweight** - Zero dependencies
 - ✅ **Node.js compatibility** - Works with Node.js LTS v20+ and v22+
 
-## Installation
+## Quick Start
 
-```sh
-npm install @nerdalytics/beacon
+```other
+npm install @nerdalytics/beacon --save-exact
 ```
 
-## Usage
-
 ```typescript
-import {
-  state,
-  derive,
-  effect,
-  batch,
-  select,
-  lens,
-  readonlyState,
-  protectedState
-} from "@nerdalytics/beacon";
+import { state, derive, effect } from '@nerdalytics/beacon';
 
 // Create reactive state
 const count = state(0);
+
+// Create a derived value
 const doubled = derive(() => count() * 2);
 
-// Read values
-console.log(count()); // => 0
-console.log(doubled()); // => 0
-
-// Setup an effect that automatically runs when dependencies change
-// effect() returns a cleanup function that removes all subscriptions when called
-const unsubscribe = effect(() => {
-  console.log(`Count is ${count()}, doubled is ${doubled()}`);
+// Set up an effect
+effect(() => {
+  console.log(`Count: ${count()}, Doubled: ${doubled()}`);
 });
-// => "Count is 0, doubled is 0" (effect runs immediately when created)
+// => "Count: 0, Doubled: 0"
 
-// Update values - effect automatically runs after each change
+// Update the state - effect runs automatically
 count.set(5);
-// => "Count is 5, doubled is 10"
+// => "Count: 5, Doubled: 10"
+```
+
+## Core Concepts
+
+Beacon is built around three core primitives:
+
+1. **States**: Mutable, reactive values
+2. **Derived States**: Read-only computed values that update automatically
+3. **Effects**: Side effects that run automatically when dependencies change
+
+The library handles all the dependency tracking and updates automatically, so you can focus on your business logic.
+
+## API Reference
+
+### Core Primitives
+
+#### `state<T>(initialValue: T): State<T>`
+
+The foundation of Beacon's reactivity system. Create with `state()` and use like a function.
+
+```typescript
+import { state } from '@nerdalytics/beacon';
+
+const counter = state(0);
+
+// Read current value
+console.log(counter()); // => 0
+
+// Update value
+counter.set(5);
+console.log(counter()); // => 5
 
 // Update with a function
-count.update((n) => n + 1);
-// => "Count is 6, doubled is 12"
+counter.update(n => n + 1);
+console.log(counter()); // => 6
+```
+
+#### `derive<T>(fn: () => T): ReadOnlyState<T>`
+
+Calculate values based on other states. Updates automatically when dependencies change.
+
+```typescript
+import { state, derive } from '@nerdalytics/beacon';
+
+const firstName = state('John');
+const lastName = state('Doe');
+
+const fullName = derive(() => `${firstName()} ${lastName()}`);
+
+console.log(fullName()); // => "John Doe"
+
+firstName.set('Jane');
+console.log(fullName()); // => "Jane Doe"
+```
+
+#### `effect(fn: () => void): () => void`
+
+Run side effects when reactive values change.
+
+```typescript
+import { state, effect } from '@nerdalytics/beacon';
+
+const user = state({ name: 'Alice', loggedIn: false });
+
+const cleanup = effect(() => {
+  console.log(`User ${user().name} is ${user().loggedIn ? 'online' : 'offline'}`);
+});
+// => "User Alice is offline" (effect runs immediately when created)
+
+user.update(u => ({ ...u, loggedIn: true }));
+// => "User Alice is online"
+
+// Stop the effect and clean up all subscriptions
+cleanup();
+```
+
+#### `batch<T>(fn: () => T): T`
+
+Group multiple updates to trigger effects only once.
+
+```typescript
+import { state, effect, batch } from "@nerdalytics/beacon";
+
+const count = state(0);
+
+effect(() => {
+  console.log(`Count is ${count()}`);
+});
+// => "Count is 0" (effect runs immediately)
+
+// Without batching, effects run after each update
+count.set(1);
+// => "Count is 1"
+count.set(2);
+// => "Count is 2"
 
 // Batch updates (only triggers effects once at the end)
 batch(() => {
   count.set(10);
   count.set(20);
+  count.set(30);
 });
-// => "Count is 20, doubled is 40" (only once)
+// => "Count is 30" (only once)
+```
 
-// Using select to subscribe to specific parts of state
-const user = state({ name: "Alice", age: 30, email: "alice@example.com" });
-const nameSelector = select(user, u => u.name);
+#### `select<T, R>(source: ReadOnlyState<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): ReadOnlyState<R>`
+
+Subscribe to specific parts of a state object.
+
+```typescript
+import { state, select, effect } from '@nerdalytics/beacon';
+
+const user = state({
+  profile: { name: 'Alice' },
+  preferences: { theme: 'dark' }
+});
+
+// Only triggers when name changes
+const nameState = select(user, u => u.profile.name);
 
 effect(() => {
-  console.log(`Name changed: ${nameSelector()}`);
+  console.log(`Name: ${nameState()}`);
 });
-// => "Name changed: Alice"
+// => "Name: Alice"
 
-// Updates to the selected property will trigger the effect
-user.update(u => ({ ...u, name: "Bob" }));
-// => "Name changed: Bob"
+// This triggers the effect
+user.update(u => ({
+  ...u,
+  profile: { ...u.profile, name: 'Bob' }
+}));
+// => "Name: Bob"
 
-// Updates to other properties won't trigger the effect
-user.update(u => ({ ...u, age: 31 })); // No effect triggered
+// This doesn't trigger the effect (theme changed, not name)
+user.update(u => ({
+  ...u,
+  preferences: { ...u.preferences, theme: 'light' }
+}));
+```
 
-// Using lens for two-way binding with nested properties
+#### `lens<T, K>(source: State<T>, accessor: (state: T) => K): State<K>`
+
+Two-way binding to deeply nested properties.
+
+```typescript
+import { state, lens, effect } from "@nerdalytics/beacon";
+
 const nested = state({
   user: {
     profile: {
@@ -127,165 +252,238 @@ themeLens.set("light");
 console.log(themeLens()); // => "light"
 console.log(nested().user.profile.settings.theme); // => "light"
 
-// Unsubscribe the effect to stop it from running on future updates
-// and clean up all its internal subscriptions
-unsubscribe();
-
-// Using readonlyState to create a read-only view
-const counter = state(0);
-const readonlyCounter = readonlyState(counter);
-// readonlyCounter() works, but readonlyCounter.set() is not available
-
-// Using protectedState to separate read and write capabilities
-const [getUser, setUser] = protectedState({ name: 'Alice' });
-// getUser() works to read the state
-// setUser.set() and setUser.update() work to modify the state
-// but getUser has no mutation methods
-
-// Infinite loop detection example (would throw an error)
-try {
-  effect(() => {
-    const value = counter();
-    // The following would throw an error because it attempts to
-    // update a state that the effect depends on:
-    // "Infinite loop detected: effect() cannot update a state() it depends on!"
-    // counter.set(value + 1);
-
-    // Instead, use a safe pattern with proper dependencies:
-    console.log(`Current counter value: ${value}`);
-  });
-} catch (error) {
-  console.error('Prevented infinite loop:', error.message);
-}
+// The entire object is updated with proper referential integrity
+// This makes it easy to detect changes throughout the object tree
 ```
 
-## API
+### Access Control
 
-### `state<T>(initialValue: T): State<T>`
+Control who can read vs. write to your state.
 
-Creates a new reactive state container with the provided initial value.
+#### `readonlyState<T>(state: State<T>): ReadOnlyState<T>`
 
-### `derive<T>(fn: () => T): ReadOnlyState<T>`
+Creates a read-only view of a state, hiding mutation methods. Useful when you want to expose state to other parts of your application without allowing direct mutations.
 
-Creates a read-only computed value that updates when its dependencies change.
+```typescript
+import { state, readonlyState } from "@nerdalytics/beacon";
 
-### `effect(fn: () => void): () => void`
+const counter = state(0);
+const readonlyCounter = readonlyState(counter);
 
-Creates an effect that runs the given function immediately and whenever its dependencies change. Returns an unsubscribe function that stops the effect and cleans up all subscriptions when called.
+// Reading works
+console.log(readonlyCounter()); // => 0
 
-### `batch<T>(fn: () => T): T`
+// Updating the original state reflects in the readonly view
+counter.set(5);
+console.log(readonlyCounter()); // => 5
 
-Batches multiple updates to only trigger effects once at the end.
+// This would cause a TypeScript error since readonlyCounter has no set method
+// readonlyCounter.set(10); // Error: Property 'set' does not exist
+```
 
-### `select<T, R>(source: ReadOnlyState<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): ReadOnlyState<R>`
+#### `protectedState<T>(initialValue: T): [ReadOnlyState<T>, WriteableState<T>]`
 
-Creates an efficient subscription to a subset of a state value. The selector will only notify its subscribers when the selected value actually changes according to the provided equality function (defaults to `Object.is`).
+Creates a state with separated read and write capabilities, returning a tuple of reader and writer. This pattern allows you to expose only the reading capability to consuming code while keeping the writing capability private.
 
-### `lens<T, K>(source: State<T>, accessor: (state: T) => K): State<K>`
+```typescript
+import { protectedState } from "@nerdalytics/beacon";
 
-Creates a lens for direct updates to nested properties of a state. A lens combines the functionality of `select` (for reading) with the ability to update the nested property while maintaining referential integrity throughout the object tree.
+// Create a state with separated read and write capabilities
+const [getUser, setUser] = protectedState({ name: 'Alice' });
 
-### `readonlyState<T>(state: State<T>): ReadOnlyState<T>`
+// Read the state
+console.log(getUser()); // => { name: 'Alice' }
 
-Creates a read-only view of a state, hiding mutation methods. Useful when you want to expose a state to other parts of your application without allowing direct mutations.
+// Update the state
+setUser.set({ name: 'Bob' });
+console.log(getUser()); // => { name: 'Bob' }
 
-### `protectedState<T>(initialValue: T): [ReadOnlyState<T>, WriteableState<T>]`
+// This is useful for exposing only read access to outside consumers
+function createProtectedCounter() {
+  const [getCount, setCount] = protectedState(0);
 
-Creates a state with access control, returning a tuple of reader and writer. This pattern separates read and write capabilities, allowing you to expose only the reading capability to consuming code while keeping the writing capability private.
+  return {
+    value: getCount,
+    increment: () => setCount.update(n => n + 1),
+    decrement: () => setCount.update(n => n - 1)
+  };
+}
+
+const counter = createProtectedCounter();
+console.log(counter.value()); // => 0
+counter.increment();
+console.log(counter.value()); // => 1
+```
+
+## Advanced Features
+
+Beacon includes several advanced capabilities that help you build robust applications.
+
+### Infinite Loop Protection
+
+Beacon prevents common mistakes that could cause infinite loops:
+
+```typescript
+import { state, effect } from '@nerdalytics/beacon';
+
+const counter = state(0);
+
+// This would throw an error
+effect(() => {
+  const value = counter();
+  counter.set(value + 1); // Error: Infinite loop detected!
+});
+
+// Instead, use proper patterns like:
+const increment = () => counter.update(n => n + 1);
+```
+
+### Automatic Cleanup
+
+All subscriptions are automatically cleaned up when effects are unsubscribed:
+
+```typescript
+import { state, effect } from '@nerdalytics/beacon';
+
+const data = state({ loading: true, items: [] });
+
+// Effect with nested effect
+const cleanup = effect(() => {
+  if (data().loading) {
+    console.log('Loading...');
+  } else {
+    // This nested effect is automatically cleaned up when the parent is
+    effect(() => {
+      console.log(`${data().items.length} items loaded`);
+    });
+  }
+});
+
+// Unsubscribe cleans up everything, including nested effects
+cleanup();
+```
+
+### Custom Equality Functions
+
+Control when subscribers are notified with custom equality checks:
+
+```typescript
+import { state, select, effect } from '@nerdalytics/beacon';
+
+const list = state([1, 2, 3]);
+
+// Only notify when array length changes, not on reference changes
+const listLengthState = select(
+  list,
+  arr => arr.length,
+  (a, b) => a === b
+);
+
+effect(() => {
+  console.log(`List has ${listLengthState()} items`);
+});
+```
+
+## Design Philosophy
+
+Beacon follows these key principles:
+
+1. **Simplicity**: Minimal API surface with powerful primitives
+2. **Fine-grained reactivity**: Track dependencies at exactly the right level
+3. **Predictability**: State changes flow predictably through the system
+4. **Performance**: Optimize for server workloads and memory efficiency
+5. **Type safety**: Full TypeScript support with generics
+
+## Architecture
+
+Beacon is built around a centralized reactivity system with fine-grained dependency tracking. Here's how it works:
+
+- **Automatic Dependency Collection**: When a state is read inside an effect, Beacon automatically records this dependency
+- **WeakMap-based Tracking**: Uses WeakMaps for automatic garbage collection
+- **Topological Updates**: Updates flow through the dependency graph in the correct order
+- **Memory-Efficient**: Designed for long-running Node.js processes
+
+### Dependency Tracking
+
+When a state is read inside an effect, Beacon automatically records this dependency relationship and sets up a subscription.
+
+### Infinite Loop Prevention
+
+Beacon actively detects when an effect tries to update a state it depends on, preventing common infinite update cycles:
+
+```typescript
+// This would throw: "Infinite loop detected"
+effect(() => {
+  const value = counter();
+  counter.set(value + 1); // Error! Updating a state the effect depends on
+});
+```
+
+### Cyclic Dependencies
+
+Beacon employs two complementary strategies for handling cyclical updates:
+
+1. **Active Detection**: The system tracks which states an effect reads from and writes to. If an effect attempts to directly update a state it depends on, Beacon throws a clear error.
+2. **Safe Cycles**: For indirect cycles and safe update patterns, Beacon uses a queue-based update system that won't crash even with cyclical dependencies. When states form a cycle where values eventually stabilize, the system handles these updates efficiently without stack overflows.
 
 ## Development
 
-```sh
+```other
 # Install dependencies
 npm install
 
-# Run all tests
+# Run tests
 npm test
-
-# Run all tests with coverage
-npm run test:coverage
-
-# Run specific test suites
-# Core functionality
-npm run test:unit:state
-npm run test:unit:effect
-npm run test:unit:derive
-npm run test:unit:batch
-npm run test:unit:select
-npm run test:unit:lens
-npm run test:unit:readonly
-npm run test:unit:protected
-
-# Advanced patterns
-npm run test:unit:cleanup              # Tests for effect cleanup behavior
-npm run test:unit:cyclic-dependency    # Tests for cyclic dependency handling
-npm run test:unit:deep-chain           # Tests for deep chain handling
-npm run test:unit:infinite-loop        # Tests for infinite loop detection
-
-# Benchmarking
-npm run benchmark    # Tests for infinite loop detection
-
-# Format code
-npm run format
-npm run lint
-npm run check    # Runs Bioms lint + format
 ```
 
-### Node.js LTS Compatibility
+## Key Differences vs [TC39 Proposal][1]
 
-Beacon supports the two most recent Node.js LTS versions (currently v20 and v22). When the package is published to npm, it includes transpiled code compatible with these LTS versions.
-
-## Key Differences Between My Library and the [TC39 Proposal][1]
-
-| Aspect | @nerdalytics/beacon | TC39 Proposal |
-|--------|---------------------|---------------|
-| **API Style** | Functional approach (`state()`, `derive()`) | Class-based design (`Signal.State`, `Signal.Computed`) |
-| **Reading/Writing Pattern** | Function call for reading (`count()`), methods for writing (`count.set(5)`) | Method-based access (`get()`/`set()`) |
-| **Framework Support** | High-level abstractions like `effect()` and `batch()` | Lower-level primitives (`Signal.subtle.Watcher`) that frameworks build upon |
-| **Advanced Features** | Focused on core reactivity | Includes introspection capabilities, watched/unwatched callbacks, and Signal.subtle namespace |
-| **Scope and Purpose** | Practical Node.js use cases with minimal API surface | Standardization with robust interoperability between frameworks |
-
-## Implementation Details
-
-Beacon is designed with a focus on simplicity, performance, and robust handling of complex dependency scenarios.
-
-### Key Implementation Concepts
-
-- **Fine-grained reactivity**: Dependencies are tracked automatically at the state level
-- **Efficient updates**: Changes only propagate to affected parts of the dependency graph
-- **Cyclical dependency handling**: Robust handling of circular references without crashing
-- **Infinite loop detection**: Safeguards against direct self-mutation within effects
-- **Memory management**: Automatic cleanup of subscriptions when effects are disposed
-- **Optimized batching**: Smart scheduling of updates to minimize redundant computations
+| **Aspect**                  | **@nerdalytics/beacon**                                                     | **TC39 Proposal**                                                                             |
+| --------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| **API Style**               | Functional approach (`state()`, `derive()`)                                 | Class-based design (`Signal.State`, `Signal.Computed`)                                        |
+| **Reading/Writing Pattern** | Function call for reading (`count()`), methods for writing (`count.set(5)`) | Method-based access (`get()`/`set()`)                                                         |
+| **Framework Support**       | High-level abstractions like `effect()` and `batch()`                       | Lower-level primitives (`Signal.subtle.Watcher`) that frameworks build upon                   |
+| **Advanced Features**       | Focused on core reactivity                                                  | Includes introspection capabilities, watched/unwatched callbacks, and Signal.subtle namespace |
+| **Scope and Purpose**       | Practical Node.js use cases with minimal API surface                        | Standardization with robust interoperability between frameworks                               |
 
 ## FAQ
 
-<details>
+#### Why "Beacon" Instead of "Signal"?
 
-<summary>Why "Beacon" Instead of "Signal"?</summary>
-I chose "Beacon" because it clearly represents how the library broadcasts notifications when state changes—just like a lighthouse guides ships. While my library draws inspiration from Preact Signals, Angular Signals, and aspects of Svelte, I wanted to create something lighter and specifically designed for Node.js backends. Using "Beacon" instead of the term "Signal" helps avoid confusion with the TC39 proposal and similar libraries while still accurately describing the core functionality.
+Beacon represents how the library broadcasts notifications when state changes—just like a lighthouse guides ships. The name avoids confusion with the TC39 proposal and similar libraries while accurately describing the core functionality.
 
-</details>
+#### How does Beacon handle memory management?
 
-<details>
+Beacon uses WeakMaps for dependency tracking, ensuring that unused states and effects can be garbage collected. When you unsubscribe an effect, all its internal subscriptions are automatically cleaned up.
 
-<summary>How does Beacon handle infinite update cycles?</summary>
-Beacon employs two complementary strategies for handling cyclical updates:
+#### Can I use Beacon with Express or other frameworks?
 
-1. **Infinite Loop Detection**: Beacon actively detects direct infinite loops in effects by tracking which states an effect reads and writes to. If an effect attempts to update a state it depends on (directly modifying its own dependency), Beacon throws an error with a clear message: "Infinite loop detected: effect() cannot update a state() it depends on!"
+Yes! Beacon works well as a state management solution in any Node.js application:
 
-2. **Safe Cyclic Dependencies**: For indirect cycles and safe update patterns, Beacon uses a queue-based update system that won't crash even with cyclical dependencies. When states form a cycle where values eventually stabilize, the system handles these updates efficiently without stack overflows.
+```typescript
+import express from 'express';
+import { state, effect } from '@nerdalytics/beacon';
 
-This dual approach prevents accidental infinite loops while still supporting legitimate cyclic update patterns that eventually stabilize.
+const app = express();
+const stats = state({ requests: 0, errors: 0 });
 
-</details>
+// Update stats on each request
+app.use((req, res, next) => {
+  stats.update(s => ({ ...s, requests: s.requests + 1 }));
+  next();
+});
 
-<details>
+// Log stats every minute
+effect(() => {
+  console.log(`Stats: ${stats().requests} requests, ${stats().errors} errors`);
+});
 
-<summary>How performant is Beacon?</summary>
-Beacon is designed with performance in mind for server-side Node.js environments. It achieves millions of operations per second for core operations like reading and writing states.
+app.listen(3000);
+```
 
-</details>
+#### Can Beacon be used in browser applications?
+
+While Beacon is optimized for Node.js server-side applications, its core principles would work in browser environments. However, the library is specifically designed for backend use cases and hasn't been optimized for browser bundle sizes or DOM integration patterns.
 
 ## License
 
