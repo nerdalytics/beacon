@@ -1,4 +1,4 @@
-import { spawnSync } from 'node:child_process'
+
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { readdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
