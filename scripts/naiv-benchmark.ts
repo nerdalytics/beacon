@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks'
-import { state, effect, derive, batch } from '../src/index.ts'
+import { batch, derive, effect, state } from '../src/index.ts'
 
 const errors = state(0)
 const processed = state(0)

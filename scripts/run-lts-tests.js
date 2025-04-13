@@ -1,7 +1,6 @@
-
-import { join, dirname } from 'node:path'
+import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { readdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs'
 
 /**
  * Run tests on compiled JS files for Node.js LTS

@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks'
-import { state, effect, derive, batch, type State, readonlyState } from '../src/index.ts'
+import { type State, batch, derive, effect, readonlyState, state } from '../src/index.ts'
 
 // Configuration
 const NumIterations = 5 // Number of measurement iterations

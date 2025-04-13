@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, effect, derive, batch, type State } from '../src/index.ts'
+import { describe, it } from 'node:test'
+import { type State, batch, derive, effect, state } from '../src/index.ts'
 
 /**
  * Tests for cyclical dependencies between states.

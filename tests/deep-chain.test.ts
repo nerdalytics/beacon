@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, derive, batch, type State, type ReadOnlyState } from '../src/index.ts'
+import { describe, it } from 'node:test'
+import { type ReadOnlyState, type State, batch, derive, state } from '../src/index.ts'
 
 /**
  * Integration tests for deep dependency chains.
