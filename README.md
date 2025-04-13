@@ -19,7 +19,7 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
 - [Core Concepts](#core-concepts)
 - [API Reference](#api-reference)
    - [Core Primitives](#core-primitives)
-      - [state](#statetinitialvalue-t-statet)
+      - [state](#statetinitialvalue-t-equalityfn-a-t-b-t--boolean-statet)
       - [derive](#derivetfn---t-readonlystatet)
       - [effect](#effectfn---void---void)
       - [batch](#batchtfn---t-t)
@@ -27,7 +27,7 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
       - [lens](#lenst-ksource-statet-accessor-state-t--k-statek)
    - [Access Control](#access-control)
       - [readonlyState](#readonlystatetstate-statet-readonlystatet)
-      - [protectedState](#protectedstatetinitialvalue-t-readonlystatet-writeablestatet)
+      - [protectedState](#protectedstatetinitialvalue-t-equalityfn-a-t-b-t--boolean-readonlystatet-writeablestatet)
 - [Advanced Features](#advanced-features)
    - [Infinite Loop Protection](#infinite-loop-protection)
    - [Automatic Cleanup](#automatic-cleanup)
@@ -98,9 +98,25 @@ The library handles all the dependency tracking and updates automatically, so yo
 
 ## API Reference
 
+### Version Compatibility
+
+The table below tracks when features were introduced and when function signatures were changed.
+
+| API | Introduced | Last Updated | Notes |
+|-----|------------|--------------|-------|
+| `state` | v1.0.0 | v1000.2.0 | Added `equalityFn` parameter |
+| `derive` | v1.0.0 | v1000.0.0 | Renamed `derived` → `derive` |
+| `effect` | v1.0.0 | - | - |
+| `batch` | v1.0.0 | - | - |
+| `select` | v1000.0.0 | - | - |
+| `lens` | v1000.1.0 | - | - |
+| `readonlyState` | v1000.0.0 | - | - |
+| `protectedState` | v1000.0.0 | v1000.2.0 | Added `equalityFn` parameter |
+
 ### Core Primitives
 
-#### `state<T>(initialValue: T): State<T>`
+#### `state<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): State<T>`
+> *Since v1.0.0*
 
 The foundation of Beacon's reactivity system. Create with `state()` and use like a function.
 
@@ -119,9 +135,19 @@ console.log(counter()); // => 5
 // Update with a function
 counter.update(n => n + 1);
 console.log(counter()); // => 6
+
+// With custom equality function
+const deepCounter = state({ value: 0 }, (a, b) => {
+  // Deep equality check
+  return a.value === b.value;
+});
+
+// This won't trigger effects because values are deeply equal
+deepCounter.set({ value: 0 });
 ```
 
 #### `derive<T>(fn: () => T): ReadOnlyState<T>`
+> *Since v1.0.0*
 
 Calculate values based on other states. Updates automatically when dependencies change.
 
@@ -140,6 +166,7 @@ console.log(fullName()); // => "Jane Doe"
 ```
 
 #### `effect(fn: () => void): () => void`
+> *Since v1.0.0*
 
 Run side effects when reactive values change.
 
@@ -161,6 +188,7 @@ cleanup();
 ```
 
 #### `batch<T>(fn: () => T): T`
+> *Since v1.0.0*
 
 Group multiple updates to trigger effects only once.
 
@@ -190,6 +218,7 @@ batch(() => {
 ```
 
 #### `select<T, R>(source: ReadOnlyState<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): ReadOnlyState<R>`
+> *Since v1000.0.0*
 
 Subscribe to specific parts of a state object.
 
@@ -224,6 +253,7 @@ user.update(u => ({
 ```
 
 #### `lens<T, K>(source: State<T>, accessor: (state: T) => K): State<K>`
+> *Since v1000.1.0*
 
 Two-way binding to deeply nested properties.
 
@@ -261,6 +291,7 @@ console.log(nested().user.profile.settings.theme); // => "light"
 Control who can read vs. write to your state.
 
 #### `readonlyState<T>(state: State<T>): ReadOnlyState<T>`
+> *Since v1000.0.0*
 
 Creates a read-only view of a state, hiding mutation methods. Useful when you want to expose state to other parts of your application without allowing direct mutations.
 
@@ -281,7 +312,8 @@ console.log(readonlyCounter()); // => 5
 // readonlyCounter.set(10); // Error: Property 'set' does not exist
 ```
 
-#### `protectedState<T>(initialValue: T): [ReadOnlyState<T>, WriteableState<T>]`
+#### `protectedState<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): [ReadOnlyState<T>, WriteableState<T>]`
+> *Since v1000.0.0*
 
 Creates a state with separated read and write capabilities, returning a tuple of reader and writer. This pattern allows you to expose only the reading capability to consuming code while keeping the writing capability private.
 
@@ -365,14 +397,29 @@ cleanup();
 
 ### Custom Equality Functions
 
-Control when subscribers are notified with custom equality checks:
+Control when subscribers are notified with custom equality checks. You can provide custom equality functions to `state`, `select`, and `protectedState`:
 
 ```typescript
-import { state, select, effect } from '@nerdalytics/beacon';
+import { state, select, effect, protectedState } from '@nerdalytics/beacon';
 
+// Custom equality function for state
+// Only trigger updates when references are different (useful for logging)
+const logMessages = state([], (a, b) => a === b); // Reference equality
+
+// Add logs - each call triggers effects even with identical content
+logMessages.set(['System started']); // Triggers effects
+logMessages.set(['System started']); // Triggers effects again
+
+// Protected state with custom equality function
+const [getConfig, setConfig] = protectedState({ theme: 'dark' }, (a, b) => {
+  // Only consider configs equal if all properties match
+  return a.theme === b.theme;
+});
+
+// Custom equality with select
 const list = state([1, 2, 3]);
 
-// Only notify when array length changes, not on reference changes
+// Only notify when array length changes, not on content changes
 const listLengthState = select(
   list,
   arr => arr.length,

@@ -1,6 +1,6 @@
 {
 	"name": "@nerdalytics/beacon",
-	"version": "1000.1.1",
+	"version": "1000.2.0",
 	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"type": "module",
 	"main": "dist/src/index.js",
@@ -34,6 +34,7 @@
 		"test:unit:cyclic-dependency": "node --test tests/cyclic-dependency.test.ts",
 		"test:unit:deep-chain": "node --test tests/deep-chain.test.ts",
 		"test:unit:infinite-loop": "node --test tests/infinite-loop.test.ts",
+		"test:unit:custom-equality": "node --test tests/custom-equality.test.ts",
 		"benchmark": "node scripts/benchmark.ts",
 		"build": "npm run build:lts",
 		"prebuild:lts": "rm -rf dist/",
@@ -66,11 +67,11 @@
 	"license": "MIT",
 	"devDependencies": {
 		"@biomejs/biome": "1.9.4",
-		"@types/node": "22.14.0",
+		"@types/node": "22.14.1",
 		"typescript": "5.8.3"
 	},
 	"engines": {
 		"node": ">=20.0.0"
 	},
-	"packageManager": "npm@11.2.0"
+	"packageManager": "npm@11.3.0"
 }

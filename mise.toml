@@ -1,5 +1,5 @@
 [tools]
-node = "23.10.0"
+node = "23.11.0"
 
 [env]
 NODE_COMPILER_CACHE = "$TMPDIR/.node-cache"
