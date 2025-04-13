@@ -5,12 +5,7 @@
 	"type": "module",
 	"main": "dist/src/index.js",
 	"types": "dist/src/index.d.ts",
-	"files": [
-		"dist/src/index.js",
-		"dist/src/index.d.ts",
-		"src/index.ts",
-		"LICENSE"
-	],
+	"files": ["dist/src/index.js", "dist/src/index.d.ts", "src/index.ts", "LICENSE"],
 	"repository": {
 		"url": "git+https://github.com/nerdalytics/beacon.git",
 		"type": "git"

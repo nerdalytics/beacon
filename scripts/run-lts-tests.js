@@ -17,47 +17,47 @@ const distTestDir = join(distDir, 'tests')
  * Fix imports in compiled test files
  */
 function prepareCompiledTests() {
-  console.debug('Preparing compiled test files for LTS...')
+	console.debug('Preparing compiled test files for LTS...')
 
-  // Check if dist/tests directory exists
-  if (!existsSync(distTestDir)) {
-    console.error(`Error: Directory ${distTestDir} not found.`)
-    console.error('Make sure TypeScript compilation completed successfully.')
-    process.exit(1)
-  }
+	// Check if dist/tests directory exists
+	if (!existsSync(distTestDir)) {
+		console.error(`Error: Directory ${distTestDir} not found.`)
+		console.error('Make sure TypeScript compilation completed successfully.')
+		process.exit(1)
+	}
 
-  // Get all compiled test files
-  const testFiles = readdirSync(distTestDir).filter(file => file.endsWith('.test.js'))
+	// Get all compiled test files
+	const testFiles = readdirSync(distTestDir).filter((file) => file.endsWith('.test.js'))
 
-  if (testFiles.length === 0) {
-    console.error('No compiled test files found in the dist/tests directory.')
-    console.error('Make sure TypeScript compilation completed successfully.')
-    process.exit(1)
-  }
+	if (testFiles.length === 0) {
+		console.error('No compiled test files found in the dist/tests directory.')
+		console.error('Make sure TypeScript compilation completed successfully.')
+		process.exit(1)
+	}
 
-  console.debug(`Found ${testFiles.length} compiled test files`)
+	console.debug(`Found ${testFiles.length} compiled test files`)
 
-  // Process each test file to fix imports
-  for (const file of testFiles) {
-    const filePath = join(distTestDir, file)
+	// Process each test file to fix imports
+	for (const file of testFiles) {
+		const filePath = join(distTestDir, file)
 
-    // Read the file
-    let content = readFileSync(filePath, 'utf8')
+		// Read the file
+		let content = readFileSync(filePath, 'utf8')
 
-    // Fix imports - replace .ts extension with .js
-    const originalContent = content
-    content = content.replace(/from ['"]([^'"]+)\.ts['"]\s*;?/g, 'from "$1.js";')
+		// Fix imports - replace .ts extension with .js
+		const originalContent = content
+		content = content.replace(/from ['"]([^'"]+)\.ts['"]\s*;?/g, 'from "$1.js";')
 
-    // Only write if the content changed
-    if (content !== originalContent) {
-      writeFileSync(filePath, content)
-      console.debug(`Fixed imports in ${file}`)
-    } else {
-      console.debug(`No imports to fix in ${file}`)
-    }
-  }
+		// Only write if the content changed
+		if (content !== originalContent) {
+			writeFileSync(filePath, content)
+			console.debug(`Fixed imports in ${file}`)
+		} else {
+			console.debug(`No imports to fix in ${file}`)
+		}
+	}
 
-  console.debug('All compiled test files prepared successfully')
+	console.debug('All compiled test files prepared successfully')
 }
 
 prepareCompiledTests()

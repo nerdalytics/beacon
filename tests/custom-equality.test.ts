@@ -109,29 +109,33 @@ describe('Equality', { concurrency: true, timeout: 1000 }, (): void => {
 			if (a === b) {
 				return true
 			}
-			
+
 			// If either is not an object, use simple comparison
 			if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') {
 				return a === b
 			}
-			
+
 			// Safely cast to unknown record types
 			const objA = a as Record<string, unknown>
 			const objB = b as Record<string, unknown>
-			
+
 			// Check name property
 			if (objA.name !== objB.name) {
 				return false
 			}
-			
+
 			// Check details - we know the specific structure for this test
-			if (typeof objA.details === 'object' && objA.details !== null && 
-			    typeof objB.details === 'object' && objB.details !== null) {
+			if (
+				typeof objA.details === 'object' &&
+				objA.details !== null &&
+				typeof objB.details === 'object' &&
+				objB.details !== null
+			) {
 				const detailsA = objA.details as Record<string, unknown>
 				const detailsB = objB.details as Record<string, unknown>
 				return detailsA.age === detailsB.age
 			}
-			
+
 			return false
 		}
 

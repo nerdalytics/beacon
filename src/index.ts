@@ -18,7 +18,7 @@ export type State<T> = ReadOnlyState<T> &
 /**
  * Creates a reactive state container with the provided initial value.
  */
-export const state = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> => 
+export const state = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> =>
 	StateImpl.createState(initialValue, equalityFn)
 
 /**
@@ -56,7 +56,10 @@ export const readonlyState =
 /**
  * Creates a state with access control, returning a tuple of reader and writer.
  */
-export const protectedState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): [ReadOnlyState<T>, WriteableState<T>] => {
+export const protectedState = <T>(
+	initialValue: T,
+	equalityFn: (a: T, b: T) => boolean = Object.is
+): [ReadOnlyState<T>, WriteableState<T>] => {
 	const fullState = state(initialValue, equalityFn)
 	return [
 		(): T => readonlyState(fullState)(),
