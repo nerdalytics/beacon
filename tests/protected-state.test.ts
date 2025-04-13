@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { protectedState, effect } from '../src/index.ts'
+import { describe, it } from 'node:test'
+import { effect, protectedState } from '../src/index.ts'
 
 /**
  * Unit tests for protected state function.

@@ -18,7 +18,8 @@ export type State<T> = ReadOnlyState<T> &
 /**
  * Creates a reactive state container with the provided initial value.
  */
-export const state = <T>(initialValue: T): State<T> => StateImpl.createState(initialValue)
+export const state = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> =>
+	StateImpl.createState(initialValue, equalityFn)
 
 /**
  * Registers a function to run whenever its reactive dependencies change.
@@ -55,8 +56,11 @@ export const readonlyState =
 /**
  * Creates a state with access control, returning a tuple of reader and writer.
  */
-export const protectedState = <T>(initialValue: T): [ReadOnlyState<T>, WriteableState<T>] => {
-	const fullState = state(initialValue)
+export const protectedState = <T>(
+	initialValue: T,
+	equalityFn: (a: T, b: T) => boolean = Object.is
+): [ReadOnlyState<T>, WriteableState<T>] => {
+	const fullState = state(initialValue, equalityFn)
 	return [
 		(): T => readonlyState(fullState)(),
 		{
@@ -93,17 +97,19 @@ class StateImpl<T> {
 	private value: T
 	private subscribers = new Set<Subscriber>()
 	private stateId = Symbol()
+	private equalityFn: (a: T, b: T) => boolean
 
-	constructor(initialValue: T) {
+	constructor(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is) {
 		this.value = initialValue
+		this.equalityFn = equalityFn
 	}
 
 	/**
 	 * Creates a reactive state container with the provided initial value.
 	 * Implementation of the public 'state' function.
 	 */
-	static createState = <T>(initialValue: T): State<T> => {
-		const instance = new StateImpl<T>(initialValue)
+	static createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> => {
+		const instance = new StateImpl<T>(initialValue, equalityFn)
 		const get = (): T => instance.get()
 		get.set = (value: T): void => instance.set(value)
 		get.update = (fn: (currentValue: T) => T): void => instance.update(fn)
@@ -143,7 +149,7 @@ class StateImpl<T> {
 	// Handles value updates with built-in optimizations and safeguards
 	set = (newValue: T): void => {
 		// Skip updates for unchanged values to prevent redundant effect executions
-		if (Object.is(this.value, newValue)) {
+		if (this.equalityFn(this.value, newValue)) {
 			return
 		}
 

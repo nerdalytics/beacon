@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, effect, batch, lens, type State } from '../src/index.ts'
+import { describe, it } from 'node:test'
+import { type State, batch, effect, lens, state } from '../src/index.ts'
 
 // Common type definitions
 type User = {

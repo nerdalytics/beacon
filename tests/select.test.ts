@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, effect, batch, select } from '../src/index.ts'
+import { describe, it } from 'node:test'
+import { batch, effect, select, state } from '../src/index.ts'
 
 type LargeState = {
 	criticalValue: string

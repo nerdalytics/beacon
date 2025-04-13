@@ -1,6 +1,6 @@
-import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { state, derive, batch, effect } from '../src/index.ts'
+import { describe, it } from 'node:test'
+import { batch, derive, effect, state } from '../src/index.ts'
 
 describe('Derive', { concurrency: true, timeout: 1000 }, (): void => {
 	it('should compute derived value', (): void => {
