@@ -1,11 +1,12 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
 	"include": ["**/*.ts", "**/*.json"],
-	"exclude": ["dist", "node_modules", "temp", "tests/template.test.ts"],
+	"exclude": ["dist", "scripts", "node_modules", "temp", "tests/template.test.ts"],
 	"compilerOptions": {
 		"types": ["node"],
 		"target": "ES2022",
 		"module": "NodeNext",
+		"moduleDetection": "force",
 		"moduleResolution": "NodeNext",
 		"lib": ["ES2022", "ESNext.AsyncIterable"],
 
@@ -22,12 +23,14 @@
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
 		"noUnusedLocals": false,
-		"noUnusedParameters": false,
+		"noUnusedParameters": true,
 		"useDefineForClassFields": true,
 		"allowUnreachableCode": false,
 		"noPropertyAccessFromIndexSignature": false,
 		"allowSyntheticDefaultImports": true,
 		"rewriteRelativeImportExtensions": true,
+		"strictFunctionTypes": true,
+		"noImplicitReturns": true,
 
 		"esModuleInterop": true,
 		"skipLibCheck": true,
