@@ -12,11 +12,11 @@ export interface BenchmarkResult {
 	/** Name of the benchmark */
 	name: string
 	/** Median execution time in milliseconds */
-	median: number
+	median: number | undefined
 	/** Minimum execution time in milliseconds */
-	min: number
+	min: number | undefined
 	/** Maximum execution time in milliseconds */
-	max: number
+	max: number | undefined
 	/** Mean execution time in milliseconds */
 	mean: number
 	/** Operations per second (based on median time) */
@@ -77,7 +77,7 @@ export function runBenchmark(name: string, fn: () => void, operationsPerRun: num
 	const mean = timings.reduce((sum: number, t: number): number => sum + t, 0) / timings.length
 
 	// Calculate operations per second
-	const opsPerSec = operationsPerRun / (median / 1000)
+	const opsPerSec = operationsPerRun / (median || 1 / 1000)
 
 	// Report results
 	console.debug(`  Results for ${name}:`)
