@@ -17,19 +17,25 @@
 				"noNodejsModules": {
 					"level": "off"
 				},
-				"noUnusedVariables": "error"
+				"noUnusedVariables": "warn",
+				"useExhaustiveDependencies": "error"
 			},
 			"performance": {
-				"all": true
+				"all": true,
+				"noAccumulatingSpread": "error"
 			},
 			"complexity": {
-				"all": true
+				"all": true,
+				"noBannedTypes": "error",
+				"useLiteralKeys": "error"
 			},
 			"security": {
 				"all": true
 			},
 			"style": {
-				"all": true
+				"all": true,
+				"noNegationElse": "error",
+				"useShorthandArrayType": "error"
 			},
 			"suspicious": {
 				"all": true,
@@ -41,7 +47,8 @@
 					"options": {
 						"allow": ["error", "warn", "dir", "info", "debug", "table", "time", "timeEnd", "timeLog", "trace"]
 					}
-				}
+				},
+				"noExplicitAny": "error"
 			},
 			"nursery": {
 				"all": true,
@@ -75,6 +82,10 @@
 	"json": {
 		"formatter": {
 			"enabled": true
+		},
+		"parser": {
+			"allowComments": true,
+			"allowTrailingCommas": true
 		}
 	},
 	"vcs": {

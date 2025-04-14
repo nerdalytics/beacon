@@ -2,12 +2,12 @@
 	"$schema": "https://json.schemastore.org/tsconfig",
 	"include": ["**/*.ts", "**/*.json"],
 	"exclude": ["dist", "node_modules", "temp", "tests/template.test.ts"],
-	"types": ["node"],
 	"compilerOptions": {
 		"types": ["node"],
 		"target": "ESNext",
 		"module": "NodeNext",
 		"moduleDetection": "force",
+		"moduleResolution": "NodeNext",
 		"lib": ["ESNext"],
 
 		"noEmit": true,
@@ -18,13 +18,15 @@
 		"noImplicitOverride": true,
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
-		// "noUnusedLocals": false, // tests have those
+		"noUnusedLocals": false,
 		"noUnusedParameters": true,
 		"useDefineForClassFields": true,
 		"allowUnreachableCode": false,
 		"noPropertyAccessFromIndexSignature": false,
 		"allowSyntheticDefaultImports": true,
 		"rewriteRelativeImportExtensions": true,
+		"strictFunctionTypes": true,
+		"noImplicitReturns": true,
 
 		"verbatimModuleSyntax": true,
 		"allowImportingTsExtensions": true,

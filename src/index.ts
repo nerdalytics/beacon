@@ -327,33 +327,37 @@ class StateImpl<T> {
 	 * Implementation of the public 'derive' function.
 	 */
 	static createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
-		const valueState = StateImpl.createState<T | undefined>(undefined)
-		let initialized = false
-		let cachedValue: T
+		// Create a container to hold state and minimize closure captures
+		const container = {
+			valueState: StateImpl.createState<T | undefined>(undefined),
+			initialized: false,
+			cachedValue: undefined as unknown as T,
+			computeFn,
+		}
 
 		// Internal effect automatically tracks dependencies and updates the derived value
-		StateImpl.createEffect((): void => {
-			const newValue = computeFn()
+		StateImpl.createEffect(function deriveEffect(): void {
+			const newValue = container.computeFn()
 
 			// Only update if the value actually changed to preserve referential equality
 			// and prevent unnecessary downstream updates
-			if (!(initialized && Object.is(cachedValue, newValue))) {
-				cachedValue = newValue
-				valueState.set(newValue)
+			if (!(container.initialized && Object.is(container.cachedValue, newValue))) {
+				container.cachedValue = newValue
+				container.valueState.set(newValue)
 			}
 
-			initialized = true
+			container.initialized = true
 		})
 
 		// Return function with lazy initialization - ensures value is available
 		// even when accessed before its dependencies have had a chance to update
-		return (): T => {
-			if (!initialized) {
-				cachedValue = computeFn()
-				initialized = true
-				valueState.set(cachedValue)
+		return function deriveGetter(): T {
+			if (!container.initialized) {
+				container.cachedValue = container.computeFn()
+				container.initialized = true
+				container.valueState.set(container.cachedValue)
 			}
-			return valueState() as T
+			return container.valueState() as T
 		}
 	}
 
@@ -366,44 +370,54 @@ class StateImpl<T> {
 		selectorFn: (state: T) => R,
 		equalityFn: (a: R, b: R) => boolean = Object.is
 	): ReadOnlyState<R> => {
-		let lastSourceValue: T | undefined
-		let lastSelectedValue: R | undefined
-		let initialized = false
-		const valueState = StateImpl.createState<R | undefined>(undefined)
+		// Create a container to hold state and minimize closure captures
+		const container = {
+			lastSourceValue: undefined as T | undefined,
+			lastSelectedValue: undefined as R | undefined,
+			initialized: false,
+			valueState: StateImpl.createState<R | undefined>(undefined),
+			source,
+			selectorFn,
+			equalityFn,
+		}
 
 		// Internal effect to track the source and update only when needed
-		StateImpl.createEffect((): void => {
-			const sourceValue = source()
+		StateImpl.createEffect(function selectEffect(): void {
+			const sourceValue = container.source()
 
 			// Skip computation if source reference hasn't changed
-			if (initialized && Object.is(lastSourceValue, sourceValue)) {
+			if (container.initialized && Object.is(container.lastSourceValue, sourceValue)) {
 				return
 			}
 
-			lastSourceValue = sourceValue
-			const newSelectedValue = selectorFn(sourceValue)
+			container.lastSourceValue = sourceValue
+			const newSelectedValue = container.selectorFn(sourceValue)
 
 			// Use custom equality function to determine if value semantically changed,
 			// allowing for deep equality comparisons with complex objects
-			if (initialized && lastSelectedValue !== undefined && equalityFn(lastSelectedValue, newSelectedValue)) {
+			if (
+				container.initialized &&
+				container.lastSelectedValue !== undefined &&
+				container.equalityFn(container.lastSelectedValue, newSelectedValue)
+			) {
 				return
 			}
 
 			// Update cache and notify subscribers due the value has changed
-			lastSelectedValue = newSelectedValue
-			valueState.set(newSelectedValue)
-			initialized = true
+			container.lastSelectedValue = newSelectedValue
+			container.valueState.set(newSelectedValue)
+			container.initialized = true
 		})
 
 		// Return function with eager initialization capability
-		return (): R => {
-			if (!initialized) {
-				lastSourceValue = source()
-				lastSelectedValue = selectorFn(lastSourceValue)
-				valueState.set(lastSelectedValue)
-				initialized = true
+		return function selectGetter(): R {
+			if (!container.initialized) {
+				container.lastSourceValue = container.source()
+				container.lastSelectedValue = container.selectorFn(container.lastSourceValue)
+				container.valueState.set(container.lastSelectedValue)
+				container.initialized = true
 			}
-			return valueState() as R
+			return container.valueState() as R
 		}
 	}
 
@@ -412,15 +426,25 @@ class StateImpl<T> {
 	 * Implementation of the public 'lens' function.
 	 */
 	static createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
+		// Create a container to hold lens state and minimize closure captures
+		const container = {
+			source,
+			accessor,
+			path: [] as (string | number)[],
+			lensState: null as unknown as State<K>,
+			isUpdating: false,
+			originalSet: null as unknown as (value: K) => void,
+		}
+
 		// Extract the property path once during lens creation
 		const extractPath = (): (string | number)[] => {
-			const path: (string | number)[] = []
+			const pathCollector: (string | number)[] = []
 			const proxy = new Proxy(
 				{},
 				{
 					get: (_: object, prop: string | symbol): unknown => {
 						if (typeof prop === 'string' || typeof prop === 'number') {
-							path.push(prop)
+							pathCollector.push(prop)
 						}
 						return proxy
 					},
@@ -428,62 +452,59 @@ class StateImpl<T> {
 			)
 
 			try {
-				accessor(proxy as unknown as T)
+				container.accessor(proxy as unknown as T)
 			} catch {
 				// Ignore errors, we're just collecting the path
 			}
 
-			return path
+			return pathCollector
 		}
 
 		// Capture the path once
-		const path = extractPath()
+		container.path = extractPath()
 
 		// Create a state with the initial value from the source
-		const lensState = StateImpl.createState<K>(accessor(source()))
-
-		// Prevent circular updates
-		let isUpdating = false
+		container.lensState = StateImpl.createState<K>(container.accessor(container.source()))
+		container.originalSet = container.lensState.set
 
 		// Set up an effect to sync from source to lens
-		StateImpl.createEffect((): void => {
-			if (isUpdating) {
+		StateImpl.createEffect(function lensEffect(): void {
+			if (container.isUpdating) {
 				return
 			}
 
-			isUpdating = true
+			container.isUpdating = true
 			try {
-				lensState.set(accessor(source()))
+				container.lensState.set(container.accessor(container.source()))
 			} finally {
-				isUpdating = false
+				container.isUpdating = false
 			}
 		})
 
 		// Override the lens state's set method to update the source
-		const originalSet = lensState.set
-		lensState.set = (value: K): void => {
-			if (isUpdating) {
+		container.lensState.set = function lensSet(value: K): void {
+			if (container.isUpdating) {
 				return
 			}
 
-			isUpdating = true
+			container.isUpdating = true
 			try {
 				// Update lens state
-				originalSet(value)
+				container.originalSet(value)
 
 				// Update source by modifying the value at path
-				source.update((current: T): T => setValueAtPath(current, path, value))
+				container.source.update((current: T): T => setValueAtPath(current, container.path, value))
 			} finally {
-				isUpdating = false
+				container.isUpdating = false
 			}
 		}
 
 		// Add update method for completeness
-		lensState.update = (fn: (value: K) => K): void => {
-			lensState.set(fn(lensState()))
+		container.lensState.update = function lensUpdate(fn: (value: K) => K): void {
+			container.lensState.set(fn(container.lensState()))
 		}
 
-		return lensState
+		return container.lensState
 	}
 
 	// Processes queued subscriber notifications in a controlled, non-reentrant way
