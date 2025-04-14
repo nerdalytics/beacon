@@ -20,7 +20,7 @@
 		"exactOptionalPropertyTypes": true,
 		"noImplicitOverride": true,
 		"noFallthroughCasesInSwitch": true,
-		"noUncheckedIndexedAccess": false,
+		"noUncheckedIndexedAccess": true,
 		"noUnusedLocals": false,
 		"noUnusedParameters": false,
 		"useDefineForClassFields": true,
@@ -34,7 +34,9 @@
 		"isolatedModules": true,
 		"resolveJsonModule": true,
 		"forceConsistentCasingInFileNames": true,
+		"importHelpers": true,
 
-		"allowJs": false
+		"allowJs": false,
+		"removeComments": true
 	}
 }

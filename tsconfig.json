@@ -18,13 +18,15 @@
 		"noImplicitOverride": true,
 		"noFallthroughCasesInSwitch": true,
 		"noUncheckedIndexedAccess": true,
-		// "noUnusedLocals": false, // tests have those
-		"noUnusedParameters": true,
+		"noUnusedLocals": false,
+		"noUnusedParameters": false,
 		"useDefineForClassFields": true,
 		"allowUnreachableCode": false,
 		"noPropertyAccessFromIndexSignature": false,
 		"allowSyntheticDefaultImports": true,
 		"rewriteRelativeImportExtensions": true,
+		"strictFunctionTypes": true,
+		"noImplicitReturns": true,
 
 		"verbatimModuleSyntax": true,
 		"allowImportingTsExtensions": true,

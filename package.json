@@ -1,11 +1,17 @@
 {
 	"name": "@nerdalytics/beacon",
-	"version": "1000.2.0",
+	"version": "1000.2.1",
 	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"type": "module",
-	"main": "dist/src/index.js",
+	"main": "dist/src/index.min.js",
 	"types": "dist/src/index.d.ts",
 	"files": ["dist/src/index.js", "dist/src/index.d.ts", "src/index.ts", "LICENSE"],
+	"exports": {
+		".": {
+			"typescript": "./src/index.ts",
+			"default": "./dist/src/index.js"
+		}
+	},
 	"repository": {
 		"url": "git+https://github.com/nerdalytics/beacon.git",
 		"type": "git"
@@ -34,6 +40,7 @@
 		"build": "npm run build:lts",
 		"prebuild:lts": "rm -rf dist/",
 		"build:lts": "tsc -p tsconfig.lts.json",
+		"postbuild:lts": "npx uglify-js --compress --mangle --module --toplevel --v8 --warn --source-map \"content='dist/src/index.js.map'\" --output dist/src/index.min.js dist/src/index.js",
 		"prepublishOnly": "npm run build:lts",
 		"pretest:lts": "node scripts/run-lts-tests.js",
 		"test:lts:20": "node --test dist/tests/**.js",
@@ -63,7 +70,8 @@
 	"devDependencies": {
 		"@biomejs/biome": "1.9.4",
 		"@types/node": "22.14.1",
-		"typescript": "5.8.3"
+		"typescript": "5.8.3",
+		"uglify-js": "3.19.3"
 	},
 	"engines": {
 		"node": ">=20.0.0"
