@@ -5,10 +5,10 @@
 	"type": "module",
 	"main": "dist/src/index.min.js",
 	"types": "dist/src/index.d.ts",
-	"files": ["dist/src/index.js", "dist/src/index.d.ts", "src/index.ts", "LICENSE"],
+	"files": ["dist/src/index.js", "dist/src/index.d.ts", "dist/src/index.ts", "LICENSE"],
 	"exports": {
 		".": {
-			"typescript": "./src/index.ts",
+			"typescript": "./dist/src/index.ts",
 			"default": "./dist/src/index.js"
 		}
 	},
