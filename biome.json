@@ -1,66 +1,31 @@
 {
 	"$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
-	"organizeImports": {
-		"enabled": true
-	},
-	"files": {
-		"ignoreUnknown": true,
-		"include": ["**/*.ts", "**/*.js", "**/*.json"],
-		"ignore": ["tests/template.test.ts", "dist/**/*", "temp/**/*", "node_modules/**/*"]
-	},
-	"linter": {
-		"enabled": true,
-		"rules": {
-			"recommended": true,
-			"correctness": {
-				"all": true,
-				"noNodejsModules": {
-					"level": "off"
-				},
-				"noUnusedVariables": "warn",
-				"useExhaustiveDependencies": "error"
-			},
-			"performance": {
-				"all": true,
-				"noAccumulatingSpread": "error"
-			},
-			"complexity": {
-				"all": true,
-				"noBannedTypes": "error",
-				"useLiteralKeys": "error"
-			},
-			"security": {
-				"all": true
-			},
-			"style": {
-				"all": true,
-				"noNegationElse": "error",
-				"useShorthandArrayType": "error"
-			},
-			"suspicious": {
-				"all": true,
-				"noConsoleLog": {
-					"level": "error"
-				},
-				"noConsole": {
-					"level": "error",
-					"options": {
-						"allow": ["error", "warn", "dir", "info", "debug", "table", "time", "timeEnd", "timeLog", "trace"]
-					}
-				},
-				"noExplicitAny": "error"
-			},
-			"nursery": {
-				"all": true,
-				"useExplicitType": "error"
-			},
-			"a11y": {
-				"all": true
+	"assist": {
+		"actions": {
+			"source": {
+				"organizeImports": "on",
+				"useSortedKeys": "on",
+				"useSortedProperties": "on"
 			}
 		}
 	},
+	"files": {
+		"ignoreUnknown": true,
+		"includes": [
+			"**/*.ts",
+			"**/*.js",
+			"**/*.json",
+			"!package-lock.json",
+			"!**/tests/template.test.ts",
+			"!**/dist/**/*",
+			"!**/temp/**/*",
+			"!**/node_modules/**/*"
+		]
+	},
 	"formatter": {
+		"bracketSpacing": true,
 		"enabled": true,
+		"expand": "always",
 		"formatWithErrors": false,
 		"indentStyle": "tab",
 		"lineEnding": "lf",
@@ -68,31 +33,90 @@
 		"useEditorconfig": false
 	},
 	"javascript": {
-		"globals": [],
 		"formatter": {
-			"enabled": true,
 			"arrowParentheses": "always",
 			"bracketSameLine": true,
 			"bracketSpacing": true,
+			"enabled": true,
 			"quoteStyle": "single",
 			"semicolons": "asNeeded",
 			"trailingCommas": "es5"
-		}
+		},
+		"globals": []
 	},
 	"json": {
 		"formatter": {
-			"enabled": true
+			"enabled": true,
+			"trailingCommas": "none"
 		},
 		"parser": {
 			"allowComments": true,
 			"allowTrailingCommas": true
 		}
 	},
-	"vcs": {
+	"linter": {
 		"enabled": true,
+		"rules": {
+			"a11y": {
+				"recommended": false
+			},
+			"complexity": {
+				"noBannedTypes": "error",
+				"useLiteralKeys": "error"
+			},
+			"correctness": {
+				"noNodejsModules": {
+					"level": "off"
+				},
+				"noUnusedVariables": "warn",
+				"useExhaustiveDependencies": "error"
+			},
+			"nursery": {
+				"useExplicitType": "error"
+			},
+			"performance": {
+				"noAccumulatingSpread": "error"
+			},
+			"recommended": true,
+			"security": {
+				"noGlobalEval": "error"
+			},
+			"style": {
+				"noNegationElse": "error",
+				"useConsistentArrayType": {
+					"level": "error",
+					"options": {
+						"syntax": "shorthand"
+					}
+				}
+			},
+			"suspicious": {
+				"noConsole": {
+					"level": "error",
+					"options": {
+						"allow": [
+							"error",
+							"warn",
+							"dir",
+							"info",
+							"debug",
+							"table",
+							"time",
+							"timeEnd",
+							"timeLog",
+							"trace"
+						]
+					}
+				},
+				"noExplicitAny": "error"
+			}
+		}
+	},
+	"vcs": {
 		"clientKind": "git",
 		"defaultBranch": "trunk",
-		"useIgnoreFile": true,
-		"root": "."
+		"enabled": true,
+		"root": ".",
+		"useIgnoreFile": false
 	}
 }
