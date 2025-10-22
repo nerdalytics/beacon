@@ -1,10 +1,14 @@
 {
-	"$schema": "https://nodejs.org/dist/v23.10.0/docs/node-config-schema.json",
+	"$schema": "https://nodejs.org/dist/v24.10.0/docs/node-config-schema.json",
 	"nodeOptions": {
-		"test-coverage-lines": 90,
 		"test-coverage-branches": 100,
+		"test-coverage-exclude": [
+			"scripts/**/*.ts"
+		],
 		"test-coverage-functions": 100,
-		"test-coverage-include": ["src/**/*.ts"],
-		"test-coverage-exclude": ["scripts/**/*.ts"]
+		"test-coverage-include": [
+			"src/**/*.ts"
+		],
+		"test-coverage-lines": 90
 	}
 }
