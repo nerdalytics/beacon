@@ -1,6 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, join } from 'node:path'
-import { NewLineKind, ScriptTarget, createPrinter, createSourceFile } from 'typescript'
+import { createPrinter, createSourceFile, NewLineKind, ScriptTarget } from 'typescript'
 
 // Configuration
 const sourceDir = './src'
@@ -24,8 +24,8 @@ function processFile(filePath: string, outputPath: string): void {
 
 	// Create a printer that removes comments
 	const printer = createPrinter({
-		removeComments: true,
 		newLine: NewLineKind.LineFeed,
+		removeComments: true,
 	})
 
 	// Print the file without comments
@@ -34,7 +34,9 @@ function processFile(filePath: string, outputPath: string): void {
 	// Ensure output directory exists
 	const outputDir = dirname(outputPath)
 	if (!existsSync(outputDir)) {
-		mkdirSync(outputDir, { recursive: true })
+		mkdirSync(outputDir, {
+			recursive: true,
+		})
 	}
 
 	// Write the result
@@ -46,7 +48,9 @@ function processFile(filePath: string, outputPath: string): void {
  * Process all TypeScript files in a directory recursively
  */
 function processDirectory(sourceDir: string, outputDir: string): void {
-	const entries = readdirSync(sourceDir, { withFileTypes: true })
+	const entries = readdirSync(sourceDir, {
+		withFileTypes: true,
+	})
 
 	for (const entry of entries) {
 		const sourcePath = join(sourceDir, entry.name)

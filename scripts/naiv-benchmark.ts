@@ -31,7 +31,9 @@ const signalEffectLoop = ({
 }: {
 	incrementErrors: () => void
 	incrementProcessed: () => void
-}): { duration: number } => {
+}): {
+	duration: number
+} => {
 	const start = performance.now()
 	errors.set(0)
 	processed.set(0)
@@ -46,7 +48,9 @@ const signalEffectLoop = ({
 		throw new Error(`Error: 'totals()' value differs from 'processed()' + 'errors()' count.`)
 	}
 	const end = performance.now()
-	return { duration: end - start }
+	return {
+		duration: end - start,
+	}
 }
 
 const batchEffectLoop = ({
@@ -55,7 +59,9 @@ const batchEffectLoop = ({
 }: {
 	incrementErrors: () => void
 	incrementProcessed: () => void
-}): { duration: number } => {
+}): {
+	duration: number
+} => {
 	const start = performance.now()
 	errors.set(0)
 	processed.set(0)
@@ -63,10 +69,14 @@ const batchEffectLoop = ({
 		for (let i = 0; i <= LOOP_LENGTH; i++) {
 			if (i % ERROR_FREQUENCY === 0) {
 				incrementErrors()
-				console.debug({ errors: errors() })
+				console.debug({
+					errors: errors(),
+				})
 			} else {
 				incrementProcessed()
-				console.debug({ processed: processed() })
+				console.debug({
+					processed: processed(),
+				})
 			}
 		}
 	})
@@ -74,19 +84,27 @@ const batchEffectLoop = ({
 		throw new Error(`Error: 'totals()' value differs from 'processed()' + 'errors()' count.`)
 	}
 	const end = performance.now()
-	return { duration: end - start }
+	return {
+		duration: end - start,
+	}
 }
 
-const classicLoop = (): { duration: number } => {
+const classicLoop = (): {
+	duration: number
+} => {
 	const start = performance.now()
 	let errors = 0
 	let processed = 0
 	let totals = 0
 	for (let i = 0; i <= LOOP_LENGTH; i++) {
 		if (i % ERROR_FREQUENCY === 0) {
-			console.debug({ errors: errors++ })
+			console.debug({
+				errors: errors++,
+			})
 		} else {
-			console.debug({ processed: processed++ })
+			console.debug({
+				processed: processed++,
+			})
 		}
 		totals++
 	}
@@ -94,7 +112,9 @@ const classicLoop = (): { duration: number } => {
 		throw new Error(`Error: 'totals()' value differs from 'processed()' + 'errors()' count.`)
 	}
 	const end = performance.now()
-	return { duration: end - start }
+	return {
+		duration: end - start,
+	}
 }
 
 const main = (): void => {
@@ -110,9 +130,9 @@ const main = (): void => {
 	const classicDuration = classicLoop()
 
 	console.debug({
-		signalDuration,
 		batchDuration,
 		classicDuration,
+		signalDuration,
 	})
 
 	disposeErrors()

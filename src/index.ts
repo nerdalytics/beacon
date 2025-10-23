@@ -59,7 +59,10 @@ export const readonlyState =
 export const protectedState = <T>(
 	initialValue: T,
 	equalityFn: (a: T, b: T) => boolean = Object.is
-): [ReadOnlyState<T>, WriteableState<T>] => {
+): [
+	ReadOnlyState<T>,
+	WriteableState<T>,
+] => {
 	const fullState = state(initialValue, equalityFn)
 	return [
 		(): T => readonlyState(fullState)(),
@@ -307,7 +310,9 @@ class StateImpl<T> {
 			if (StateImpl.batchDepth === 0) {
 				// Process effects created during the batch
 				if (StateImpl.deferredEffectCreations.length > 0) {
-					const effectsToRun = [...StateImpl.deferredEffectCreations]
+					const effectsToRun = [
+						...StateImpl.deferredEffectCreations,
+					]
 					StateImpl.deferredEffectCreations.length = 0
 					for (const effect of effectsToRun) {
 						effect()
@@ -329,10 +334,10 @@ class StateImpl<T> {
 	static createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
 		// Create a container to hold state and minimize closure captures
 		const container = {
-			valueState: StateImpl.createState<T | undefined>(undefined),
-			initialized: false,
 			cachedValue: undefined as unknown as T,
 			computeFn,
+			initialized: false,
+			valueState: StateImpl.createState<T | undefined>(undefined),
 		}
 
 		// Internal effect automatically tracks dependencies and updates the derived value
@@ -372,13 +377,13 @@ class StateImpl<T> {
 	): ReadOnlyState<R> => {
 		// Create a container to hold state and minimize closure captures
 		const container = {
-			lastSourceValue: undefined as T | undefined,
-			lastSelectedValue: undefined as R | undefined,
-			initialized: false,
-			valueState: StateImpl.createState<R | undefined>(undefined),
-			source,
-			selectorFn,
 			equalityFn,
+			initialized: false,
+			lastSelectedValue: undefined as R | undefined,
+			lastSourceValue: undefined as T | undefined,
+			selectorFn,
+			source,
+			valueState: StateImpl.createState<R | undefined>(undefined),
 		}
 
 		// Internal effect to track the source and update only when needed
@@ -428,12 +433,12 @@ class StateImpl<T> {
 	static createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
 		// Create a container to hold lens state and minimize closure captures
 		const container = {
-			source,
 			accessor,
-			path: [] as (string | number)[],
-			lensState: null as unknown as State<K>,
 			isUpdating: false,
+			lensState: null as unknown as State<K>,
 			originalSet: null as unknown as (value: K) => void,
+			path: [] as (string | number)[],
+			source,
 		}
 
 		// Extract the property path once during lens creation
@@ -553,7 +558,9 @@ class StateImpl<T> {
 }
 // Helper for array updates
 const updateArrayItem = <V>(arr: unknown[], index: number, value: V): unknown[] => {
-	const copy = [...arr]
+	const copy = [
+		...arr,
+	]
 	copy[index] = value
 	return copy
 }
@@ -564,7 +571,9 @@ const updateShallowProperty = <V>(
 	key: string | number,
 	value: V
 ): Record<string | number, unknown> => {
-	const result = { ...obj }
+	const result = {
+		...obj,
+	}
 	result[key] = value
 	return result
 }
@@ -585,7 +594,9 @@ const updateArrayPath = <V>(array: unknown[], pathSegments: (string | number)[],
 	}
 
 	// Nested path in array
-	const copy = [...array]
+	const copy = [
+		...array,
+	]
 	const nextPathSegments = pathSegments.slice(1)
 	const nextKey = nextPathSegments[0]
 
@@ -630,7 +641,9 @@ const updateObjectPath = <V>(
 	}
 
 	// Create new object with updated property
-	const result = { ...obj }
+	const result = {
+		...obj,
+	}
 	result[currentKey] = setValueAtPath(currentValue, nextPathSegments, value)
 	return result
 }
