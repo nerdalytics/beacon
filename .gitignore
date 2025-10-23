@@ -1,44 +1,50 @@
-# Dependencies
-node_modules/
-npm-debug.log
-yarn-error.log
-yarn-debug.log
-.yarn-integrity
+# Ignore everything by default
+*
+*/
 
-# Build
+# Then explicitly allow what we want
+
+# Folders
+!.github/
+!.github/**/
+!.github/**/*.yml
+!.github/**/*.yaml
+!assets/
+!assets/*.png
+!assets/*.svg
+!docs/
+!scripts/
+!scripts/*.?s
+!src/
+!src/
+!src/*.ts
+!tests/
+!tests/*.ts
+
+# Files in root
+!.gitattributes
+!.gitignore
+!.npmrc
+!biome.json
+!LICENSE
+!mise.toml
+!node.config.json
+!package-lock.json
+!package.json
+!tsconfig.json
+!tsconfig.lts.json
+
+# Allow markdown anywhere
+!**/*.md
+
+# But still ignore these specific patterns everywhere
+**/node_modules/**
 *.tsbuildinfo
-dist/
+coverage/
 
-# Test coverage
-lcov.info
+*~
 
-# Performance history
-metrics/*
-!metrics/performance-history.json
-
-# npm publich
-nerdalytics-beacon-*.tgz
-
-# Environment
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-
-# IDE
-.vscode/*
-!.vscode/tasks.json
-.idea/
-*.sublime-workspace
-*.sublime-project
-.zed/*
-!.tasks.json
-
-# Claude Code memory
-CLAUDE.md
-
-# OS
+# OS files
 .DS_Store
 .DS_Store?
 ._*
@@ -46,3 +52,4 @@ CLAUDE.md
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini

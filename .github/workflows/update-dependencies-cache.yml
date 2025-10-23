@@ -1,29 +1,34 @@
 name: Update Dependencies Cache
-
-on:
-  push:
-    paths:
-      - '**/package-lock.json'
-  pull_request:
-    paths:
-      - '**/package-lock.json'
-  workflow_dispatch:
-
+permissions:
+  contents: read
+'on':
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
 jobs:
   cache-deps:
     strategy:
       matrix:
-        node-version: ['20.x', '22.x', '24.x']
+        node-version:
+          - 20.x
+          - 22.x
+          - 24.x
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v5.0.0
-    - uses: actions/setup-node@v6.0.0
-      with:
-        node-version: ${{ matrix.node-version }}
-    - id: cache-dependencies
-      uses: actions/cache@v4.3.0
-      with:
-        path: node_modules
-        key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
-    - if: steps.cache-dependencies.outputs.cache-hit != 'true'
-      run: npm ci
+      - uses: actions/checkout@v5.0.0
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-node@v6.0.0
+        with:
+          node-version: ${{ matrix.node-version }}
+      - id: cache-dependencies
+        uses: actions/cache@v4.3.0
+        with:
+          path: node_modules
+          key: >-
+            ${{ runner.os }}-node-${{ matrix.node-version }}-${{
+            hashFiles('**/package-lock.json') }}
+      - if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: npm ci
