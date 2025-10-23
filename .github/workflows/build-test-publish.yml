@@ -1,146 +1,154 @@
 name: Build & Test & Publish
-
-on:
-    push:
-        branches:
-            - trunk
-    pull_request:
-        branches:
-            - trunk
-
+permissions:
+  contents: read
+'on':
+  push:
+    branches:
+      - trunk
+  pull_request:
+    branches:
+      - trunk
 jobs:
-    build:
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5.0.0
-            - uses: actions/setup-node@v6.0.0
-              with:
-                  node-version: 24.x
-            - id: cache-dependencies
-              uses: actions/cache@v4.3.0
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-node-24.x-${{ hashFiles('**/package-lock.json') }}
-                  restore-keys: |
-                      ${{ runner.os }}-node-24.x-
-            - name: Ensure cache exists
-              if: steps.cache-dependencies.outputs.cache-hit != 'true'
-              run: exit 1
-            - name: Setup Biome
-              uses: biomejs/setup-biome@v2.6.0
-              with:
-                  version: latest
-            - name: Check linting & code formatting
-              run: biome check
-            - name: Build project
-              run: npm run build:lts
-            - name: Upload dist directory
-              uses: actions/upload-artifact@v4.6.2
-              with:
-                  name: dist
-                  path: dist/
-
-    test-lts-20:
-        needs: build
-        strategy:
-            matrix:
-                node-version: ["20.x"]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5.0.0
-            - uses: actions/setup-node@v6.0.0
-              with:
-                  node-version: ${{ matrix.node-version }}
-            - id: cache-dependencies
-              uses: actions/cache@v4.3.0
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
-            - name: Ensure cache exists
-              if: steps.cache-dependencies.outputs.cache-hit != 'true'
-              run: |
-                  echo "Cache miss! Update cached dependencies required.
-                  exit 1
-            - name: Download dist directory
-              uses: actions/download-artifact@v5.0.0
-              with:
-                  name: dist
-                  path: dist/
-            - name: Diagnostic checks
-              run: |
-                  echo "Current directory: $(pwd)"
-                  echo "Directory structure:"
-                  ls -la
-                  echo "Dist directory content:"
-                  ls -la dist/ || echo "dist directory not found!"
-                  echo "Find test files:"
-                  find . -name "*.js" | grep -i test || echo "No test files found!"
-            - name: Test project
-              run: npm run test:lts:20
-
-    test-lts-22:
-        needs: build
-        strategy:
-            matrix:
-                node-version: ["22.x"]
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5.0.0
-            - uses: actions/setup-node@v6.0.0
-              with:
-                  node-version: ${{ matrix.node-version }}
-            - id: cache-dependencies
-              uses: actions/cache@v4.3.0
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-node-${{ matrix.node-version }}-${{ hashFiles('**/package-lock.json') }}
-            - name: Ensure cache exists
-              if: steps.cache-dependencies.outputs.cache-hit != 'true'
-              run: |
-                  echo "Cache miss! Update cached dependencies required.
-                  exit 1
-            - name: Download dist directory
-              uses: actions/download-artifact@v5.0.0
-              with:
-                  name: dist
-                  path: dist/
-            - name: Diagnostic checks
-              run: |
-                  echo "Current directory: $(pwd)"
-                  echo "Directory structure:"
-                  ls -la
-                  echo "Dist directory content:"
-                  ls -la dist/ || echo "dist directory not found!"
-                  echo "Find test files:"
-                  find . -name "*.js" | grep -i test || echo "No test files found!"
-            - name: Test project
-              run: npm run test:lts:22
-
-    publish-npm:
-        needs: [test-lts-20, test-lts-22]
-        if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5.0.0
-            - uses: actions/setup-node@v6.0.0
-              with:
-                  node-version: 24.x
-                  registry-url: https://registry.npmjs.org/
-            - id: cache-dependencies
-              uses: actions/cache@v4.3.0
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-node-24.x-${{ hashFiles('**/package-lock.json') }}
-            - name: Ensure cache exists
-              if: steps.cache-dependencies.outputs.cache-hit != 'true'
-              run: |
-                  echo "Cache miss! Update cached dependencies required.
-                  exit 1
-            - name: Download dist directory
-              uses: actions/download-artifact@v5.0.0
-              with:
-                  name: dist
-                  path: dist/
-            - run: npm publish --access public
-              env:
-                  NODE_AUTH_TOKEN: ${{secrets.NPM_BEACON_PUBLISH_TOKEN}}
+  warm-cache:
+    uses: ./.github/workflows/update-dependencies-cache.yml
+    with:
+      ref: '${{ github.ref }}'
+  build:
+    needs: warm-cache
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 24.x
+      - id: cache-dependencies
+        uses: actions/cache@v4.3.0
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-24.x-${{ hashFiles('**/package-lock.json') }}
+      - name: Ensure cache exists
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: exit 1
+      - name: Setup Biome
+        uses: biomejs/setup-biome@v2.6.0
+        with:
+          version: latest
+      - name: Check linting & code formatting
+        run: biome check
+      - name: Build project
+        run: 'npm run build:lts'
+      - name: Upload dist directory
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: dist
+          path: dist/
+  test-lts-20:
+    needs: build
+    strategy:
+      matrix:
+        node-version:
+          - 20.x
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v6.0.0
+        with:
+          node-version: '${{ matrix.node-version }}'
+      - id: cache-dependencies
+        uses: actions/cache@v4.3.0
+        with:
+          path: node_modules
+          key: >-
+            ${{ runner.os }}-node-${{ matrix.node-version }}-${{
+            hashFiles('**/package-lock.json') }}
+      - name: Ensure cache exists
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss! Update cached dependencies required.
+          exit 1
+      - name: Download dist directory
+        uses: actions/download-artifact@v5.0.0
+        with:
+          name: dist
+          path: dist/
+      - name: Diagnostic checks
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory structure:"
+          ls -la
+          echo "Dist directory content:"
+          ls -la dist/ || echo "dist directory not found!"
+          echo "Find test files:"
+          find . -name "*.js" | grep -i test || echo "No test files found!"
+      - name: Test project
+        run: 'npm run test:lts:20'
+  test-lts-22:
+    needs: build
+    strategy:
+      matrix:
+        node-version:
+          - 22.x
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v6.0.0
+        with:
+          node-version: '${{ matrix.node-version }}'
+      - id: cache-dependencies
+        uses: actions/cache@v4.3.0
+        with:
+          path: node_modules
+          key: >-
+            ${{ runner.os }}-node-${{ matrix.node-version }}-${{
+            hashFiles('**/package-lock.json') }}
+      - name: Ensure cache exists
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss! Update cached dependencies required.
+          exit 1
+      - name: Download dist directory
+        uses: actions/download-artifact@v5.0.0
+        with:
+          name: dist
+          path: dist/
+      - name: Diagnostic checks
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory structure:"
+          ls -la
+          echo "Dist directory content:"
+          ls -la dist/ || echo "dist directory not found!"
+          echo "Find test files:"
+          find . -name "*.js" | grep -i test || echo "No test files found!"
+      - name: Test project
+        run: 'npm run test:lts:22'
+  publish-npm:
+    needs:
+      - test-lts-20
+      - test-lts-22
+    if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5.0.0
+      - uses: actions/setup-node@v6.0.0
+        with:
+          node-version: 24.x
+          registry-url: 'https://registry.npmjs.org/'
+      - id: cache-dependencies
+        uses: actions/cache@v4.3.0
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-24.x-${{ hashFiles('**/package-lock.json') }}
+      - name: Ensure cache exists
+        if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: |
+          echo "Cache miss! Update cached dependencies required.
+          exit 1
+      - name: Download dist directory
+        uses: actions/download-artifact@v5.0.0
+        with:
+          name: dist
+          path: dist/
+      - run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_BEACON_PUBLISH_TOKEN}}
