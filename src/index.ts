@@ -1,6 +1,6 @@
 // Core types for reactive primitives
 type Subscriber = () => void
-type Unsubscribe = () => void
+export type Unsubscribe = () => void
 export type ReadOnlyState<T> = () => T
 export interface WriteableState<T> {
 	set(value: T): void
@@ -8,7 +8,7 @@ export interface WriteableState<T> {
 }
 
 // Special symbol used for internal tracking
-const STATE_ID = Symbol()
+const STATE_ID: unique symbol = Symbol('STATE_ID')
 
 export type State<T> = ReadOnlyState<T> &
 	WriteableState<T> & {

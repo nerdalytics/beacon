@@ -5,7 +5,9 @@ import { createPrinter, createSourceFile, NewLineKind, ScriptTarget } from 'type
 // Configuration
 const sourceDir = './src'
 const destDir = './dist/src'
-const fileExtensions = ['.ts']
+const fileExtensions: string[] = [
+	'.ts',
+]
 
 /**
  * Strip comments from TypeScript files

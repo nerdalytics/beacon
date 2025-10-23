@@ -14,8 +14,8 @@ import { join } from 'node:path'
 import { type BenchmarkResult, runAllBenchmarks } from './benchmark.ts'
 
 // Configuration
-const METRICS_HISTORY_FILE = join(process.cwd(), join('metrics', 'performance-history.json'))
-const PERFORMANCE_MD_FILE = join(process.cwd(), 'PERFORMANCE.md')
+const METRICS_HISTORY_FILE: string = join(process.cwd(), join('metrics', 'performance-history.json'))
+const PERFORMANCE_MD_FILE: string = join(process.cwd(), 'PERFORMANCE.md')
 const HISTORY_LIMIT = 10 // Number of historical entries to keep
 
 // Define the structure of performance metrics

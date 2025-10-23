@@ -1,15 +1,19 @@
 import { performance } from 'node:perf_hooks'
-import { batch, derive, effect, state } from '../src/index.ts'
+import { batch, derive, effect, type ReadOnlyState, type State, state, type Unsubscribe } from '../src/index.ts'
 
-const errors = state(0)
-const processed = state(0)
+const errors: State<number> = state(0)
+const processed: State<number> = state(0)
 
-const disposeErrors = effect((): void => {
-	console.debug({ errors: errors() })
+const disposeErrors: Unsubscribe = effect((): void => {
+	console.debug({
+		errors: errors(),
+	})
 })
 
-const disposeProcessed = effect((): void => {
-	console.debug({ processed: processed() })
+const disposeProcessed: Unsubscribe = effect((): void => {
+	console.debug({
+		processed: processed(),
+	})
 })
 
 const incrementErrors = (): void => {
@@ -20,7 +24,7 @@ const incrementProcessed = (): void => {
 	processed.set(processed() + 1)
 }
 
-const totals = derive((): number => errors() + processed())
+const totals: ReadOnlyState<number> = derive((): number => errors() + processed())
 
 const LOOP_LENGTH = 1000000
 const ERROR_FREQUENCY = 1000
