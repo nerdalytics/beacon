@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks'
-import { type State, batch, derive, effect, readonlyState, state } from '../src/index.ts'
+import { batch, derive, effect, readonlyState, type State, state } from '../src/index.ts'
 
 // Configuration
 const NumIterations = 5 // Number of measurement iterations
@@ -85,21 +85,21 @@ export function runBenchmark(name: string, fn: () => void, operationsPerRun: num
 	console.debug(`    Throughput: ${Math.floor(opsPerSec).toLocaleString()} ops/sec`)
 
 	return {
-		name,
-		median,
-		min,
+		iterations: NumIterations,
 		max,
 		mean,
-		opsPerSec: Math.floor(opsPerSec),
-		iterations: NumIterations,
+		median,
+		min,
+		name,
 		operationsPerRun,
+		opsPerSec: Math.floor(opsPerSec),
 	}
 }
 
 // Store effect counts for ratio calculation
 const effectCounts = {
-	individual: 0,
 	batched: 0,
+	individual: 0,
 }
 
 // Define benchmarks with consistent approaches
@@ -196,7 +196,12 @@ const benchmarks: Benchmark[] = [
 			const NumIterations = 100
 
 			// Create states
-			const counters = Array.from({ length: NumCounters }, (_: unknown, i: number): State<number> => state(i))
+			const counters = Array.from(
+				{
+					length: NumCounters,
+				},
+				(_: unknown, i: number): State<number> => state(i)
+			)
 
 			// Create a variable to add non-determinism
 			// This creates some natural variation in measurement between runs
@@ -245,7 +250,12 @@ const benchmarks: Benchmark[] = [
 			const NumIterations = 100
 
 			// Create states (identical to individual benchmark)
-			const counters = Array.from({ length: NumCounters }, (_: unknown, i: number): State<number> => state(i))
+			const counters = Array.from(
+				{
+					length: NumCounters,
+				},
+				(_: unknown, i: number): State<number> => state(i)
+			)
 
 			// Create a variable to add non-determinism
 			// This creates some natural variation in measurement between runs
@@ -343,7 +353,12 @@ const benchmarks: Benchmark[] = [
 			const NumIterations = 100
 
 			// Create many source signals
-			const sources = Array.from({ length: NumSources }, (_: unknown, i: number): State<number> => state(i))
+			const sources = Array.from(
+				{
+					length: NumSources,
+				},
+				(_: unknown, i: number): State<number> => state(i)
+			)
 
 			// Create a derived signal that depends on all sources
 			const sum = derive((): number =>
@@ -426,26 +441,26 @@ export function runAllBenchmarks(): BenchmarkResult[] {
 
 		// Add performance ratio to results
 		results.push({
-			name: 'Batch Performance Ratio',
-			median: performanceRatio,
-			min: performanceRatio,
+			iterations: 1,
 			max: performanceRatio,
 			mean: performanceRatio,
-			opsPerSec: performanceRatio,
-			iterations: 1,
+			median: performanceRatio,
+			min: performanceRatio,
+			name: 'Batch Performance Ratio',
 			operationsPerRun: 1,
+			opsPerSec: performanceRatio,
 		})
 
 		// Add effect reduction ratio to results
 		results.push({
-			name: 'Batch Effect Reduction',
-			median: effectReductionRatio,
-			min: effectReductionRatio,
+			iterations: 1,
 			max: effectReductionRatio,
 			mean: effectReductionRatio,
-			opsPerSec: effectReductionRatio,
-			iterations: 1,
+			median: effectReductionRatio,
+			min: effectReductionRatio,
+			name: 'Batch Effect Reduction',
 			operationsPerRun: 1,
+			opsPerSec: effectReductionRatio,
 		})
 	}
 
@@ -466,16 +481,16 @@ export function runAllBenchmarks(): BenchmarkResult[] {
 				// For ratio metrics, show the ratio directly instead of ops/sec
 				if (r.name.includes('Ratio') || r.name.includes('Reduction')) {
 					return {
+						'median (ms)': '-',
 						name: r.name,
 						'ops/sec': '-',
-						'median (ms)': '-',
 						value: `${r.median.toFixed(2)}x`,
 					}
 				}
 				return {
+					'median (ms)': r.median.toFixed(2),
 					name: r.name,
 					'ops/sec': Math.floor(r.opsPerSec).toLocaleString(),
-					'median (ms)': r.median.toFixed(2),
 					value: '',
 				}
 			}

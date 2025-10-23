@@ -1,15 +1,19 @@
 import { performance } from 'node:perf_hooks'
-import { batch, derive, effect, state } from '../src/index.ts'
+import { batch, derive, effect, type ReadOnlyState, type State, state, type Unsubscribe } from '../src/index.ts'
 
-const errors = state(0)
-const processed = state(0)
+const errors: State<number> = state(0)
+const processed: State<number> = state(0)
 
-const disposeErrors = effect((): void => {
-	console.debug({ errors: errors() })
+const disposeErrors: Unsubscribe = effect((): void => {
+	console.debug({
+		errors: errors(),
+	})
 })
 
-const disposeProcessed = effect((): void => {
-	console.debug({ processed: processed() })
+const disposeProcessed: Unsubscribe = effect((): void => {
+	console.debug({
+		processed: processed(),
+	})
 })
 
 const incrementErrors = (): void => {
@@ -20,7 +24,7 @@ const incrementProcessed = (): void => {
 	processed.set(processed() + 1)
 }
 
-const totals = derive((): number => errors() + processed())
+const totals: ReadOnlyState<number> = derive((): number => errors() + processed())
 
 const LOOP_LENGTH = 1000000
 const ERROR_FREQUENCY = 1000
@@ -31,7 +35,9 @@ const signalEffectLoop = ({
 }: {
 	incrementErrors: () => void
 	incrementProcessed: () => void
-}): { duration: number } => {
+}): {
+	duration: number
+} => {
 	const start = performance.now()
 	errors.set(0)
 	processed.set(0)
@@ -46,7 +52,9 @@ const signalEffectLoop = ({
 		throw new Error(`Error: 'totals()' value differs from 'processed()' + 'errors()' count.`)
 	}
 	const end = performance.now()
-	return { duration: end - start }
+	return {
+		duration: end - start,
+	}
 }
 
 const batchEffectLoop = ({
@@ -55,7 +63,9 @@ const batchEffectLoop = ({
 }: {
 	incrementErrors: () => void
 	incrementProcessed: () => void
-}): { duration: number } => {
+}): {
+	duration: number
+} => {
 	const start = performance.now()
 	errors.set(0)
 	processed.set(0)
@@ -63,10 +73,14 @@ const batchEffectLoop = ({
 		for (let i = 0; i <= LOOP_LENGTH; i++) {
 			if (i % ERROR_FREQUENCY === 0) {
 				incrementErrors()
-				console.debug({ errors: errors() })
+				console.debug({
+					errors: errors(),
+				})
 			} else {
 				incrementProcessed()
-				console.debug({ processed: processed() })
+				console.debug({
+					processed: processed(),
+				})
 			}
 		}
 	})
@@ -74,19 +88,27 @@ const batchEffectLoop = ({
 		throw new Error(`Error: 'totals()' value differs from 'processed()' + 'errors()' count.`)
 	}
 	const end = performance.now()
-	return { duration: end - start }
+	return {
+		duration: end - start,
+	}
 }
 
-const classicLoop = (): { duration: number } => {
+const classicLoop = (): {
+	duration: number
+} => {
 	const start = performance.now()
 	let errors = 0
 	let processed = 0
 	let totals = 0
 	for (let i = 0; i <= LOOP_LENGTH; i++) {
 		if (i % ERROR_FREQUENCY === 0) {
-			console.debug({ errors: errors++ })
+			console.debug({
+				errors: errors++,
+			})
 		} else {
-			console.debug({ processed: processed++ })
+			console.debug({
+				processed: processed++,
+			})
 		}
 		totals++
 	}
@@ -94,7 +116,9 @@ const classicLoop = (): { duration: number } => {
 		throw new Error(`Error: 'totals()' value differs from 'processed()' + 'errors()' count.`)
 	}
 	const end = performance.now()
-	return { duration: end - start }
+	return {
+		duration: end - start,
+	}
 }
 
 const main = (): void => {
@@ -110,9 +134,9 @@ const main = (): void => {
 	const classicDuration = classicLoop()
 
 	console.debug({
-		signalDuration,
 		batchDuration,
 		classicDuration,
+		signalDuration,
 	})
 
 	disposeErrors()

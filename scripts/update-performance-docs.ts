@@ -14,8 +14,8 @@ import { join } from 'node:path'
 import { type BenchmarkResult, runAllBenchmarks } from './benchmark.ts'
 
 // Configuration
-const METRICS_HISTORY_FILE = join(process.cwd(), join('metrics', 'performance-history.json'))
-const PERFORMANCE_MD_FILE = join(process.cwd(), 'PERFORMANCE.md')
+const METRICS_HISTORY_FILE: string = join(process.cwd(), join('metrics', 'performance-history.json'))
+const PERFORMANCE_MD_FILE: string = join(process.cwd(), 'PERFORMANCE.md')
 const HISTORY_LIMIT = 10 // Number of historical entries to keep
 
 // Define the structure of performance metrics
@@ -50,15 +50,30 @@ const formatMetricValue = (value: number): string => {
 
 // Helper to get category for a metric based on its name
 function getCategoryForMetric(name: string): string {
-	if (['Batch Performance Ratio', 'Batch Effect Reduction'].includes(name)) {
+	if (
+		[
+			'Batch Performance Ratio',
+			'Batch Effect Reduction',
+		].includes(name)
+	) {
 		return 'Comparison'
 	}
 
-	if (['Many Dependencies', 'Deep Dependency Chain'].includes(name)) {
+	if (
+		[
+			'Many Dependencies',
+			'Deep Dependency Chain',
+		].includes(name)
+	) {
 		return 'Advanced'
 	}
 
-	if (['Update 100 States Individually', 'Update 100 States with Batching'].includes(name)) {
+	if (
+		[
+			'Update 100 States Individually',
+			'Update 100 States with Batching',
+		].includes(name)
+	) {
 		return 'Batching'
 	}
 
@@ -68,17 +83,17 @@ function getCategoryForMetric(name: string): string {
 // Helper to get description for a metric based on its name
 function getDescriptionForMetric(name: string): string {
 	const descriptions: Record<string, string> = {
+		'Batch Effect Reduction': 'Reduction in effect runs with batching',
+		'Batch Performance Ratio': 'Speed improvement with batching vs. individual updates',
+		'Deep Dependency Chain': 'Chain of 10 derived signals',
+		'Derived Signals': 'Updates with derived values',
+		'Effect Triggers': 'Effects running on state changes',
+		'Many Dependencies': '100 dependencies, 100 iterations',
 		'Signal Creation': 'Creating new state signals',
 		'Signal Reading': 'Reading signal values',
 		'Signal Writing': 'Setting signal values',
-		'Derived Signals': 'Updates with derived values',
-		'Effect Triggers': 'Effects running on state changes',
 		'Update 100 States Individually': 'Updating multiple signals without batching',
 		'Update 100 States with Batching': 'Updating multiple signals in batches',
-		'Deep Dependency Chain': 'Chain of 10 derived signals',
-		'Many Dependencies': '100 dependencies, 100 iterations',
-		'Batch Performance Ratio': 'Speed improvement with batching vs. individual updates',
-		'Batch Effect Reduction': 'Reduction in effect runs with batching',
 	}
 
 	return descriptions[name] || name
@@ -93,11 +108,11 @@ function runPerformanceTests(): PerformanceMetric[] {
 
 	// Convert results to metrics format
 	return results.map((result: BenchmarkResult) => ({
-		name: result.name,
-		value: result.opsPerSec,
-		unit: result.name.includes('Ratio') || result.name.includes('Reduction') ? 'x' : 'ops/sec',
 		category: getCategoryForMetric(result.name),
 		description: getDescriptionForMetric(result.name),
+		name: result.name,
+		unit: result.name.includes('Ratio') || result.name.includes('Reduction') ? 'x' : 'ops/sec',
+		value: result.opsPerSec,
 	}))
 }
 
@@ -115,7 +130,9 @@ function getCurrentCommitHash(): string {
 		const cmd =
 			process.platform === 'win32' ? 'git rev-parse --short HEAD 2> nul' : 'git rev-parse --short HEAD 2>/dev/null'
 
-		gitCommitHash = execSync(cmd, { encoding: 'utf8' }).trim()
+		gitCommitHash = execSync(cmd, {
+			encoding: 'utf8',
+		}).trim()
 		return gitCommitHash
 	} catch {
 		// Not a fatal error, just use a placeholder
@@ -155,8 +172,8 @@ function updatePerformanceHistory(metrics: PerformanceMetric[]): PerformanceEntr
 	const history = loadPerformanceHistory()
 
 	const newEntry: PerformanceEntry = {
-		date: new Date().toISOString(),
 		commitHash: getCurrentCommitHash(),
+		date: new Date().toISOString(),
 		metrics: metrics,
 		runInfo: {
 			runs: 5, // From benchmark.ts ITERATIONS constant
@@ -177,14 +194,26 @@ function updatePerformanceHistory(metrics: PerformanceMetric[]): PerformanceEntr
 }
 
 // Generate performance trend information
-function calculateTrends(
-	history: PerformanceEntry[]
-): Map<string, { current: number; previous: number; change: number }> {
+function calculateTrends(history: PerformanceEntry[]): Map<
+	string,
+	{
+		current: number
+		previous: number
+		change: number
+	}
+> {
 	if (history.length < 2) {
 		return new Map()
 	}
 
-	const trends = new Map<string, { current: number; previous: number; change: number }>()
+	const trends = new Map<
+		string,
+		{
+			current: number
+			previous: number
+			change: number
+		}
+	>()
 
 	const currentEntry = history[0]
 	const previousEntry = history[1]
@@ -197,7 +226,11 @@ function calculateTrends(
 			const previous = previousMetric.value
 			const change = ((current - previous) / previous) * 100
 
-			trends.set(metric.name, { current, previous, change })
+			trends.set(metric.name, {
+				change,
+				current,
+				previous,
+			})
 		}
 	}
 

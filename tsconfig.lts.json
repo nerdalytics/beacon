@@ -1,45 +1,58 @@
 {
 	"$schema": "https://json.schemastore.org/tsconfig",
-	"include": ["**/*.ts", "**/*.json"],
-	"exclude": ["dist", "scripts", "node_modules", "temp", "tests/template.test.ts"],
 	"compilerOptions": {
-		"types": ["node"],
-		"target": "ES2022",
+		"allowJs": false,
+		"allowSyntheticDefaultImports": true,
+		"allowUnreachableCode": false,
+		"declaration": true,
+
+		"esModuleInterop": true,
+		"exactOptionalPropertyTypes": true,
+		"forceConsistentCasingInFileNames": true,
+		"importHelpers": true,
+		"isolatedModules": true,
+		"lib": [
+			"ES2022",
+			"ESNext.AsyncIterable"
+		],
 		"module": "NodeNext",
 		"moduleDetection": "force",
 		"moduleResolution": "NodeNext",
-		"lib": ["ES2022", "ESNext.AsyncIterable"],
-
-		"outDir": "./dist",
-		"rootDir": "./",
 		"noEmit": false,
-		"declaration": true,
-		"sourceMap": true,
-
-		"strict": true,
-		"noImplicitAny": true,
-		"exactOptionalPropertyTypes": true,
-		"noImplicitOverride": true,
 		"noFallthroughCasesInSwitch": true,
+		"noImplicitAny": true,
+		"noImplicitOverride": true,
+		"noImplicitReturns": true,
+		"noPropertyAccessFromIndexSignature": false,
 		"noUncheckedIndexedAccess": true,
 		"noUnusedLocals": false,
 		"noUnusedParameters": true,
-		"useDefineForClassFields": true,
-		"allowUnreachableCode": false,
-		"noPropertyAccessFromIndexSignature": false,
-		"allowSyntheticDefaultImports": true,
-		"rewriteRelativeImportExtensions": true,
-		"strictFunctionTypes": true,
-		"noImplicitReturns": true,
 
-		"esModuleInterop": true,
-		"skipLibCheck": true,
-		"isolatedModules": true,
+		"outDir": "./dist",
+		"removeComments": true,
 		"resolveJsonModule": true,
-		"forceConsistentCasingInFileNames": true,
-		"importHelpers": true,
+		"rewriteRelativeImportExtensions": true,
+		"rootDir": "./",
+		"skipLibCheck": true,
+		"sourceMap": true,
 
-		"allowJs": false,
-		"removeComments": true
-	}
+		"strict": true,
+		"strictFunctionTypes": true,
+		"target": "ES2022",
+		"types": [
+			"node"
+		],
+		"useDefineForClassFields": true
+	},
+	"exclude": [
+		"dist",
+		"scripts",
+		"node_modules",
+		"temp",
+		"tests/template.test.ts"
+	],
+	"include": [
+		"**/*.ts",
+		"**/*.json"
+	]
 }
