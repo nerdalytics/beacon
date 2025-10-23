@@ -2,8 +2,9 @@
 	"author": "Denny Trebbin (nerdalytics)",
 	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"devDependencies": {
-		"@biomejs/biome": "2.2.6",
+		"@biomejs/biome": "2.2.7",
 		"@types/node": "24.9.1",
+		"npm-check-updates": "19.1.1",
 		"typescript": "5.9.3",
 		"uglify-js": "3.19.3"
 	},
@@ -49,7 +50,7 @@
 	"license": "MIT",
 	"main": "dist/src/index.min.js",
 	"name": "@nerdalytics/beacon",
-	"packageManager": "npm@11.6.0",
+	"packageManager": "npm@11.6.2",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/nerdalytics/beacon.git"
@@ -87,6 +88,7 @@
 		"test:unit:lens": "node --test tests/lens.test.ts",
 		"test:unit:select": "node --test tests/select.test.ts",
 		"test:unit:state": "node --test tests/state.test.ts",
+		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange",
 		"update-performance-docs": "node --experimental-config-file=node.config.json scripts/update-performance-docs.ts"
 	},
 	"type": "module",
