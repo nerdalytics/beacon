@@ -20,13 +20,13 @@
 				"default": "./dist/src/index.min.js"
 			},
 			"types": "./dist/src/index.d.ts",
-			"typescript": "./dist/src/index.ts"
+			"typescript": "./src/index.ts"
 		}
 	},
 	"files": [
 		"dist/src/index.js",
 		"dist/src/index.d.ts",
-		"dist/src/index.ts",
+		"src/index.ts",
 		"LICENSE"
 	],
 	"keywords": [
@@ -91,5 +91,5 @@
 	},
 	"type": "module",
 	"types": "dist/src/index.d.ts",
-	"version": "1000.2.2"
+	"version": "1000.2.3"
 }
