@@ -24,7 +24,7 @@
 		}
 	},
 	"files": [
-		"dist/src/index.js",
+		"dist/src/index.min.js",
 		"dist/src/index.d.ts",
 		"src/index.ts",
 		"LICENSE"
