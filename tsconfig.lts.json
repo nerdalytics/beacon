@@ -5,7 +5,6 @@
 		"allowSyntheticDefaultImports": true,
 		"allowUnreachableCode": false,
 		"declaration": true,
-
 		"esModuleInterop": true,
 		"exactOptionalPropertyTypes": true,
 		"forceConsistentCasingInFileNames": true,
@@ -27,7 +26,6 @@
 		"noUncheckedIndexedAccess": true,
 		"noUnusedLocals": false,
 		"noUnusedParameters": true,
-
 		"outDir": "./dist",
 		"removeComments": true,
 		"resolveJsonModule": true,
@@ -35,7 +33,6 @@
 		"rootDir": "./",
 		"skipLibCheck": true,
 		"sourceMap": true,
-
 		"strict": true,
 		"strictFunctionTypes": true,
 		"target": "ES2022",
@@ -45,14 +42,19 @@
 		"useDefineForClassFields": true
 	},
 	"exclude": [
+		"biome.json",
 		"dist",
-		"scripts",
 		"node_modules",
+		"package-lock.json",
+		"package.json",
+		"scripts",
 		"temp",
-		"tests/template.test.ts"
+		"tests/template.test.ts",
+		"tsconfig.json",
+		"tsconfig.lts.json"
 	],
 	"include": [
-		"**/*.ts",
-		"**/*.json"
+		"**/*.json",
+		"**/*.ts"
 	]
 }

@@ -42,10 +42,16 @@
 		"verbatimModuleSyntax": true
 	},
 	"exclude": [
+		"biome.json",
 		"dist",
 		"node_modules",
+		"package-lock.json",
+		"package.json",
+		"scripts",
 		"temp",
-		"tests/template.test.ts"
+		"tests/template.test.ts",
+		"tsconfig.json",
+		"tsconfig.lts.json"
 	],
 	"include": [
 		"**/*.ts",
