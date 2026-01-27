@@ -39,6 +39,11 @@ jobs:
                   continue
                 fi
 
+                # Validate action format: must be owner/repo (exactly one slash, no special chars)
+                if [[ ! "$action" =~ ^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$ ]]; then
+                  continue
+                fi
+
                 # Store current version (first occurrence wins)
                 if [[ -z "${ACTIONS_CURRENT[$action]:-}" ]]; then
                   ACTIONS_CURRENT[$action]="$version"
