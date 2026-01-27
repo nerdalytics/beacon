@@ -310,10 +310,9 @@ class StateImpl<T> {
 			if (StateImpl.batchDepth === 0) {
 				// Process effects created during the batch
 				if (StateImpl.deferredEffectCreations.length > 0) {
-					const effectsToRun = [
-						...StateImpl.deferredEffectCreations,
-					]
-					StateImpl.deferredEffectCreations.length = 0
+					// Swap reference instead of spread copy to avoid array allocation
+					const effectsToRun = StateImpl.deferredEffectCreations
+					StateImpl.deferredEffectCreations = []
 					for (const effect of effectsToRun) {
 						effect()
 					}
@@ -526,10 +525,9 @@ class StateImpl<T> {
 			// Process all pending effects in batches for better perf,
 			// ensuring topological execution order is maintained
 			while (StateImpl.pendingSubscribers.size > 0) {
-				// Process in snapshot batches to prevent infinite loops
-				// when effects trigger further state changes
-				const subscribers = Array.from(StateImpl.pendingSubscribers)
-				StateImpl.pendingSubscribers.clear()
+				// Swap with empty Set instead of Array.from() to avoid array allocation
+				const subscribers = StateImpl.pendingSubscribers
+				StateImpl.pendingSubscribers = new Set()
 
 				for (const effect of subscribers) {
 					effect()

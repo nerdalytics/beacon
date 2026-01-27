@@ -1,5 +1,5 @@
 import { performance } from 'node:perf_hooks'
-import { batch, derive, effect, readonlyState, type State, state } from '../src/index.ts'
+import { batch, derive, effect, lens, readonlyState, type State, state } from '../src/index.ts'
 
 // Configuration
 const NumIterations = 5 // Number of measurement iterations
@@ -104,7 +104,180 @@ const effectCounts = {
 
 // Define benchmarks with consistent approaches
 const benchmarks: Benchmark[] = [
-	// Base operations on signals
+	// ============================================
+	// MICRO-BENCHMARKS: Isolated hot-path operations
+	// ============================================
+
+	// Pure get() without any effect context - measures raw read performance
+	{
+		name: 'Micro: Pure get() (no effect context)',
+		operationsPerRun: 1_000_000,
+		run: (): void => {
+			const counter = state(42)
+			for (let i = 0; i < 1_000_000; i++) {
+				counter()
+			}
+		},
+	},
+
+	// Pure set() without any subscribers - measures raw write performance
+	{
+		name: 'Micro: Pure set() (no subscribers)',
+		operationsPerRun: 1_000_000,
+		run: (): void => {
+			const counter = state(0)
+			for (let i = 0; i < 1_000_000; i++) {
+				counter.set(i)
+			}
+		},
+	},
+
+	// set() with 1 subscriber - baseline for subscriber overhead
+	{
+		name: 'Micro: set() with 1 subscriber',
+		operationsPerRun: 100_000,
+		run: (): void => {
+			const counter = state(0)
+			const cleanup = effect((): void => {
+				counter()
+			})
+
+			for (let i = 0; i < 100_000; i++) {
+				counter.set(i)
+			}
+
+			cleanup()
+		},
+	},
+
+	// set() with 10 subscribers - measure scaling
+	{
+		name: 'Micro: set() with 10 subscribers',
+		operationsPerRun: 100_000,
+		run: (): void => {
+			const counter = state(0)
+			const cleanups: (() => void)[] = []
+
+			for (let j = 0; j < 10; j++) {
+				cleanups.push(
+					effect((): void => {
+						counter()
+					})
+				)
+			}
+
+			for (let i = 0; i < 100_000; i++) {
+				counter.set(i)
+			}
+
+			for (const cleanup of cleanups) {
+				cleanup()
+			}
+		},
+	},
+
+	// set() with 100 subscribers - measure scaling at higher counts
+	{
+		name: 'Micro: set() with 100 subscribers',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			const counter = state(0)
+			const cleanups: (() => void)[] = []
+
+			for (let j = 0; j < 100; j++) {
+				cleanups.push(
+					effect((): void => {
+						counter()
+					})
+				)
+			}
+
+			for (let i = 0; i < 10_000; i++) {
+				counter.set(i)
+			}
+
+			for (const cleanup of cleanups) {
+				cleanup()
+			}
+		},
+	},
+
+	// WeakMap lookup overhead - baseline for dependency tracking cost
+	{
+		name: 'Micro: WeakMap lookups',
+		operationsPerRun: 1_000_000,
+		run: (): void => {
+			const map = new WeakMap<object, number>()
+			const key = {}
+			map.set(key, 42)
+
+			for (let i = 0; i < 1_000_000; i++) {
+				map.get(key)
+			}
+		},
+	},
+
+	// Set.add/delete overhead - baseline for subscriber management
+	{
+		name: 'Micro: Set add/delete cycle',
+		operationsPerRun: 100_000,
+		run: (): void => {
+			const set = new Set<number>()
+			for (let i = 0; i < 100_000; i++) {
+				set.add(i)
+				set.delete(i)
+			}
+		},
+	},
+
+	// Array.from(Set) vs Set swap - compare notification patterns
+	{
+		name: 'Micro: Array.from(Set) copy',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			const set = new Set<number>()
+			for (let i = 0; i < 100; i++) {
+				set.add(i)
+			}
+
+			for (let i = 0; i < 10_000; i++) {
+				const arr = Array.from(set)
+				for (const item of arr) {
+					// Simulate processing
+					void item
+				}
+			}
+		},
+	},
+
+	// Set swap pattern - alternative to Array.from
+	{
+		name: 'Micro: Set swap pattern',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			let current = new Set<number>()
+			for (let i = 0; i < 100; i++) {
+				current.add(i)
+			}
+
+			for (let i = 0; i < 10_000; i++) {
+				const toProcess = current
+				current = new Set()
+				for (const item of toProcess) {
+					// Simulate processing
+					void item
+				}
+				// Repopulate for next iteration
+				for (let j = 0; j < 100; j++) {
+					current.add(j)
+				}
+			}
+		},
+	},
+
+	// ============================================
+	// STANDARD BENCHMARKS: Base operations on signals
+	// ============================================
 	{
 		name: 'Signal Creation',
 		operationsPerRun: 100_000,
@@ -399,6 +572,288 @@ const benchmarks: Benchmark[] = [
 			cleanup()
 
 			console.debug(`  Note: Effect with ${NumSources} dependencies ran ${effectRuns} times`)
+		},
+	},
+
+	// ============================================
+	// LENS BENCHMARKS: Fine-grained reactivity
+	// ============================================
+
+	// Lens creation overhead
+	{
+		name: 'Lens: Creation',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			interface User {
+				name: string
+				age: number
+			}
+			const userState = state<User>({
+				age: 30,
+				name: 'John',
+			})
+
+			for (let i = 0; i < 10_000; i++) {
+				lens(userState, (u) => u.name)
+			}
+		},
+	},
+
+	// Lens reading performance
+	{
+		name: 'Lens: Reading',
+		operationsPerRun: 100_000,
+		run: (): void => {
+			interface User {
+				name: string
+				age: number
+			}
+			const userState = state<User>({
+				age: 30,
+				name: 'John',
+			})
+			const nameLens = lens(userState, (u) => u.name)
+
+			for (let i = 0; i < 100_000; i++) {
+				nameLens()
+			}
+		},
+	},
+
+	// Lens writing (propagates to source)
+	{
+		name: 'Lens: Writing',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			interface User {
+				name: string
+				age: number
+			}
+			const userState = state<User>({
+				age: 30,
+				name: 'John',
+			})
+			const nameLens = lens(userState, (u) => u.name)
+
+			for (let i = 0; i < 10_000; i++) {
+				nameLens.set(`Name${i}`)
+			}
+		},
+	},
+
+	// Lens with effect - fine-grained updates
+	{
+		name: 'Lens: Fine-grained Effect Updates',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			interface User {
+				name: string
+				age: number
+				score: number
+			}
+			const userState = state<User>({
+				age: 30,
+				name: 'John',
+				score: 100,
+			})
+			const nameLens = lens(userState, (u) => u.name)
+			const ageLens = lens(userState, (u) => u.age)
+
+			let nameEffectRuns = 0
+			let ageEffectRuns = 0
+
+			const cleanupName = effect((): void => {
+				nameLens()
+				nameEffectRuns++
+			})
+
+			const cleanupAge = effect((): void => {
+				ageLens()
+				ageEffectRuns++
+			})
+
+			// Reset after initial runs
+			nameEffectRuns = 0
+			ageEffectRuns = 0
+
+			// Update only name - age effect should NOT run
+			for (let i = 0; i < 5_000; i++) {
+				nameLens.set(`Name${i}`)
+			}
+
+			// Update only age - name effect should NOT run
+			for (let i = 0; i < 5_000; i++) {
+				ageLens.set(i)
+			}
+
+			cleanupName()
+			cleanupAge()
+
+			console.debug(`  Note: Name effect ran ${nameEffectRuns} times, Age effect ran ${ageEffectRuns} times`)
+		},
+	},
+
+	// Deep nested lens
+	{
+		name: 'Lens: Deep Nested Path',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			interface DeepState {
+				level1: {
+					level2: {
+						level3: {
+							value: number
+						}
+					}
+				}
+			}
+			const deepState = state<DeepState>({
+				level1: {
+					level2: {
+						level3: {
+							value: 0,
+						},
+					},
+				},
+			})
+			const deepLens = lens(deepState, (s) => s.level1.level2.level3.value)
+
+			for (let i = 0; i < 10_000; i++) {
+				deepLens.set(i)
+			}
+
+			// Verify final value
+			if (deepLens() !== 9999) {
+				throw new Error(`Deep lens value incorrect: expected 9999, got ${deepLens()}`)
+			}
+		},
+	},
+
+	// Multiple lenses on same source - independence test
+	{
+		name: 'Lens: Multiple Independent Lenses',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			interface Config {
+				a: number
+				b: number
+				c: number
+				d: number
+				e: number
+			}
+			const configState = state<Config>({
+				a: 0,
+				b: 0,
+				c: 0,
+				d: 0,
+				e: 0,
+			})
+
+			const lensA = lens(configState, (c) => c.a)
+			const lensB = lens(configState, (c) => c.b)
+			const lensC = lens(configState, (c) => c.c)
+			const lensD = lens(configState, (c) => c.d)
+			const lensE = lens(configState, (c) => c.e)
+
+			// Update each lens independently
+			for (let i = 0; i < 2_000; i++) {
+				lensA.set(i)
+				lensB.set(i * 2)
+				lensC.set(i * 3)
+				lensD.set(i * 4)
+				lensE.set(i * 5)
+			}
+		},
+	},
+
+	// Lens vs Direct State comparison - updating nested property
+	{
+		name: 'Lens: vs Direct State.update()',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			interface User {
+				profile: {
+					name: string
+					settings: {
+						theme: string
+					}
+				}
+			}
+
+			// Using lens
+			const userWithLens = state<User>({
+				profile: {
+					name: 'John',
+					settings: {
+						theme: 'dark',
+					},
+				},
+			})
+			const themeLens = lens(userWithLens, (u) => u.profile.settings.theme)
+
+			for (let i = 0; i < 5_000; i++) {
+				themeLens.set(i % 2 === 0 ? 'dark' : 'light')
+			}
+
+			// Using direct update for comparison
+			const userDirect = state<User>({
+				profile: {
+					name: 'John',
+					settings: {
+						theme: 'dark',
+					},
+				},
+			})
+
+			for (let i = 0; i < 5_000; i++) {
+				userDirect.update((u) => ({
+					...u,
+					profile: {
+						...u.profile,
+						settings: {
+							...u.profile.settings,
+							theme: i % 2 === 0 ? 'dark' : 'light',
+						},
+					},
+				}))
+			}
+		},
+	},
+
+	// Lens array element update
+	{
+		name: 'Lens: Array Element Updates',
+		operationsPerRun: 10_000,
+		run: (): void => {
+			interface ListState {
+				items: number[]
+			}
+			const listState = state<ListState>({
+				items: [
+					1,
+					2,
+					3,
+					4,
+					5,
+					6,
+					7,
+					8,
+					9,
+					10,
+				],
+			})
+
+			// Create lens for middle element
+			const itemLens = lens(listState, (s) => s.items[4])
+
+			for (let i = 0; i < 10_000; i++) {
+				itemLens.set(i)
+			}
+
+			// Verify the array was updated correctly
+			if (listState().items[4] !== 9999) {
+				throw new Error(`Array element incorrect: expected 9999, got ${listState().items[4]}`)
+			}
 		},
 	},
 ]
