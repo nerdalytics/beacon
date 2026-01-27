@@ -5,7 +5,7 @@
 
 [![license:mit](https://flat.badgen.net/static/license/MIT/blue)](https://github.com/nerdalytics/beacon/blob/trunk/LICENSE)
 [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
-[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.2.3)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.2.3)
+[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.2.4)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.2.4)
 
 [![tech:nodejs](https://img.shields.io/badge/Node%20js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
