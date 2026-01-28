@@ -101,7 +101,7 @@ jobs:
 
               if [[ -n "$sha" ]]; then
                 ACTIONS_SHA[$action]="$sha"
-                ((OUTDATED_COUNT++))
+                ((OUTDATED_COUNT++)) || true
               else
                 echo "  Warning: Could not fetch SHA for $action@$latest"
               fi
@@ -161,6 +161,10 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           ISSUE_TITLE="Security: Outdated GitHub Actions detected"
+
+          # Ensure required labels exist
+          gh label create "security" --description "Security-related issues" --color "D93F0B" --force 2>/dev/null || true
+          gh label create "dependencies" --description "Dependency updates" --color "0366D6" --force 2>/dev/null || true
 
           EXISTING_ISSUE=$(gh issue list --state open --search "in:title $ISSUE_TITLE" --json number --jq '.[0].number' 2>/dev/null || echo "")
 
