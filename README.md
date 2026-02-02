@@ -1,4 +1,4 @@
-# Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
+# Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo-v2.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
 
 > Lightweight reactive state management for Node.js backends
 
@@ -25,15 +25,9 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
       - [derive](#derivetfn---t-readonlystatet)
       - [effect](#effectfn---void---void)
       - [batch](#batchtfn---t-t)
-      - [select](#selectt-rsource-readonlystatet-selectorfn-state-t--r-equalityfn-a-r-b-r--boolean-readonlystater)
-      - [lens](#lenst-ksource-statet-accessor-state-t--k-statek)
-   - [Access Control](#access-control)
-      - [readonlyState](#readonlystatetstate-statet-readonlystatet)
-      - [protectedState](#protectedstatetinitialvalue-t-equalityfn-a-t-b-t--boolean-readonlystatet-writeablestatet)
 - [Advanced Features](#advanced-features)
    - [Infinite Loop Protection](#infinite-loop-protection)
    - [Automatic Cleanup](#automatic-cleanup)
-   - [Custom Equality Functions](#custom-equality-functions)
 - [Design Philosophy](#design-philosophy)
 - [Architecture](#architecture)
 - [Development](#development)
@@ -71,21 +65,25 @@ npm install @nerdalytics/beacon --save-exact
 ```typescript
 import { state, derive, effect } from '@nerdalytics/beacon';
 
-// Create reactive state
-const count = state(0);
+// Create reactive state - now using objects with properties
+const signal = state({ count: 0 });
 
 // Create a derived value
-const doubled = derive(() => count() * 2);
+const doubled = derive(() => signal.count * 2);
 
 // Set up an effect
-effect(() => {
-  console.log(`Count: ${count()}, Doubled: ${doubled()}`);
+const dispose = effect(() => {
+  console.log(`Count: ${signal.count}, Doubled: ${doubled.value}`);
 });
 // => "Count: 0, Doubled: 0"
 
-// Update the state - effect runs automatically
-count.set(5);
+// Update the state - just use regular assignment!
+signal.count = 5;
 // => "Count: 5, Doubled: 10"
+
+// Clean up when done (important for memory management)
+dispose();
+doubled.dispose();
 ```
 
 ## Core Concepts
@@ -93,7 +91,7 @@ count.set(5);
 Beacon is built around three core primitives:
 
 1. **States**: Mutable, reactive values
-2. **Derived States**: Read-only computed values that update automatically
+2. **Derived States**: Computed values that update automatically
 3. **Effects**: Side effects that run automatically when dependencies change
 
 The library handles all the dependency tracking and updates automatically, so you can focus on your business logic.
@@ -106,65 +104,81 @@ The table below tracks when features were introduced and when function signature
 
 | API | Introduced | Last Updated | Notes |
 |-----|------------|--------------|-------|
-| `state` | v1.0.0 | v1000.2.0 | Added `equalityFn` parameter |
-| `derive` | v1.0.0 | v1000.0.0 | Renamed `derived` → `derive` |
+| `state` | v1.0.0 | v2000.0.0 | Now Proxy-based, returns reactive object |
+| `derive` | v1.0.0 | v2000.0.1 | Returns `{value: T, dispose(), [Symbol.dispose]()}` |
 | `effect` | v1.0.0 | - | - |
 | `batch` | v1.0.0 | - | - |
-| `select` | v1000.0.0 | - | - |
-| `lens` | v1000.1.0 | - | - |
-| `readonlyState` | v1000.0.0 | - | - |
-| `protectedState` | v1000.0.0 | v1000.2.0 | Added `equalityFn` parameter |
+| `select` | v1000.0.0 | v2000.0.0 | **Removed** |
+| `lens` | v1000.1.0 | v2000.0.0 | **Removed** |
+| `readonlyState` | v1000.0.0 | v2000.0.0 | **Removed** |
+| `protectedState` | v1000.0.0 | v2000.0.0 | **Removed** |
 
 ### Core Primitives
 
-#### `state<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): State<T>`
-> *Since v1.0.0*
+#### `state<T extends object>(initialValue: T): T`
+> *Since v1.0.0, Proxy-based since v2000.0.0*
 
-The foundation of Beacon's reactivity system. Create with `state()` and use like a function.
+Creates a reactive object. All property access and mutations are automatically tracked.
 
 ```typescript
 import { state } from '@nerdalytics/beacon';
 
-const counter = state(0);
+// Create reactive state
+const signal = state({ count: 0, name: 'Alice' });
 
-// Read current value
-console.log(counter()); // => 0
+// Read values directly
+console.log(signal.count); // => 0
+console.log(signal.name); // => 'Alice'
 
-// Update value
-counter.set(5);
-console.log(counter()); // => 5
+// Update with regular assignment
+signal.count = 5;
+signal.name = 'Bob';
 
-// Update with a function
-counter.update(n => n + 1);
-console.log(counter()); // => 6
-
-// With custom equality function
-const deepCounter = state({ value: 0 }, (a, b) => {
-  // Deep equality check
-  return a.value === b.value;
+// Works with nested objects
+const app = state({
+  user: { name: 'Alice', age: 30 },
+  settings: { theme: 'dark' }
 });
 
-// This won't trigger effects because values are deeply equal
-deepCounter.set({ value: 0 });
+app.user.age = 31; // Triggers updates
+app.settings = { theme: 'light' }; // Also reactive
+
+// Arrays are fully reactive
+const todos = state([
+  { id: 1, text: 'Learn Beacon', done: false }
+]);
+
+todos.push({ id: 2, text: 'Build app', done: false });
+todos[0].done = true;
 ```
 
-#### `derive<T>(fn: () => T): ReadOnlyState<T>`
-> *Since v1.0.0*
+#### `derive<T>(fn: () => T): ComputedValue<T>`
+> *Since v1.0.0, Returns `{value: T, dispose(): void}` since v2000.0.0*
 
 Calculate values based on other states. Updates automatically when dependencies change.
+**Important**: Derived values must be disposed when no longer needed to prevent memory leaks.
 
 ```typescript
 import { state, derive } from '@nerdalytics/beacon';
 
-const firstName = state('John');
-const lastName = state('Doe');
+const signal = state({
+  firstName: 'John',
+  lastName: 'Doe'
+});
 
-const fullName = derive(() => `${firstName()} ${lastName()}`);
+const fullName = derive(() => `${signal.firstName} ${signal.lastName}`);
 
-console.log(fullName()); // => "John Doe"
+console.log(fullName.value); // => "John Doe"
 
-firstName.set('Jane');
-console.log(fullName()); // => "Jane Doe"
+signal.firstName = 'Jane';
+console.log(fullName.value); // => "Jane Doe"
+
+// Clean up when done
+fullName.dispose();
+
+// With Symbol.dispose (Node.js 20.5+)
+const another = derive(() => signal.firstName.toUpperCase());
+another[Symbol.dispose]();
 ```
 
 #### `effect(fn: () => void): () => void`
@@ -178,15 +192,18 @@ import { state, effect } from '@nerdalytics/beacon';
 const user = state({ name: 'Alice', loggedIn: false });
 
 const cleanup = effect(() => {
-  console.log(`User ${user().name} is ${user().loggedIn ? 'online' : 'offline'}`);
+  console.log(`User ${user.name} is ${user.loggedIn ? 'online' : 'offline'}`);
 });
 // => "User Alice is offline" (effect runs immediately when created)
 
-user.update(u => ({ ...u, loggedIn: true }));
+user.loggedIn = true;
 // => "User Alice is online"
 
 // Stop the effect and clean up all subscriptions
 cleanup();
+
+user.loggedIn = false; // won't trigger the effect anymore
+// => No output (effect is unsubscribed)
 ```
 
 #### `batch<T>(fn: () => T): T`
@@ -197,157 +214,28 @@ Group multiple updates to trigger effects only once.
 ```typescript
 import { state, effect, batch } from "@nerdalytics/beacon";
 
-const count = state(0);
+const signal = state({ count: 0 });
 
 effect(() => {
-  console.log(`Count is ${count()}`);
+  console.log(`Count is ${signal.count}`);
 });
 // => "Count is 0" (effect runs immediately)
 
 // Without batching, effects run after each update
-count.set(1);
+signal.count = 1;
 // => "Count is 1"
-count.set(2);
+signal.count = 2;
 // => "Count is 2"
 
 // Batch updates (only triggers effects once at the end)
 batch(() => {
-  count.set(10);
-  count.set(20);
-  count.set(30);
+  signal.count = 10;
+  signal.count = 20;
+  signal.count = 30;
 });
 // => "Count is 30" (only once)
 ```
 
-#### `select<T, R>(source: ReadOnlyState<T>, selectorFn: (state: T) => R, equalityFn?: (a: R, b: R) => boolean): ReadOnlyState<R>`
-> *Since v1000.0.0*
-
-Subscribe to specific parts of a state object.
-
-```typescript
-import { state, select, effect } from '@nerdalytics/beacon';
-
-const user = state({
-  profile: { name: 'Alice' },
-  preferences: { theme: 'dark' }
-});
-
-// Only triggers when name changes
-const nameState = select(user, u => u.profile.name);
-
-effect(() => {
-  console.log(`Name: ${nameState()}`);
-});
-// => "Name: Alice"
-
-// This triggers the effect
-user.update(u => ({
-  ...u,
-  profile: { ...u.profile, name: 'Bob' }
-}));
-// => "Name: Bob"
-
-// This doesn't trigger the effect (theme changed, not name)
-user.update(u => ({
-  ...u,
-  preferences: { ...u.preferences, theme: 'light' }
-}));
-```
-
-#### `lens<T, K>(source: State<T>, accessor: (state: T) => K): State<K>`
-> *Since v1000.1.0*
-
-Two-way binding to deeply nested properties.
-
-```typescript
-import { state, lens, effect } from "@nerdalytics/beacon";
-
-const nested = state({
-  user: {
-    profile: {
-      settings: {
-        theme: "dark",
-        notifications: true
-      }
-    }
-  }
-});
-
-// Create a lens focused on a deeply nested property
-const themeLens = lens(nested, n => n.user.profile.settings.theme);
-
-// Read the focused value
-console.log(themeLens()); // => "dark"
-
-// Update the focused value directly (maintains referential integrity)
-themeLens.set("light");
-console.log(themeLens()); // => "light"
-console.log(nested().user.profile.settings.theme); // => "light"
-
-// The entire object is updated with proper referential integrity
-// This makes it easy to detect changes throughout the object tree
-```
-
-### Access Control
-
-Control who can read vs. write to your state.
-
-#### `readonlyState<T>(state: State<T>): ReadOnlyState<T>`
-> *Since v1000.0.0*
-
-Creates a read-only view of a state, hiding mutation methods. Useful when you want to expose state to other parts of your application without allowing direct mutations.
-
-```typescript
-import { state, readonlyState } from "@nerdalytics/beacon";
-
-const counter = state(0);
-const readonlyCounter = readonlyState(counter);
-
-// Reading works
-console.log(readonlyCounter()); // => 0
-
-// Updating the original state reflects in the readonly view
-counter.set(5);
-console.log(readonlyCounter()); // => 5
-
-// This would cause a TypeScript error since readonlyCounter has no set method
-// readonlyCounter.set(10); // Error: Property 'set' does not exist
-```
-
-#### `protectedState<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): [ReadOnlyState<T>, WriteableState<T>]`
-> *Since v1000.0.0*
-
-Creates a state with separated read and write capabilities, returning a tuple of reader and writer. This pattern allows you to expose only the reading capability to consuming code while keeping the writing capability private.
-
-```typescript
-import { protectedState } from "@nerdalytics/beacon";
-
-// Create a state with separated read and write capabilities
-const [getUser, setUser] = protectedState({ name: 'Alice' });
-
-// Read the state
-console.log(getUser()); // => { name: 'Alice' }
-
-// Update the state
-setUser.set({ name: 'Bob' });
-console.log(getUser()); // => { name: 'Bob' }
-
-// This is useful for exposing only read access to outside consumers
-function createProtectedCounter() {
-  const [getCount, setCount] = protectedState(0);
-
-  return {
-    value: getCount,
-    increment: () => setCount.update(n => n + 1),
-    decrement: () => setCount.update(n => n - 1)
-  };
-}
-
-const counter = createProtectedCounter();
-console.log(counter.value()); // => 0
-counter.increment();
-console.log(counter.value()); // => 1
-```
 
 ## Advanced Features
 
@@ -360,16 +248,16 @@ Beacon prevents common mistakes that could cause infinite loops:
 ```typescript
 import { state, effect } from '@nerdalytics/beacon';
 
-const counter = state(0);
+const signal = state({ count: 0 });
 
 // This would throw an error
 effect(() => {
-  const value = counter();
-  counter.set(value + 1); // Error: Infinite loop detected!
+  const value = signal.count;
+  signal.count = value + 1; // Error: Infinite loop detected!
 });
 
 // Instead, use proper patterns like:
-const increment = () => counter.update(n => n + 1);
+const increment = () => signal.count++;
 ```
 
 ### Automatic Cleanup
@@ -383,12 +271,12 @@ const data = state({ loading: true, items: [] });
 
 // Effect with nested effect
 const cleanup = effect(() => {
-  if (data().loading) {
+  if (data.loading) {
     console.log('Loading...');
   } else {
     // This nested effect is automatically cleaned up when the parent is
     effect(() => {
-      console.log(`${data().items.length} items loaded`);
+      console.log(`${data.items.length} items loaded`);
     });
   }
 });
@@ -397,41 +285,6 @@ const cleanup = effect(() => {
 cleanup();
 ```
 
-### Custom Equality Functions
-
-Control when subscribers are notified with custom equality checks. You can provide custom equality functions to `state`, `select`, and `protectedState`:
-
-```typescript
-import { state, select, effect, protectedState } from '@nerdalytics/beacon';
-
-// Custom equality function for state
-// Only trigger updates when references are different (useful for logging)
-const logMessages = state([], (a, b) => a === b); // Reference equality
-
-// Add logs - each call triggers effects even with identical content
-logMessages.set(['System started']); // Triggers effects
-logMessages.set(['System started']); // Triggers effects again
-
-// Protected state with custom equality function
-const [getConfig, setConfig] = protectedState({ theme: 'dark' }, (a, b) => {
-  // Only consider configs equal if all properties match
-  return a.theme === b.theme;
-});
-
-// Custom equality with select
-const list = state([1, 2, 3]);
-
-// Only notify when array length changes, not on content changes
-const listLengthState = select(
-  list,
-  arr => arr.length,
-  (a, b) => a === b
-);
-
-effect(() => {
-  console.log(`List has ${listLengthState()} items`);
-});
-```
 
 ## Design Philosophy
 
@@ -463,8 +316,8 @@ Beacon actively detects when an effect tries to update a state it depends on, pr
 ```typescript
 // This would throw: "Infinite loop detected"
 effect(() => {
-  const value = counter();
-  counter.set(value + 1); // Error! Updating a state the effect depends on
+  const value = signal.count;
+  signal.count = value + 1; // Error! Updating a state the effect depends on
 });
 ```
 
@@ -489,10 +342,10 @@ npm test
 
 | **Aspect**                  | **@nerdalytics/beacon**                                                     | **TC39 Proposal**                                                                             |
 | --------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
-| **API Style**               | Functional approach (`state()`, `derive()`)                                 | Class-based design (`Signal.State`, `Signal.Computed`)                                        |
-| **Reading/Writing Pattern** | Function call for reading (`count()`), methods for writing (`count.set(5)`) | Method-based access (`get()`/`set()`)                                                         |
+| **API Style**               | Proxy-based with natural JS syntax (`state()`, `derive()`)                  | Class-based design (`Signal.State`, `Signal.Computed`)                                        |
+| **Reading/Writing Pattern** | Direct property access (`signal.count`) and assignment (`signal.count = 5`) | Method-based access (`get()`/`set()`)                                                         |
 | **Framework Support**       | High-level abstractions like `effect()` and `batch()`                       | Lower-level primitives (`Signal.subtle.Watcher`) that frameworks build upon                   |
-| **Advanced Features**       | Focused on core reactivity                                                  | Includes introspection capabilities, watched/unwatched callbacks, and Signal.subtle namespace |
+| **Advanced Features**       | Focused on core reactivity with automatic cleanup                           | Includes introspection capabilities, watched/unwatched callbacks, and Signal.subtle namespace |
 | **Scope and Purpose**       | Practical Node.js use cases with minimal API surface                        | Standardization with robust interoperability between frameworks                               |
 
 ## FAQ
@@ -518,13 +371,13 @@ const stats = state({ requests: 0, errors: 0 });
 
 // Update stats on each request
 app.use((req, res, next) => {
-  stats.update(s => ({ ...s, requests: s.requests + 1 }));
+  stats.requests++;
   next();
 });
 
 // Log stats every minute
 effect(() => {
-  console.log(`Stats: ${stats().requests} requests, ${stats().errors} errors`);
+  console.log(`Stats: ${stats.requests} requests, ${stats.errors} errors`);
 });
 
 app.listen(3000);
