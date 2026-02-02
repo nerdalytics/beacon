@@ -1,673 +1,628 @@
-// Core types for reactive primitives
-type Subscriber = () => void
+// Beacon - reactive state management system
+// This is a state management library similar to signals/reactive patterns
+
+// Type definitions
 export type Unsubscribe = () => void
-export type ReadOnlyState<T> = () => T
-export interface WriteableState<T> {
-	set(value: T): void
-	update(fn: (value: T) => T): void
+export type EffectCallback = () => void
+export type EffectName = string
+
+export type ComputedValue<T> = {
+	readonly value: T | undefined | null
+	reactive: boolean
 }
 
-// Special symbol used for internal tracking
-const STATE_ID: unique symbol = Symbol('STATE_ID')
+type ProxyTarget = Record<PropertyKey, unknown>
 
-export type State<T> = ReadOnlyState<T> &
-	WriteableState<T> & {
-		[STATE_ID]?: symbol
-	}
+// Configuration constants
+const CONFIG = {
+	MAX_BATCH_DEPTH: 100,
+	MUTATING_ARRAY_METHODS: [
+		'push',
+		'pop',
+		'shift',
+		'unshift',
+		'splice',
+		'sort',
+		'reverse',
+	] as const,
+} as const
 
-/**
- * Creates a reactive state container with the provided initial value.
- */
-export const state = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> =>
-	StateImpl.createState(initialValue, equalityFn)
+// Symbol definitions for internal tracking
+const OWN_KEYS_SYMBOL: unique symbol = Symbol('[[ownKeysRead]]')
+const SUBSCRIBERS: unique symbol = Symbol('[[beacon_subscribers]]')
+const PROXY: unique symbol = Symbol('[[beacon_proxy]]')
 
-/**
- * Registers a function to run whenever its reactive dependencies change.
- */
-export const effect = (fn: () => void): Unsubscribe => StateImpl.createEffect(fn)
+// Effect tracking state
+let currentEffect: EffectFunction | null = null
+let batchDepth = 0
+let isNotifying = false
+const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
+const activeEffects: Set<EffectFunction> = new Set<EffectFunction>()
+const deferredEffectCreations: EffectFunction[] = []
 
-/**
- * Groups multiple state updates to trigger effects only once at the end.
- */
-export const batch = <T>(fn: () => T): T => StateImpl.executeBatch(fn)
+// WeakMaps for tracking relationships
+const parentEffect: WeakMap<EffectFunction, EffectFunction> = new WeakMap<EffectFunction, EffectFunction>()
+const childEffects: WeakMap<EffectFunction, Set<EffectFunction>> = new WeakMap<EffectFunction, Set<EffectFunction>>()
 
-/**
- * Creates a read-only computed value that updates when its dependencies change.
- */
-export const derive = <T>(computeFn: () => T): ReadOnlyState<T> => StateImpl.createDerive(computeFn)
+const effectStateReads: WeakMap<EffectFunction, WeakMap<object, Set<PropertyKey>>> = new WeakMap<
+	EffectFunction,
+	WeakMap<object, Set<PropertyKey>>
+>()
 
-/**
- * Creates an efficient subscription to a subset of a state value.
- */
-export const select = <T, R>(
-	source: ReadOnlyState<T>,
-	selectorFn: (state: T) => R,
-	equalityFn: (a: R, b: R) => boolean = Object.is
-): ReadOnlyState<R> => StateImpl.createSelect(source, selectorFn, equalityFn)
+const effectDependencies: WeakMap<EffectFunction, Set<object>> = new WeakMap<EffectFunction, Set<object>>()
 
-/**
- * Creates a read-only view of a state, hiding mutation methods.
- */
-export const readonlyState =
-	<T>(state: State<T>): ReadOnlyState<T> =>
-	(): T =>
-		state()
+// Proxy caching
+const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
+const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
+const subscriberCache: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
 
-/**
- * Creates a state with access control, returning a tuple of reader and writer.
- */
-export const protectedState = <T>(
-	initialValue: T,
-	equalityFn: (a: T, b: T) => boolean = Object.is
-): [
-	ReadOnlyState<T>,
-	WriteableState<T>,
-] => {
-	const fullState = state(initialValue, equalityFn)
-	return [
-		(): T => readonlyState(fullState)(),
-		{
-			set: (value: T): void => fullState.set(value),
-			update: (fn: (value: T) => T): void => fullState.update(fn),
-		},
-	]
+const MUTATING_ARRAY_METHODS: Set<string> = new Set(CONFIG.MUTATING_ARRAY_METHODS)
+
+// Symbol for cached methods
+const CACHED_METHODS: unique symbol = Symbol('[[cachedMethods]]')
+
+// Function type for cached methods
+type CachedMethod = (...args: unknown[]) => unknown
+const frozenMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
+
+// Effect function type
+type EffectFunction = {
+	(): void
+	effectName?: string
 }
 
-/**
- * Creates a lens for direct updates to nested properties of a state.
- */
-export const lens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> =>
-	StateImpl.createLens(source, accessor)
+// Helper types for objects with internal symbols
+type SubscribersObject = ProxyTarget & {
+	[SUBSCRIBERS]?: Set<EffectFunction>
+}
 
-class StateImpl<T> {
-	// Static fields track global reactivity state - this centralized approach allows
-	// for coordinated updates while maintaining individual state isolation
-	private static currentSubscriber: Subscriber | null = null
-	private static pendingSubscribers = new Set<Subscriber>()
-	private static isNotifying = false
-	private static batchDepth = 0
-	private static deferredEffectCreations: Subscriber[] = []
-	private static activeSubscribers = new Set<Subscriber>()
+type ProxyObject = ProxyTarget & {
+	[PROXY]?: object
+}
 
-	// WeakMaps enable automatic garbage collection when subscribers are no
-	// longer referenced, preventing memory leaks in long-running applications
-	private static stateTracking = new WeakMap<Subscriber, Set<symbol>>()
-	private static subscriberDependencies = new WeakMap<Subscriber, Set<Set<Subscriber>>>()
-	private static parentSubscriber = new WeakMap<Subscriber, Subscriber>()
-	private static childSubscribers = new WeakMap<Subscriber, Set<Subscriber>>()
+type CachedMethodsObject = ProxyTarget & {
+	[CACHED_METHODS]?: Record<PropertyKey, CachedMethod>
+}
 
-	// Instance state - each state has unique subscribers and ID
-	private value: T
-	private subscribers = new Set<Subscriber>()
-	private stateId = Symbol()
-	private equalityFn: (a: T, b: T) => boolean
-
-	constructor(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is) {
-		this.value = initialValue
-		this.equalityFn = equalityFn
+function getCachedMethodFromWeakMap(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
+	let cache = frozenMethodCache.get(target)
+	if (!cache) {
+		cache = new Map<PropertyKey, CachedMethod>()
+		frozenMethodCache.set(target, cache)
 	}
 
-	/**
-	 * Creates a reactive state container with the provided initial value.
-	 * Implementation of the public 'state' function.
-	 */
-	static createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> => {
-		const instance = new StateImpl<T>(initialValue, equalityFn)
-		const get = (): T => instance.get()
-		get.set = (value: T): void => instance.set(value)
-		get.update = (fn: (currentValue: T) => T): void => instance.update(fn)
-		get[STATE_ID] = instance.stateId
-		return get as State<T>
+	let wrapped = cache.get(prop)
+	if (!wrapped) {
+		wrapped = (...args: unknown[]): unknown => {
+			const result = originalMethod.apply(target, args)
+			scheduleSubscribersForTarget(target)
+			return result
+		}
+		cache.set(prop, wrapped)
+	}
+	return wrapped
+}
+
+function getSubscribers(target: object): Set<EffectFunction> {
+	const cached = subscriberCache.get(target)
+	if (cached) return cached
+
+	// Check if target has SUBSCRIBERS property
+	const targetWithSubs = target as SubscribersObject
+	if (targetWithSubs[SUBSCRIBERS] instanceof Set) {
+		const s = targetWithSubs[SUBSCRIBERS]
+		subscriberCache.set(target, s)
+		return s
 	}
 
-	// Auto-tracks dependencies when called within effects, creating a fine-grained
-	// reactivity graph that only updates affected components
-	get = (): T => {
-		const currentEffect = StateImpl.currentSubscriber
-		if (currentEffect) {
-			// Add this effect to subscribers for future notification
-			this.subscribers.add(currentEffect)
-
-			// Maintain bidirectional dependency tracking to enable precise cleanup
-			// when effects are unsubscribed, preventing memory leaks
-			let dependencies = StateImpl.subscriberDependencies.get(currentEffect)
-			if (!dependencies) {
-				dependencies = new Set()
-				StateImpl.subscriberDependencies.set(currentEffect, dependencies)
-			}
-			dependencies.add(this.subscribers)
-
-			// Track read states to detect direct cyclical dependencies that
-			// could cause infinite loops
-			let readStates = StateImpl.stateTracking.get(currentEffect)
-			if (!readStates) {
-				readStates = new Set()
-				StateImpl.stateTracking.set(currentEffect, readStates)
-			}
-			readStates.add(this.stateId)
-		}
-		return this.value
+	// Check fallback
+	const fb = proxyCacheSubs.get(target)
+	if (fb) {
+		subscriberCache.set(target, fb)
+		return fb
 	}
 
-	// Handles value updates with built-in optimizations and safeguards
-	set = (newValue: T): void => {
-		// Skip updates for unchanged values to prevent redundant effect executions
-		if (this.equalityFn(this.value, newValue)) {
-			return
-		}
-
-		// Infinite loop detection prevents direct self-mutation within effects,
-		// while allowing nested effect patterns that would otherwise appear cyclical
-		const effect = StateImpl.currentSubscriber
-		if (effect) {
-			const states = StateImpl.stateTracking.get(effect)
-			if (states?.has(this.stateId) && !StateImpl.parentSubscriber.get(effect)) {
-				throw new Error('Infinite loop detected: effect() cannot update a state() it depends on!')
-			}
-		}
-
-		this.value = newValue
-
-		// Skip updates when there are no subscribers, avoiding unnecessary processing
-		if (this.subscribers.size === 0) {
-			return
-		}
-
-		// Queue notifications instead of executing immediately to support batch operations
-		// and prevent redundant effect runs
-		for (const sub of this.subscribers) {
-			StateImpl.pendingSubscribers.add(sub)
-		}
-
-		// Immediate execution outside of batches, deferred execution inside batches
-		if (StateImpl.batchDepth === 0 && !StateImpl.isNotifying) {
-			StateImpl.notifySubscribers()
-		}
-	}
-
-	update = (fn: (currentValue: T) => T): void => {
-		this.set(fn(this.value))
-	}
-
-	/**
-	 * Registers a function to run whenever its reactive dependencies change.
-	 * Implementation of the public 'effect' function.
-	 */
-	static createEffect = (fn: () => void): Unsubscribe => {
-		const runEffect = (): void => {
-			// Prevent re-entrance to avoid cascade updates during effect execution
-			if (StateImpl.activeSubscribers.has(runEffect)) {
-				return
-			}
-
-			StateImpl.activeSubscribers.add(runEffect)
-			const parentEffect = StateImpl.currentSubscriber
-
-			try {
-				// Clean existing subscriptions before running to ensure only
-				// currently accessed states are tracked as dependencies
-				StateImpl.cleanupEffect(runEffect)
-
-				// Set current context for automatic dependency tracking
-				StateImpl.currentSubscriber = runEffect
-				StateImpl.stateTracking.set(runEffect, new Set())
-
-				// Track parent-child relationships to handle nested effects correctly
-				// and enable hierarchical cleanup later
-				if (parentEffect) {
-					StateImpl.parentSubscriber.set(runEffect, parentEffect)
-					let children = StateImpl.childSubscribers.get(parentEffect)
-					if (!children) {
-						children = new Set()
-						StateImpl.childSubscribers.set(parentEffect, children)
-					}
-					children.add(runEffect)
-				}
-
-				// Execute the effect function, which will auto-track dependencies
-				fn()
-			} finally {
-				// Restore previous context when done
-				StateImpl.currentSubscriber = parentEffect
-				StateImpl.activeSubscribers.delete(runEffect)
-			}
-		}
-
-		// Run immediately unless we're in a batch operation
-		if (StateImpl.batchDepth === 0) {
-			runEffect()
+	// Create new subscriber set
+	const s = new Set<EffectFunction>()
+	try {
+		if (Object.isExtensible(target)) {
+			Object.defineProperty(target, SUBSCRIBERS, {
+				configurable: true,
+				enumerable: false,
+				value: s,
+				writable: false,
+			})
 		} else {
-			// Still track parent-child relationship even when deferred,
-			// ensuring proper hierarchical cleanup later
-			if (StateImpl.currentSubscriber) {
-				const parent = StateImpl.currentSubscriber
-				StateImpl.parentSubscriber.set(runEffect, parent)
-				let children = StateImpl.childSubscribers.get(parent)
-				if (!children) {
-					children = new Set()
-					StateImpl.childSubscribers.set(parent, children)
-				}
-				children.add(runEffect)
-			}
-
-			// Queue for execution when batch completes
-			StateImpl.deferredEffectCreations.push(runEffect)
+			proxyCacheSubs.set(target, s)
 		}
+	} catch {
+		// Failed to define property, fallback to WeakMap storage
+		proxyCacheSubs.set(target, s)
+	}
+	subscriberCache.set(target, s)
+	return s
+}
 
-		// Return cleanup function to properly disconnect from reactivity graph
-		return (): void => {
-			// Remove from dependency tracking to stop future notifications
-			StateImpl.cleanupEffect(runEffect)
-			StateImpl.pendingSubscribers.delete(runEffect)
-			StateImpl.activeSubscribers.delete(runEffect)
-			StateImpl.stateTracking.delete(runEffect)
+function registerEffectRead(effect: EffectFunction, target: object, prop: PropertyKey): void {
+	// Register dependency
+	let deps = effectDependencies.get(effect)
+	if (!deps) {
+		deps = new Set<object>()
+		effectDependencies.set(effect, deps)
+	}
+	deps.add(target)
 
-			// Clean up parent-child relationship bidirectionally
-			const parent = StateImpl.parentSubscriber.get(runEffect)
-			if (parent) {
-				const siblings = StateImpl.childSubscribers.get(parent)
-				if (siblings) {
-					siblings.delete(runEffect)
+	// Register property read
+	let map = effectStateReads.get(effect)
+	if (!map) {
+		map = new WeakMap<object, Set<PropertyKey>>()
+		effectStateReads.set(effect, map)
+	}
+	let set = map.get(target)
+	if (!set) {
+		set = new Set<PropertyKey>()
+		map.set(target, set)
+	}
+	set.add(prop)
+}
+
+function didEffectReadProp(effect: EffectFunction, target: object, prop: PropertyKey): boolean {
+	const map = effectStateReads.get(effect)
+	if (!map) return false
+	const set = map.get(target)
+	return set?.has(prop) ?? false
+}
+
+function tryUnwrap(value: unknown): unknown {
+	if (!value || typeof value !== 'object') return value
+	try {
+		const rv = value as ProxyObject
+		if (rv?.[PROXY]) return value
+	} catch {
+		// Failed to access PROXY property, likely due to access restrictions
+	}
+	return value
+}
+
+function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void {
+	const subs = getSubscribers(target)
+
+	if (subs?.size === 0 || !subs) return
+
+	for (const s of subs) {
+		// If no prop specified, schedule all subscribers
+		if (prop === undefined) {
+			pendingEffects.add(s)
+		} else {
+			// Check if this effect reads this specific prop
+			const map = effectStateReads.get(s)
+			if (map) {
+				const set = map.get(target)
+				if (set?.has(prop) || set?.has(OWN_KEYS_SYMBOL)) {
+					pendingEffects.add(s)
 				}
-			}
-			StateImpl.parentSubscriber.delete(runEffect)
-
-			// Recursively clean up child effects to prevent memory leaks in
-			// nested effect scenarios
-			const children = StateImpl.childSubscribers.get(runEffect)
-			if (children) {
-				for (const child of children) {
-					StateImpl.cleanupEffect(child)
-				}
-				children.clear()
-				StateImpl.childSubscribers.delete(runEffect)
 			}
 		}
 	}
+	if (batchDepth === 0 && !isNotifying) flushEffects()
+}
 
-	/**
-	 * Groups multiple state updates to trigger effects only once at the end.
-	 * Implementation of the public 'batch' function.
-	 */
-	static executeBatch = <T>(fn: () => T): T => {
-		// Increment depth counter to handle nested batches correctly
-		StateImpl.batchDepth++
-		try {
-			return fn()
-		} catch (error: unknown) {
-			// Clean up on error to prevent stale subscribers from executing
-			// and potentially causing cascading errors
-			if (StateImpl.batchDepth === 1) {
-				StateImpl.pendingSubscribers.clear()
-				StateImpl.deferredEffectCreations.length = 0
-			}
-			throw error
-		} finally {
-			StateImpl.batchDepth--
+// Flush all pending effects
+function flushEffects(): void {
+	// Early return if no pending effects
+	if (pendingEffects.size === 0) return
+	if (isNotifying) return
+	isNotifying = true
 
-			// Only process effects when exiting the outermost batch,
-			// maintaining proper execution order while avoiding redundant runs
-			if (StateImpl.batchDepth === 0) {
-				// Process effects created during the batch
-				if (StateImpl.deferredEffectCreations.length > 0) {
-					const effectsToRun = [
-						...StateImpl.deferredEffectCreations,
-					]
-					StateImpl.deferredEffectCreations.length = 0
-					for (const effect of effectsToRun) {
+	try {
+		while (pendingEffects.size > 0) {
+			// Copy effects to array to avoid mutation during iteration
+			const effects: EffectFunction[] = []
+			for (const e of pendingEffects) effects.push(e)
+			pendingEffects.clear()
+
+			// Run each effect
+			for (let i = 0; i < effects.length; i++) {
+				const effect = effects[i]
+				// Only run if effect still has dependencies (hasn't been cleaned up)
+				if (effect && effectDependencies.has(effect)) {
+					try {
 						effect()
+					} catch (err) {
+						pendingEffects.clear()
+						throw err
 					}
 				}
-
-				// Process state updates that occurred during the batch
-				if (StateImpl.pendingSubscribers.size > 0 && !StateImpl.isNotifying) {
-					StateImpl.notifySubscribers()
-				}
 			}
 		}
+	} finally {
+		isNotifying = false
+	}
+}
+
+function cleanupEffect(effect: EffectFunction): void {
+	pendingEffects.delete(effect)
+	const deps = effectDependencies.get(effect)
+	if (deps) {
+		for (const d of deps) {
+			const dWithSubs = d as SubscribersObject
+			const subs = dWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(d)
+			subs?.delete(effect)
+		}
+		deps.clear()
+		effectDependencies.delete(effect)
+	}
+	effectStateReads.delete(effect)
+}
+
+function cleanupEffectCompletely(effect: EffectFunction): void {
+	cleanupEffect(effect)
+
+	// Collect all child effects to cleanup
+	const toCleanup: EffectFunction[] = []
+	const children = childEffects.get(effect)
+	if (children) {
+		toCleanup.push(...children)
+		children.clear()
+		childEffects.delete(effect)
 	}
 
-	/**
-	 * Creates a read-only computed value that updates when its dependencies change.
-	 * Implementation of the public 'derive' function.
-	 */
-	static createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
-		// Create a container to hold state and minimize closure captures
-		const container = {
-			cachedValue: undefined as unknown as T,
-			computeFn,
-			initialized: false,
-			valueState: StateImpl.createState<T | undefined>(undefined),
+	// Clean up all descendants
+	while (toCleanup.length > 0) {
+		const child = toCleanup.pop()
+		if (!child) continue
+
+		// Clean up the child
+		cleanupEffect(child)
+
+		// Add grandchildren to cleanup list
+		const grandchildren = childEffects.get(child)
+		if (grandchildren) {
+			toCleanup.push(...grandchildren)
+			grandchildren.clear()
+			childEffects.delete(child)
 		}
 
-		// Internal effect automatically tracks dependencies and updates the derived value
-		StateImpl.createEffect(function deriveEffect(): void {
-			const newValue = container.computeFn()
-
-			// Only update if the value actually changed to preserve referential equality
-			// and prevent unnecessary downstream updates
-			if (!(container.initialized && Object.is(container.cachedValue, newValue))) {
-				container.cachedValue = newValue
-				container.valueState.set(newValue)
-			}
-
-			container.initialized = true
-		})
-
-		// Return function with lazy initialization - ensures value is available
-		// even when accessed before its dependencies have had a chance to update
-		return function deriveGetter(): T {
-			if (!container.initialized) {
-				container.cachedValue = container.computeFn()
-				container.initialized = true
-				container.valueState.set(container.cachedValue)
-			}
-			return container.valueState() as T
-		}
+		// Remove parent-child relationships
+		parentEffect.delete(child)
+		activeEffects.delete(child)
 	}
 
-	/**
-	 * Creates an efficient subscription to a subset of a state value.
-	 * Implementation of the public 'select' function.
-	 */
-	static createSelect = <T, R>(
-		source: ReadOnlyState<T>,
-		selectorFn: (state: T) => R,
-		equalityFn: (a: R, b: R) => boolean = Object.is
-	): ReadOnlyState<R> => {
-		// Create a container to hold state and minimize closure captures
-		const container = {
-			equalityFn,
-			initialized: false,
-			lastSelectedValue: undefined as R | undefined,
-			lastSourceValue: undefined as T | undefined,
-			selectorFn,
-			source,
-			valueState: StateImpl.createState<R | undefined>(undefined),
-		}
-
-		// Internal effect to track the source and update only when needed
-		StateImpl.createEffect(function selectEffect(): void {
-			const sourceValue = container.source()
-
-			// Skip computation if source reference hasn't changed
-			if (container.initialized && Object.is(container.lastSourceValue, sourceValue)) {
-				return
-			}
-
-			container.lastSourceValue = sourceValue
-			const newSelectedValue = container.selectorFn(sourceValue)
-
-			// Use custom equality function to determine if value semantically changed,
-			// allowing for deep equality comparisons with complex objects
-			if (
-				container.initialized &&
-				container.lastSelectedValue !== undefined &&
-				container.equalityFn(container.lastSelectedValue, newSelectedValue)
-			) {
-				return
-			}
-
-			// Update cache and notify subscribers due the value has changed
-			container.lastSelectedValue = newSelectedValue
-			container.valueState.set(newSelectedValue)
-			container.initialized = true
-		})
-
-		// Return function with eager initialization capability
-		return function selectGetter(): R {
-			if (!container.initialized) {
-				container.lastSourceValue = container.source()
-				container.lastSelectedValue = container.selectorFn(container.lastSourceValue)
-				container.valueState.set(container.lastSelectedValue)
-				container.initialized = true
-			}
-			return container.valueState() as R
-		}
+	// Clean up parent relationship
+	const parent = parentEffect.get(effect)
+	if (parent) {
+		const pchildren = childEffects.get(parent)
+		pchildren?.delete(effect)
 	}
 
-	/**
-	 * Creates a lens for direct updates to nested properties of a state.
-	 * Implementation of the public 'lens' function.
-	 */
-	static createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
-		// Create a container to hold lens state and minimize closure captures
-		const container = {
-			accessor,
-			isUpdating: false,
-			lensState: null as unknown as State<K>,
-			originalSet: null as unknown as (value: K) => void,
-			path: [] as (string | number)[],
-			source,
-		}
+	// Final cleanup
+	parentEffect.delete(effect)
+	activeEffects.delete(effect)
+}
 
-		// Extract the property path once during lens creation
-		const extractPath = (): (string | number)[] => {
-			const pathCollector: (string | number)[] = []
-			const proxy = new Proxy(
-				{},
-				{
-					get: (_: object, prop: string | symbol): unknown => {
-						if (typeof prop === 'string' || typeof prop === 'number') {
-							pathCollector.push(prop)
+// Proxy handler functions
+function createDeleteHandler(): ProxyHandler<ProxyTarget>['deleteProperty'] {
+	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
+		const had = Object.hasOwn(rawTarget, prop)
+		const ok = delete rawTarget[prop]
+		if (had && ok) scheduleSubscribersForTarget(rawTarget, prop)
+		return ok
+	}
+}
+
+function createGetHandler(): ProxyHandler<ProxyTarget>['get'] {
+	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
+		if (prop === SUBSCRIBERS || prop === PROXY) return rawTarget[prop]
+		if (currentEffect) {
+			const subs = getSubscribers(rawTarget)
+			subs.add(currentEffect)
+			registerEffectRead(currentEffect, rawTarget, prop)
+		}
+		const value = rawTarget[prop]
+
+		// Handle array mutating methods
+		if (Array.isArray(rawTarget) && typeof prop === 'string' && MUTATING_ARRAY_METHODS.has(prop)) {
+			if (typeof value === 'function') {
+				// For extensible objects, use property cache
+				if (Object.isExtensible(rawTarget)) {
+					const rawTargetWithCache = rawTarget as CachedMethodsObject
+					let cache = rawTargetWithCache[CACHED_METHODS]
+					if (!cache) {
+						cache = Object.create(null) as Record<PropertyKey, CachedMethod>
+						try {
+							Object.defineProperty(rawTarget, CACHED_METHODS, {
+								configurable: true,
+								enumerable: false,
+								value: cache,
+								writable: false,
+							})
+						} catch {
+							// Failed to define CACHED_METHODS property, fallback to WeakMap
+							return getCachedMethodFromWeakMap(rawTarget, prop, value as CachedMethod)
 						}
-						return proxy
-					},
+					}
+					// Return cached or create new wrapped method
+					if (!cache[prop]) {
+						cache[prop] = (...args: unknown[]): unknown => {
+							const result = (value as CachedMethod).apply(rawTarget, args)
+							scheduleSubscribersForTarget(rawTarget)
+							return result
+						}
+					}
+					return cache[prop]
+				} else {
+					// For frozen objects, use WeakMap
+					return getCachedMethodFromWeakMap(rawTarget, prop, value as CachedMethod)
 				}
-			)
-
-			try {
-				container.accessor(proxy as unknown as T)
-			} catch {
-				// Ignore errors, we're just collecting the path
 			}
-
-			return pathCollector
 		}
 
-		// Capture the path once
-		container.path = extractPath()
+		if (value === null || typeof value !== 'object') return value
+		const c = proxyCache.get(value as object)
+		return c ?? state(value as object)
+	}
+}
 
-		// Create a state with the initial value from the source
-		container.lensState = StateImpl.createState<K>(container.accessor(container.source()))
-		container.originalSet = container.lensState.set
+function createHasHandler(): ProxyHandler<ProxyTarget>['has'] {
+	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
+		if (currentEffect) {
+			const subs = getSubscribers(rawTarget)
+			subs.add(currentEffect)
+			registerEffectRead(currentEffect, rawTarget, prop)
+		}
+		return prop in rawTarget
+	}
+}
 
-		// Set up an effect to sync from source to lens
-		StateImpl.createEffect(function lensEffect(): void {
-			if (container.isUpdating) {
-				return
+function createOwnKeysHandler(): ProxyHandler<ProxyTarget>['ownKeys'] {
+	return (rawTarget: ProxyTarget): (string | symbol)[] => {
+		if (currentEffect) {
+			const subs = getSubscribers(rawTarget)
+			subs.add(currentEffect)
+			registerEffectRead(currentEffect, rawTarget, OWN_KEYS_SYMBOL)
+		}
+		return Reflect.ownKeys(rawTarget) as (string | symbol)[]
+	}
+}
+
+function createSetHandler(): ProxyHandler<ProxyTarget>['set'] {
+	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
+		if (currentEffect && didEffectReadProp(currentEffect, rawTarget, prop)) {
+			const parent = parentEffect.get(currentEffect)
+			if (!parent) {
+				const effectName = currentEffect.effectName
+				const errorMsg = effectName
+					? `Infinite loop detected: effect "${effectName}" cannot update property "${String(prop)}" it depends on`
+					: 'Infinite loop detected: effect cannot update a state it depends on'
+				throw new Error(errorMsg)
 			}
+		}
+		const oldValue = rawTarget[prop]
+		if (Object.is(oldValue, value)) return true
+		const rawValue = value !== null && typeof value === 'object' ? tryUnwrap(value) : value
 
-			container.isUpdating = true
+		// Track array length changes
+		let oldLength: number | undefined
+		if (Array.isArray(rawTarget) && typeof prop === 'string') {
+			const index = Number(prop)
+			if (!Number.isNaN(index) && index >= 0 && 'length' in rawTarget) {
+				oldLength = rawTarget.length
+			}
+		}
+
+		rawTarget[prop] = rawValue
+		scheduleSubscribersForTarget(rawTarget, prop)
+
+		// If array length changed, notify length subscribers
+		if (oldLength !== undefined && 'length' in rawTarget && (rawTarget as unknown as unknown[]).length !== oldLength) {
+			scheduleSubscribersForTarget(rawTarget, 'length')
+		}
+
+		return true
+	}
+}
+
+export function state<T extends object>(initial: T): T {
+	if (initial === null || initial === undefined || typeof initial !== 'object') return initial
+
+	const initialWithProxy = initial as ProxyObject
+	const existingProxy = initialWithProxy?.[PROXY]
+	if (existingProxy) return existingProxy as T
+
+	const target = initial as ProxyTarget
+	const cached = proxyCache.get(target)
+	if (cached) return cached as T
+
+	const handler: ProxyHandler<ProxyTarget> = {
+		deleteProperty: createDeleteHandler(),
+		get: createGetHandler(),
+		has: createHasHandler(),
+		ownKeys: createOwnKeysHandler(),
+		set: createSetHandler(),
+	} as ProxyHandler<ProxyTarget>
+
+	const proxy = new Proxy(target, handler) as T
+	proxyCache.set(target, proxy)
+	try {
+		if (Object.isExtensible(target)) {
+			Object.defineProperty(target, PROXY, {
+				configurable: true,
+				enumerable: false,
+				value: proxy,
+				writable: false,
+			})
+		}
+	} catch {
+		// Failed to define PROXY property, continue without it
+	}
+	return proxy
+}
+
+export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
+	const runEffect: EffectFunction = () => {
+		if (activeEffects.has(runEffect)) return
+		activeEffects.add(runEffect)
+		const prev = currentEffect
+		try {
+			cleanupEffect(runEffect)
+			const existing = childEffects.get(runEffect)
+			if (existing?.size && existing.size > 0) {
+				for (const c of existing) {
+					cleanupEffectCompletely(c)
+					existing.delete(c)
+				}
+			}
+			currentEffect = runEffect
+			effectStateReads.set(runEffect, new WeakMap())
+			fn()
+		} finally {
+			currentEffect = prev
+			activeEffects.delete(runEffect)
+		}
+	}
+
+	if (currentEffect) {
+		parentEffect.set(runEffect, currentEffect)
+		let cs = childEffects.get(currentEffect)
+		if (!cs) {
+			cs = new Set<EffectFunction>()
+			childEffects.set(currentEffect, cs)
+		}
+		cs.add(runEffect)
+	}
+
+	// Set effect name if provided
+	if (name) {
+		runEffect.effectName = name
+	}
+
+	if (batchDepth === 0) runEffect()
+	else deferredEffectCreations.push(runEffect)
+
+	return (): void => {
+		cleanupEffectCompletely(runEffect)
+	}
+}
+
+export function batch<T>(fn: () => T): T {
+	batchDepth++
+	let result: T
+	try {
+		result = fn()
+	} catch (err) {
+		batchDepth--
+		if (batchDepth === 0) {
+			pendingEffects.clear()
+			deferredEffectCreations.length = 0
+		}
+		throw err
+	}
+	batchDepth--
+	if (batchDepth === 0) {
+		try {
+			if (deferredEffectCreations.length > 0) {
+				const effectsToRun = Array.from(deferredEffectCreations)
+				deferredEffectCreations.length = 0
+				for (const e of effectsToRun) e()
+			}
+			if (pendingEffects.size > 0) flushEffects()
+		} catch (err) {
+			pendingEffects.clear()
+			deferredEffectCreations.length = 0
+			throw err
+		}
+	}
+	return result
+}
+
+export function derive<T>(computeFn: () => T): ComputedValue<T> {
+	// Internal state to hold the derived value
+	const internalState = {
+		lastValue: undefined as T | undefined | null,
+		reactive: true,
+		value: undefined as T | undefined | null,
+	}
+
+	let dispose: Unsubscribe | null = null
+	let isComputing = false
+	let reactiveInternal: typeof internalState | null = null
+
+	// Function to create the effect
+	const createEffect = (): void => {
+		if (dispose) return // Already have an effect
+
+		// Wrap the internal state in a reactive proxy for the effect to track
+		reactiveInternal = state(internalState)
+
+		dispose = effect((): void => {
+			// Only recompute if reactive is true
+			if (!internalState.reactive) return
+
+			// Prevent infinite loops during computation
+			if (isComputing) return
+
+			isComputing = true
 			try {
-				container.lensState.set(container.accessor(container.source()))
+				const newValue = computeFn()
+
+				// Only update if value actually changed
+				if (!Object.is(newValue, internalState.lastValue)) {
+					internalState.lastValue = newValue
+					if (reactiveInternal) {
+						reactiveInternal.value = newValue
+					}
+				}
 			} finally {
-				container.isUpdating = false
+				isComputing = false
 			}
 		})
-
-		// Override the lens state's set method to update the source
-		container.lensState.set = function lensSet(value: K): void {
-			if (container.isUpdating) {
-				return
-			}
-
-			container.isUpdating = true
-			try {
-				// Update lens state
-				container.originalSet(value)
-
-				// Update source by modifying the value at path
-				container.source.update((current: T): T => setValueAtPath(current, container.path, value))
-			} finally {
-				container.isUpdating = false
-			}
-		}
-
-		// Add update method for completeness
-		container.lensState.update = function lensUpdate(fn: (value: K) => K): void {
-			container.lensState.set(fn(container.lensState()))
-		}
-
-		return container.lensState
 	}
 
-	// Processes queued subscriber notifications in a controlled, non-reentrant way
-	private static notifySubscribers = (): void => {
-		// Prevent reentrance to avoid cascading notification loops when
-		// effects trigger further state changes
-		if (StateImpl.isNotifying) {
-			return
+	// Function to dispose the effect
+	const disposeEffect = (): void => {
+		if (dispose) {
+			dispose()
+			dispose = null
+			reactiveInternal = null
 		}
+	}
 
-		StateImpl.isNotifying = true
+	// Create initial effect if reactive is true
+	if (internalState.reactive) {
+		createEffect()
+	}
 
-		try {
-			// Process all pending effects in batches for better perf,
-			// ensuring topological execution order is maintained
-			while (StateImpl.pendingSubscribers.size > 0) {
-				// Process in snapshot batches to prevent infinite loops
-				// when effects trigger further state changes
-				const subscribers = Array.from(StateImpl.pendingSubscribers)
-				StateImpl.pendingSubscribers.clear()
-
-				for (const effect of subscribers) {
-					effect()
+	// Return a proxy that controls the effect lifecycle
+	return new Proxy(internalState, {
+		get(target: typeof internalState, prop: PropertyKey): unknown {
+			if (prop === 'value') {
+				// Read through the reactive state if we have an effect
+				if (reactiveInternal && currentEffect) {
+					// Track this read in the current effect
+					return reactiveInternal.value
 				}
+				return target.value
 			}
-		} finally {
-			StateImpl.isNotifying = false
-		}
-	}
-
-	// Removes effect from dependency tracking to prevent memory leaks
-	private static cleanupEffect = (effect: Subscriber): void => {
-		// Remove from execution queue to prevent stale updates
-		StateImpl.pendingSubscribers.delete(effect)
-
-		// Remove bidirectional dependency references to prevent memory leaks
-		const deps = StateImpl.subscriberDependencies.get(effect)
-		if (deps) {
-			for (const subscribers of deps) {
-				subscribers.delete(effect)
+			if (prop === 'reactive') {
+				return target.reactive
 			}
-			deps.clear()
-			StateImpl.subscriberDependencies.delete(effect)
-		}
-	}
-}
-// Helper for array updates
-const updateArrayItem = <V>(arr: unknown[], index: number, value: V): unknown[] => {
-	const copy = [
-		...arr,
-	]
-	copy[index] = value
-	return copy
-}
+			return undefined
+		},
+		set(target: typeof internalState, prop: PropertyKey, value: unknown): boolean {
+			if (prop === 'reactive') {
+				const wasReactive = target.reactive
+				target.reactive = value as boolean
 
-// Helper for single-level updates (optimization)
-const updateShallowProperty = <V>(
-	obj: Record<string | number, unknown>,
-	key: string | number,
-	value: V
-): Record<string | number, unknown> => {
-	const result = {
-		...obj,
-	}
-	result[key] = value
-	return result
-}
-
-// Helper to create the appropriate container type
-const createContainer = (key: string | number): Record<string | number, unknown> | unknown[] => {
-	const isArrayKey = typeof key === 'number' || !Number.isNaN(Number(key))
-	return isArrayKey ? [] : {}
-}
-
-// Helper for handling array path updates
-const updateArrayPath = <V>(array: unknown[], pathSegments: (string | number)[], value: V): unknown[] => {
-	const index = Number(pathSegments[0])
-
-	if (pathSegments.length === 1) {
-		// Simple array item update
-		return updateArrayItem(array, index, value)
-	}
-
-	// Nested path in array
-	const copy = [
-		...array,
-	]
-	const nextPathSegments = pathSegments.slice(1)
-	const nextKey = nextPathSegments[0]
-
-	// For null/undefined values in arrays, create appropriate containers
-	let nextValue = array[index]
-	if (nextValue === undefined || nextValue === null) {
-		// Use empty object as default if nextKey is undefined
-		nextValue = nextKey !== undefined ? createContainer(nextKey) : {}
-	}
-
-	copy[index] = setValueAtPath(nextValue, nextPathSegments, value)
-	return copy
-}
-
-// Helper for handling object path updates
-const updateObjectPath = <V>(
-	obj: Record<string | number, unknown>,
-	pathSegments: (string | number)[],
-	value: V
-): Record<string | number, unknown> => {
-	// Ensure we have a valid key
-	const currentKey = pathSegments[0]
-	if (currentKey === undefined) {
-		// This shouldn't happen given our checks in the main function
-		return obj
-	}
-
-	if (pathSegments.length === 1) {
-		// Simple object property update
-		return updateShallowProperty(obj, currentKey, value)
-	}
-
-	// Nested path in object
-	const nextPathSegments = pathSegments.slice(1)
-	const nextKey = nextPathSegments[0]
-
-	// For null/undefined values, create appropriate containers
-	let currentValue = obj[currentKey]
-	if (currentValue === undefined || currentValue === null) {
-		// Use empty object as default if nextKey is undefined
-		currentValue = nextKey !== undefined ? createContainer(nextKey) : {}
-	}
-
-	// Create new object with updated property
-	const result = {
-		...obj,
-	}
-	result[currentKey] = setValueAtPath(currentValue, nextPathSegments, value)
-	return result
-}
-
-// Simplified function to update a nested value at a path
-const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], value: V): O => {
-	// Handle base cases
-	if (pathSegments.length === 0) {
-		return value as unknown as O
-	}
-
-	if (obj === undefined || obj === null) {
-		return setValueAtPath({} as O, pathSegments, value)
-	}
-
-	const currentKey = pathSegments[0]
-	if (currentKey === undefined) {
-		return obj
-	}
-
-	// Delegate to specialized handlers based on data type
-	if (Array.isArray(obj)) {
-		return updateArrayPath(obj, pathSegments, value) as unknown as O
-	}
-
-	return updateObjectPath(obj as Record<string | number, unknown>, pathSegments, value) as unknown as O
+				// Handle effect lifecycle based on reactive change
+				if (value && !wasReactive && !dispose) {
+					createEffect()
+				} else if (!value && wasReactive && dispose) {
+					disposeEffect()
+				}
+				return true
+			}
+			// value is read-only
+			return false
+		},
+	}) as ComputedValue<T>
 }
