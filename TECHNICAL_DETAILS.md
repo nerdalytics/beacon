@@ -94,7 +94,9 @@ batch(() => {
 // Total: 1 recomputation
 ```
 
-This optimization is particularly valuable for complex computations like filtering and sorting large datasets. A derive function that depends on multiple filter criteria will only recompute once when all criteria are updated together in a batch, providing up to 4x performance improvement in typical scenarios.
+This optimization is particularly valuable for complex computations like filtering and sorting large datasets. A derive function that depends on multiple filter criteria will only recompute once when all criteria are updated together in a batch, reducing recomputations from N to 1.
+
+Note: This optimization applies when updating multiple independent sources. For a single source mutation feeding into a derive chain, consistency is guaranteed without batch — effects run in Set insertion order, which matches creation order, which necessarily matches dependency order (you can't reference a derive before it exists).
 
 ## Cyclical Dependencies
 

@@ -69,7 +69,7 @@ Batched Path:
   set trap → direct access → Object.is → direct set → mark dirty → [end of batch] → notifySubscribers once → flushEffects
 ```
 
-The key difference: unbatched operations notify immediately, batched operations defer notifications.
+The key difference: unbatched operations notify immediately (one flush per mutation), batched operations defer notifications (one flush after all mutations). A single unbatched mutation still propagates consistently through derive chains because `flushEffects` processes effects in Set insertion order, which matches creation and dependency order.
 
 ## Key Components
 

@@ -178,7 +178,7 @@ const v3 = expensive.value;  // computeCount: 2 (recomputed)
 
 ### Batch Optimization
 
-One of the most powerful performance features is that derive functions benefit from batching. When multiple dependencies change within a batch, the derive only recomputes once:
+When multiple source mutations change different dependencies, batch ensures the derive recomputes once instead of once per mutation. This is a multi-mutation optimization — a single source mutation already propagates consistently through a derive chain without batch, because effects run in creation order (which matches dependency order).
 
 ```typescript
 const a = state({ value: 1 });

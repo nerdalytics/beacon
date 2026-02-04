@@ -2,7 +2,7 @@
 
 ## Overview
 
-`batch()` is a performance optimization that groups multiple state updates into a single notification cycle. Instead of triggering effects after each individual change, batch defers all notifications until the batch completes, dramatically reducing the number of effect executions.
+`batch()` is a performance optimization that collapses multiple source mutations into a single notification cycle. Without batch, each mutation triggers its own propagation cycle — effects see the result of mutation 1 before mutation 2 happens. With batch, all mutations apply first, then effects run once with the final state. This matters when coordinating updates across multiple state objects or properties.
 
 ## Core Concepts
 
@@ -37,8 +37,9 @@ batch(() => {
 // "User Bob changed"
 // "Theme is now light"
 
-// Note: For updating a single state object, just reassign it:
-// user = { name: 'Alice', role: 'guest' };  // Also triggers once!
+// Note: A single property mutation already propagates consistently
+// through derive chains without batch. Batch is for coordinating
+// multiple mutations into one notification cycle.
 ```
 
 ## How It Works
@@ -100,11 +101,13 @@ The 4x overhead vs v1000 is the trade-off for natural JavaScript syntax.
 
 ### Why Batch is Fast
 
-The primary performance benefit of batch is **deferred notifications**:
+The primary performance benefit of batch is **collapsing multiple mutation cycles into one**:
 
-1. **Single Notification Cycle**: All effects run once after all updates complete
+1. **Single Notification Cycle**: N source mutations produce 1 flush instead of N flushes
 2. **Reduced Effect Executions**: Effects that depend on multiple changed properties only run once
 3. **Predictable Timing**: All related updates complete before any effects run
+
+Note: For a single source mutation, derive chains already propagate consistently without batch — effects run in creation order (Set insertion order), which matches dependency order. Batch optimizes the multi-mutation case.
 
 ```typescript
 // Without batch: 3 effect executions
