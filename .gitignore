@@ -13,12 +13,16 @@
 !assets/*.png
 !assets/*.svg
 !docs/
+!docs/**.md
 !scripts/
+!scripts/*.md
 !scripts/*.?s
 !src/
 !src/
 !src/*.ts
+!src/*.md
 !tests/
+!tests/*.md
 !tests/*.ts
 
 # Files in root
