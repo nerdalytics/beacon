@@ -1,4 +1,3 @@
-export { composeHook } from './compose.ts'
 export type {
 	BatchHooks,
 	DeriveHooks,
@@ -7,3 +6,4 @@ export type {
 	SingleOrArray,
 	StateHooks,
 } from '../types.ts'
+export { composeHook } from './compose.ts'
