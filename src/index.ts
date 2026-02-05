@@ -331,24 +331,36 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 }
 
 // Proxy handler functions
-function createDeleteHandler(): ProxyHandler<ProxyTarget>['deleteProperty'] {
+function createDeleteHandler<T>(
+	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
+): ProxyHandler<ProxyTarget>['deleteProperty'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		const had = Object.hasOwn(rawTarget, prop)
 		const ok = delete rawTarget[prop]
+		if (onDelete) {
+			try { onDelete(prop, had, rawTarget as T) } catch {}
+		}
 		if (had && ok) scheduleSubscribersForTarget(rawTarget, prop)
 		return ok
 	}
 }
 
-function createGetHandler(): ProxyHandler<ProxyTarget>['get'] {
+function createGetHandler<T>(
+	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+	hooks: StateHooks<T> | undefined,
+): ProxyHandler<ProxyTarget>['get'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
-		if (prop === SUBSCRIBERS || prop === PROXY) return rawTarget[prop]
+		if (prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS) return rawTarget[prop]
 		if (currentEffect) {
 			const subs = getSubscribers(rawTarget)
 			subs.add(currentEffect)
 			registerEffectRead(currentEffect, rawTarget, prop)
 		}
 		const value = rawTarget[prop]
+
+		if (onRead) {
+			try { onRead(prop, value, rawTarget as T) } catch {}
+		}
 
 		// Handle array mutating methods
 		if (Array.isArray(rawTarget) && typeof prop === 'string' && MUTATING_ARRAY_METHODS.has(prop)) {
@@ -389,33 +401,47 @@ function createGetHandler(): ProxyHandler<ProxyTarget>['get'] {
 
 		if (value === null || typeof value !== 'object') return value
 		const c = proxyCache.get(value as object)
-		return c ?? state(value as object)
+		return c ?? state(value as object, hooks as StateHooks<object> | undefined)
 	}
 }
 
-function createHasHandler(): ProxyHandler<ProxyTarget>['has'] {
+function createHasHandler<T>(
+	onHas: HookFunction<[PropertyKey, boolean, T]> | undefined,
+): ProxyHandler<ProxyTarget>['has'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		if (currentEffect) {
 			const subs = getSubscribers(rawTarget)
 			subs.add(currentEffect)
 			registerEffectRead(currentEffect, rawTarget, prop)
 		}
-		return prop in rawTarget
+		const exists = prop in rawTarget
+		if (onHas) {
+			try { onHas(prop, exists, rawTarget as T) } catch {}
+		}
+		return exists
 	}
 }
 
-function createOwnKeysHandler(): ProxyHandler<ProxyTarget>['ownKeys'] {
+function createOwnKeysHandler<T>(
+	onOwnKeys: HookFunction<[PropertyKey[], T]> | undefined,
+): ProxyHandler<ProxyTarget>['ownKeys'] {
 	return (rawTarget: ProxyTarget): (string | symbol)[] => {
 		if (currentEffect) {
 			const subs = getSubscribers(rawTarget)
 			subs.add(currentEffect)
 			registerEffectRead(currentEffect, rawTarget, OWN_KEYS_SYMBOL)
 		}
-		return Reflect.ownKeys(rawTarget) as (string | symbol)[]
+		const keys = Reflect.ownKeys(rawTarget) as (string | symbol)[]
+		if (onOwnKeys) {
+			try { onOwnKeys(keys, rawTarget as T) } catch {}
+		}
+		return keys
 	}
 }
 
-function createSetHandler(): ProxyHandler<ProxyTarget>['set'] {
+function createSetHandler<T>(
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined,
+): ProxyHandler<ProxyTarget>['set'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
 		if (currentEffect && didEffectReadProp(currentEffect, rawTarget, prop)) {
 			const parent = parentEffect.get(currentEffect)
@@ -441,6 +467,11 @@ function createSetHandler(): ProxyHandler<ProxyTarget>['set'] {
 		}
 
 		rawTarget[prop] = rawValue
+
+		if (onWrite) {
+			try { onWrite(prop, oldValue, value, rawTarget as T) } catch {}
+		}
+
 		scheduleSubscribersForTarget(rawTarget, prop)
 
 		// If array length changed, notify length subscribers
@@ -452,7 +483,7 @@ function createSetHandler(): ProxyHandler<ProxyTarget>['set'] {
 	}
 }
 
-export function state<T extends object>(initial: T): T {
+export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	if (initial === null || initial === undefined || typeof initial !== 'object') return initial
 
 	const initialWithProxy = initial as ProxyObject
@@ -463,12 +494,18 @@ export function state<T extends object>(initial: T): T {
 	const cached = proxyCache.get(target)
 	if (cached) return cached as T
 
+	const onDelete = composeHookInline(hooks?.onDelete)
+	const onHas = composeHookInline(hooks?.onHas)
+	const onOwnKeys = composeHookInline(hooks?.onOwnKeys)
+	const onRead = composeHookInline(hooks?.onRead)
+	const onWrite = composeHookInline(hooks?.onWrite)
+
 	const handler: ProxyHandler<ProxyTarget> = {
-		deleteProperty: createDeleteHandler(),
-		get: createGetHandler(),
-		has: createHasHandler(),
-		ownKeys: createOwnKeysHandler(),
-		set: createSetHandler(),
+		deleteProperty: createDeleteHandler(onDelete),
+		get: createGetHandler(onRead, hooks),
+		has: createHasHandler(onHas),
+		ownKeys: createOwnKeysHandler(onOwnKeys),
+		set: createSetHandler(onWrite),
 	} as ProxyHandler<ProxyTarget>
 
 	const proxy = new Proxy(target, handler) as T
@@ -481,9 +518,21 @@ export function state<T extends object>(initial: T): T {
 				value: proxy,
 				writable: false,
 			})
+			if (hooks) {
+				Object.defineProperty(target, HOOKS, {
+					configurable: true,
+					enumerable: false,
+					value: hooks,
+					writable: false,
+				})
+			}
+		} else if (hooks) {
+			frozenHooksCache.set(target, hooks as StateHooks)
 		}
 	} catch {
-		// Failed to define PROXY property, continue without it
+		if (hooks) {
+			frozenHooksCache.set(target, hooks as StateHooks)
+		}
 	}
 	return proxy
 }
