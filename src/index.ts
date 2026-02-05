@@ -676,8 +676,13 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 	return result
 }
 
-export function derive<T>(computeFn: () => T): ComputedValue<T> {
-	// Internal state to hold the derived value
+export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T> {
+	const onCompute = composeHookInline(hooks?.onCompute)
+	const onCacheHit = composeHookInline(hooks?.onCacheHit)
+	const onDeriveDispose = composeHookInline(hooks?.onDispose)
+	const onError = composeHookInline(hooks?.onError)
+	const onDependencyChange = composeHookInline(hooks?.onDependencyChange)
+
 	const internalState = {
 		lastValue: undefined as T | undefined | null,
 		reactive: true,
@@ -688,61 +693,72 @@ export function derive<T>(computeFn: () => T): ComputedValue<T> {
 	let isComputing = false
 	let reactiveInternal: typeof internalState | null = null
 
-	// Function to create the effect
 	const createEffect = (): void => {
-		if (dispose) return // Already have an effect
+		if (dispose) return
 
-		// Wrap the internal state in a reactive proxy for the effect to track
 		reactiveInternal = state(internalState)
 
-		dispose = effect((): void => {
-			// Only recompute if reactive is true
-			if (!internalState.reactive) return
+		const internalEffectHooks: EffectHooks | undefined = onDependencyChange
+			? { onDependencyChange } as EffectHooks
+			: undefined
 
-			// Prevent infinite loops during computation
+		dispose = effect((): void => {
+			if (!internalState.reactive) return
 			if (isComputing) return
 
 			isComputing = true
 			try {
+				const previousValue = internalState.lastValue
+
+				if (onCompute) {
+					try { onCompute(previousValue as T | undefined) } catch {}
+				}
+
 				const newValue = computeFn()
 
-				// Only update if value actually changed
 				if (!Object.is(newValue, internalState.lastValue)) {
 					internalState.lastValue = newValue
 					if (reactiveInternal) {
 						reactiveInternal.value = newValue
 					}
 				}
+			} catch (err) {
+				if (onError) {
+					try { onError(err as Error) } catch {}
+				}
+				throw err
 			} finally {
 				isComputing = false
 			}
-		})
+		}, undefined, internalEffectHooks)
 	}
 
-	// Function to dispose the effect
 	const disposeEffect = (): void => {
 		if (dispose) {
+			if (onDeriveDispose) {
+				try { onDeriveDispose() } catch {}
+			}
 			dispose()
 			dispose = null
 			reactiveInternal = null
 		}
 	}
 
-	// Create initial effect if reactive is true
 	if (internalState.reactive) {
 		createEffect()
 	}
 
-	// Return a proxy that controls the effect lifecycle
 	return new Proxy(internalState, {
 		get(target: typeof internalState, prop: PropertyKey): unknown {
 			if (prop === 'value') {
-				// Read through the reactive state if we have an effect
-				if (reactiveInternal && currentEffect) {
-					// Track this read in the current effect
-					return reactiveInternal.value
+				const value = (reactiveInternal && currentEffect)
+					? reactiveInternal.value
+					: target.value
+				if (onCacheHit) {
+					const fromCache = !isComputing
+					try { onCacheHit(value as T, fromCache) } catch {}
 				}
-				return target.value
+				return value
 			}
 			if (prop === 'reactive') {
 				return target.reactive
@@ -754,7 +770,6 @@ export function derive<T>(computeFn: () => T): ComputedValue<T> {
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
 
-				// Handle effect lifecycle based on reactive change
 				if (value && !wasReactive && !dispose) {
 					createEffect()
 				} else if (!value && wasReactive && dispose) {
@@ -762,7 +777,6 @@ export function derive<T>(computeFn: () => T): ComputedValue<T> {
 				}
 				return true
 			}
-			// value is read-only
 			return false
 		},
 	}) as ComputedValue<T>
