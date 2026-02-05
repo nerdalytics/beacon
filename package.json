@@ -2,9 +2,9 @@
 	"author": "Denny Trebbin (nerdalytics)",
 	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"devDependencies": {
-		"@biomejs/biome": "2.2.7",
-		"@types/node": "24.9.1",
-		"npm-check-updates": "19.1.1",
+		"@biomejs/biome": "2.3.14",
+		"@types/node": "25.2.0",
+		"npm-check-updates": "19.3.2",
 		"typescript": "5.9.3",
 		"uglify-js": "3.19.3"
 	},
@@ -22,13 +22,25 @@
 			},
 			"types": "./dist/src/index.d.ts",
 			"typescript": "./src/index.ts"
+		},
+		"./hooks": {
+			"import": {
+				"default": "./dist/src/hooks/index.js",
+				"types": "./dist/src/hooks/index.d.ts"
+			},
+			"types": "./dist/src/hooks/index.d.ts",
+			"typescript": "./src/hooks/index.ts"
 		}
 	},
 	"files": [
-		"dist/src/index.min.js",
+		"dist/src/hooks/",
 		"dist/src/index.d.ts",
+		"dist/src/index.min.js",
+		"dist/src/types.d.ts",
+		"LICENSE",
+		"src/hooks/",
 		"src/index.ts",
-		"LICENSE"
+		"src/types.ts"
 	],
 	"keywords": [
 		"backend",
@@ -50,7 +62,7 @@
 	"license": "MIT",
 	"main": "dist/src/index.min.js",
 	"name": "@nerdalytics/beacon",
-	"packageManager": "npm@11.6.2",
+	"packageManager": "npm@11.9.0",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/nerdalytics/beacon.git"

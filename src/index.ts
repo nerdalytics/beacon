@@ -1,5 +1,5 @@
 // Beacon - reactive state management system
-// This is a state management library similar to signals/reactive patterns
+import type { BatchHooks, DeriveHooks, EffectHooks, HookFunction, SingleOrArray, StateHooks } from './types.ts'
 
 // Type definitions
 export type Unsubscribe = () => void
@@ -31,6 +31,7 @@ const CONFIG = {
 const OWN_KEYS_SYMBOL: unique symbol = Symbol('[[ownKeysRead]]')
 const SUBSCRIBERS: unique symbol = Symbol('[[beacon_subscribers]]')
 const PROXY: unique symbol = Symbol('[[beacon_proxy]]')
+const HOOKS: unique symbol = Symbol('[[beacon_hooks]]')
 
 // Effect tracking state
 let currentEffect: EffectFunction | null = null
@@ -64,10 +65,31 @@ const CACHED_METHODS: unique symbol = Symbol('[[cachedMethods]]')
 // Function type for cached methods
 type CachedMethod = (...args: unknown[]) => unknown
 const frozenMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
+const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 
 // Effect function type
 type EffectFunction = {
 	(): void
+	__hooks?: {
+		onDependencyAdd?: HookFunction<
+			[
+				object,
+				PropertyKey,
+				string | undefined,
+			]
+		>
+		onDependencyChange?: HookFunction<
+			[
+				object,
+				PropertyKey,
+			]
+		>
+		onSchedule?: HookFunction<
+			[
+				string | undefined,
+			]
+		>
+	}
 	effectName?: string
 }
 
@@ -144,7 +166,6 @@ function getSubscribers(target: object): Set<EffectFunction> {
 }
 
 function registerEffectRead(effect: EffectFunction, target: object, prop: PropertyKey): void {
-	// Register dependency
 	let deps = effectDependencies.get(effect)
 	if (!deps) {
 		deps = new Set<object>()
@@ -152,7 +173,6 @@ function registerEffectRead(effect: EffectFunction, target: object, prop: Proper
 	}
 	deps.add(target)
 
-	// Register property read
 	let map = effectStateReads.get(effect)
 	if (!map) {
 		map = new WeakMap<object, Set<PropertyKey>>()
@@ -163,7 +183,14 @@ function registerEffectRead(effect: EffectFunction, target: object, prop: Proper
 		set = new Set<PropertyKey>()
 		map.set(target, set)
 	}
+	const isNew = !set.has(prop)
 	set.add(prop)
+
+	if (isNew && effect.__hooks?.onDependencyAdd) {
+		try {
+			effect.__hooks.onDependencyAdd(target, prop, effect.effectName)
+		} catch {}
+	}
 }
 
 function didEffectReadProp(effect: EffectFunction, target: object, prop: PropertyKey): boolean {
@@ -184,22 +211,58 @@ function tryUnwrap(value: unknown): unknown {
 	return value
 }
 
+function composeHookInline<Args extends unknown[]>(
+	hook: SingleOrArray<HookFunction<Args>> | undefined
+): HookFunction<Args> | undefined {
+	if (hook == null) return undefined
+	if (typeof hook === 'function') return hook
+	if (hook.length === 0) return undefined
+	if (hook.length === 1) return hook[0]
+	const fns = hook
+	return (...args: Args): void => {
+		for (let i = 0; i < fns.length; i++) {
+			try {
+				fns[i]?.(...args)
+			} catch {
+				// Error isolated: hook errors must not break core
+			}
+		}
+	}
+}
+
 function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void {
 	const subs = getSubscribers(target)
 
 	if (subs?.size === 0 || !subs) return
 
 	for (const s of subs) {
-		// If no prop specified, schedule all subscribers
 		if (prop === undefined) {
-			pendingEffects.add(s)
+			if (!pendingEffects.has(s)) {
+				pendingEffects.add(s)
+				if (s.__hooks?.onSchedule) {
+					try {
+						s.__hooks.onSchedule(s.effectName)
+					} catch {}
+				}
+			}
 		} else {
-			// Check if this effect reads this specific prop
 			const map = effectStateReads.get(s)
 			if (map) {
 				const set = map.get(target)
 				if (set?.has(prop) || set?.has(OWN_KEYS_SYMBOL)) {
-					pendingEffects.add(s)
+					if (!pendingEffects.has(s)) {
+						pendingEffects.add(s)
+						if (s.__hooks?.onSchedule) {
+							try {
+								s.__hooks.onSchedule(s.effectName)
+							} catch {}
+						}
+					}
+					if (s.__hooks?.onDependencyChange && prop !== undefined) {
+						try {
+							s.__hooks.onDependencyChange(target, prop)
+						} catch {}
+					}
 				}
 			}
 		}
@@ -301,24 +364,56 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 }
 
 // Proxy handler functions
-function createDeleteHandler(): ProxyHandler<ProxyTarget>['deleteProperty'] {
+function createDeleteHandler<T>(
+	onDelete:
+		| HookFunction<
+				[
+					PropertyKey,
+					boolean,
+					T,
+				]
+		  >
+		| undefined
+): ProxyHandler<ProxyTarget>['deleteProperty'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		const had = Object.hasOwn(rawTarget, prop)
 		const ok = delete rawTarget[prop]
+		if (onDelete) {
+			try {
+				onDelete(prop, had, rawTarget as T)
+			} catch {}
+		}
 		if (had && ok) scheduleSubscribersForTarget(rawTarget, prop)
 		return ok
 	}
 }
 
-function createGetHandler(): ProxyHandler<ProxyTarget>['get'] {
+function createGetHandler<T>(
+	onRead:
+		| HookFunction<
+				[
+					PropertyKey,
+					unknown,
+					T,
+				]
+		  >
+		| undefined,
+	hooks: StateHooks<T> | undefined
+): ProxyHandler<ProxyTarget>['get'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
-		if (prop === SUBSCRIBERS || prop === PROXY) return rawTarget[prop]
+		if (prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS) return rawTarget[prop]
 		if (currentEffect) {
 			const subs = getSubscribers(rawTarget)
 			subs.add(currentEffect)
 			registerEffectRead(currentEffect, rawTarget, prop)
 		}
 		const value = rawTarget[prop]
+
+		if (onRead) {
+			try {
+				onRead(prop, value, rawTarget as T)
+			} catch {}
+		}
 
 		// Handle array mutating methods
 		if (Array.isArray(rawTarget) && typeof prop === 'string' && MUTATING_ARRAY_METHODS.has(prop)) {
@@ -359,33 +454,75 @@ function createGetHandler(): ProxyHandler<ProxyTarget>['get'] {
 
 		if (value === null || typeof value !== 'object') return value
 		const c = proxyCache.get(value as object)
-		return c ?? state(value as object)
+		return c ?? state(value as object, hooks as StateHooks<object> | undefined)
 	}
 }
 
-function createHasHandler(): ProxyHandler<ProxyTarget>['has'] {
+function createHasHandler<T>(
+	onHas:
+		| HookFunction<
+				[
+					PropertyKey,
+					boolean,
+					T,
+				]
+		  >
+		| undefined
+): ProxyHandler<ProxyTarget>['has'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		if (currentEffect) {
 			const subs = getSubscribers(rawTarget)
 			subs.add(currentEffect)
 			registerEffectRead(currentEffect, rawTarget, prop)
 		}
-		return prop in rawTarget
+		const exists = prop in rawTarget
+		if (onHas) {
+			try {
+				onHas(prop, exists, rawTarget as T)
+			} catch {}
+		}
+		return exists
 	}
 }
 
-function createOwnKeysHandler(): ProxyHandler<ProxyTarget>['ownKeys'] {
+function createOwnKeysHandler<T>(
+	onOwnKeys:
+		| HookFunction<
+				[
+					PropertyKey[],
+					T,
+				]
+		  >
+		| undefined
+): ProxyHandler<ProxyTarget>['ownKeys'] {
 	return (rawTarget: ProxyTarget): (string | symbol)[] => {
 		if (currentEffect) {
 			const subs = getSubscribers(rawTarget)
 			subs.add(currentEffect)
 			registerEffectRead(currentEffect, rawTarget, OWN_KEYS_SYMBOL)
 		}
-		return Reflect.ownKeys(rawTarget) as (string | symbol)[]
+		const keys = Reflect.ownKeys(rawTarget) as (string | symbol)[]
+		if (onOwnKeys) {
+			try {
+				onOwnKeys(keys, rawTarget as T)
+			} catch {}
+		}
+		return keys
 	}
 }
 
-function createSetHandler(): ProxyHandler<ProxyTarget>['set'] {
+function createSetHandler<T>(
+	onWrite:
+		| HookFunction<
+				[
+					PropertyKey,
+					unknown,
+					unknown,
+					T,
+				]
+		  >
+		| undefined
+): ProxyHandler<ProxyTarget>['set'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
 		if (currentEffect && didEffectReadProp(currentEffect, rawTarget, prop)) {
 			const parent = parentEffect.get(currentEffect)
@@ -411,6 +548,13 @@ function createSetHandler(): ProxyHandler<ProxyTarget>['set'] {
 		}
 
 		rawTarget[prop] = rawValue
+
+		if (onWrite) {
+			try {
+				onWrite(prop, oldValue, value, rawTarget as T)
+			} catch {}
+		}
+
 		scheduleSubscribersForTarget(rawTarget, prop)
 
 		// If array length changed, notify length subscribers
@@ -422,7 +566,7 @@ function createSetHandler(): ProxyHandler<ProxyTarget>['set'] {
 	}
 }
 
-export function state<T extends object>(initial: T): T {
+export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	if (initial === null || initial === undefined || typeof initial !== 'object') return initial
 
 	const initialWithProxy = initial as ProxyObject
@@ -433,12 +577,18 @@ export function state<T extends object>(initial: T): T {
 	const cached = proxyCache.get(target)
 	if (cached) return cached as T
 
+	const onDelete = composeHookInline(hooks?.onDelete)
+	const onHas = composeHookInline(hooks?.onHas)
+	const onOwnKeys = composeHookInline(hooks?.onOwnKeys)
+	const onRead = composeHookInline(hooks?.onRead)
+	const onWrite = composeHookInline(hooks?.onWrite)
+
 	const handler: ProxyHandler<ProxyTarget> = {
-		deleteProperty: createDeleteHandler(),
-		get: createGetHandler(),
-		has: createHasHandler(),
-		ownKeys: createOwnKeysHandler(),
-		set: createSetHandler(),
+		deleteProperty: createDeleteHandler(onDelete),
+		get: createGetHandler(onRead, hooks),
+		has: createHasHandler(onHas),
+		ownKeys: createOwnKeysHandler(onOwnKeys),
+		set: createSetHandler(onWrite),
 	} as ProxyHandler<ProxyTarget>
 
 	const proxy = new Proxy(target, handler) as T
@@ -451,14 +601,48 @@ export function state<T extends object>(initial: T): T {
 				value: proxy,
 				writable: false,
 			})
+			if (hooks) {
+				Object.defineProperty(target, HOOKS, {
+					configurable: true,
+					enumerable: false,
+					value: hooks,
+					writable: false,
+				})
+			}
+		} else if (hooks) {
+			frozenHooksCache.set(target, hooks as StateHooks)
 		}
 	} catch {
-		// Failed to define PROXY property, continue without it
+		if (hooks) {
+			frozenHooksCache.set(target, hooks as StateHooks)
+		}
 	}
 	return proxy
 }
 
-export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
+export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe {
+	const onRun = composeHookInline(hooks?.onRun)
+	const onDispose = composeHookInline(hooks?.onDispose)
+	const onError = composeHookInline(hooks?.onError)
+	const onDependencyAdd = composeHookInline(hooks?.onDependencyAdd)
+	const onDependencyChange = composeHookInline(
+		(
+			hooks as
+				| (EffectHooks & {
+						onDependencyChange?: SingleOrArray<
+							HookFunction<
+								[
+									object,
+									PropertyKey,
+								]
+							>
+						>
+				  })
+				| undefined
+		)?.onDependencyChange
+	)
+	const onSchedule = composeHookInline(hooks?.onSchedule)
+
 	const runEffect: EffectFunction = () => {
 		if (activeEffects.has(runEffect)) return
 		activeEffects.add(runEffect)
@@ -474,10 +658,44 @@ export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
 			}
 			currentEffect = runEffect
 			effectStateReads.set(runEffect, new WeakMap())
+
+			if (onRun) {
+				try {
+					onRun(name)
+				} catch {}
+			}
+
 			fn()
+		} catch (err) {
+			if (onError) {
+				try {
+					onError(err as Error, name)
+				} catch {}
+			}
+			throw err
 		} finally {
 			currentEffect = prev
 			activeEffects.delete(runEffect)
+		}
+	}
+
+	if (onDependencyAdd || onSchedule || onDependencyChange) {
+		runEffect.__hooks = {
+			...(onDependencyAdd
+				? {
+						onDependencyAdd,
+					}
+				: {}),
+			...(onDependencyChange
+				? {
+						onDependencyChange,
+					}
+				: {}),
+			...(onSchedule
+				? {
+						onSchedule,
+					}
+				: {}),
 		}
 	}
 
@@ -491,7 +709,6 @@ export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
 		cs.add(runEffect)
 	}
 
-	// Set effect name if provided
 	if (name) {
 		runEffect.effectName = name
 	}
@@ -500,17 +717,39 @@ export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
 	else deferredEffectCreations.push(runEffect)
 
 	return (): void => {
+		if (onDispose) {
+			try {
+				onDispose(name)
+			} catch {}
+		}
 		cleanupEffectCompletely(runEffect)
 	}
 }
 
-export function batch<T>(fn: () => T): T {
+export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
+	const onBatchStart = composeHookInline(hooks?.onBatchStart)
+	const onBatchEnd = composeHookInline(hooks?.onBatchEnd)
+	const onBatchError = composeHookInline(hooks?.onBatchError)
+
 	batchDepth++
+	const entryDepth = batchDepth
+
+	if (onBatchStart) {
+		try {
+			onBatchStart(entryDepth)
+		} catch {}
+	}
+
 	let result: T
 	try {
 		result = fn()
 	} catch (err) {
 		batchDepth--
+		if (onBatchError) {
+			try {
+				onBatchError(err as Error, entryDepth)
+			} catch {}
+		}
 		if (batchDepth === 0) {
 			pendingEffects.clear()
 			deferredEffectCreations.length = 0
@@ -532,11 +771,23 @@ export function batch<T>(fn: () => T): T {
 			throw err
 		}
 	}
+
+	if (onBatchEnd) {
+		try {
+			onBatchEnd(entryDepth)
+		} catch {}
+	}
+
 	return result
 }
 
-export function derive<T>(computeFn: () => T): ComputedValue<T> {
-	// Internal state to hold the derived value
+export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T> {
+	const onCompute = composeHookInline(hooks?.onCompute)
+	const onCacheHit = composeHookInline(hooks?.onCacheHit)
+	const onDeriveDispose = composeHookInline(hooks?.onDispose)
+	const onError = composeHookInline(hooks?.onError)
+	const onDependencyChange = composeHookInline(hooks?.onDependencyChange)
+
 	const internalState = {
 		lastValue: undefined as T | undefined | null,
 		reactive: true,
@@ -547,61 +798,84 @@ export function derive<T>(computeFn: () => T): ComputedValue<T> {
 	let isComputing = false
 	let reactiveInternal: typeof internalState | null = null
 
-	// Function to create the effect
 	const createEffect = (): void => {
-		if (dispose) return // Already have an effect
+		if (dispose) return
 
-		// Wrap the internal state in a reactive proxy for the effect to track
 		reactiveInternal = state(internalState)
 
-		dispose = effect((): void => {
-			// Only recompute if reactive is true
-			if (!internalState.reactive) return
+		const internalEffectHooks: EffectHooks | undefined = onDependencyChange
+			? ({
+					onDependencyChange,
+				} as EffectHooks)
+			: undefined
 
-			// Prevent infinite loops during computation
-			if (isComputing) return
+		dispose = effect(
+			(): void => {
+				if (!internalState.reactive) return
+				if (isComputing) return
 
-			isComputing = true
-			try {
-				const newValue = computeFn()
+				isComputing = true
+				try {
+					const previousValue = internalState.lastValue
 
-				// Only update if value actually changed
-				if (!Object.is(newValue, internalState.lastValue)) {
-					internalState.lastValue = newValue
-					if (reactiveInternal) {
-						reactiveInternal.value = newValue
+					if (onCompute) {
+						try {
+							onCompute(previousValue as T | undefined)
+						} catch {}
 					}
+
+					const newValue = computeFn()
+
+					if (!Object.is(newValue, internalState.lastValue)) {
+						internalState.lastValue = newValue
+						if (reactiveInternal) {
+							reactiveInternal.value = newValue
+						}
+					}
+				} catch (err) {
+					if (onError) {
+						try {
+							onError(err as Error)
+						} catch {}
+					}
+					throw err
+				} finally {
+					isComputing = false
 				}
-			} finally {
-				isComputing = false
-			}
-		})
+			},
+			undefined,
+			internalEffectHooks
+		)
 	}
 
-	// Function to dispose the effect
 	const disposeEffect = (): void => {
 		if (dispose) {
+			if (onDeriveDispose) {
+				try {
+					onDeriveDispose()
+				} catch {}
+			}
 			dispose()
 			dispose = null
 			reactiveInternal = null
 		}
 	}
 
-	// Create initial effect if reactive is true
 	if (internalState.reactive) {
 		createEffect()
 	}
 
-	// Return a proxy that controls the effect lifecycle
 	return new Proxy(internalState, {
 		get(target: typeof internalState, prop: PropertyKey): unknown {
 			if (prop === 'value') {
-				// Read through the reactive state if we have an effect
-				if (reactiveInternal && currentEffect) {
-					// Track this read in the current effect
-					return reactiveInternal.value
+				const value = reactiveInternal && currentEffect ? reactiveInternal.value : target.value
+				if (onCacheHit) {
+					const fromCache = !isComputing
+					try {
+						onCacheHit(value as T, fromCache)
+					} catch {}
 				}
-				return target.value
+				return value
 			}
 			if (prop === 'reactive') {
 				return target.reactive
@@ -613,7 +887,6 @@ export function derive<T>(computeFn: () => T): ComputedValue<T> {
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
 
-				// Handle effect lifecycle based on reactive change
 				if (value && !wasReactive && !dispose) {
 					createEffect()
 				} else if (!value && wasReactive && dispose) {
@@ -621,7 +894,6 @@ export function derive<T>(computeFn: () => T): ComputedValue<T> {
 				}
 				return true
 			}
-			// value is read-only
 			return false
 		},
 	}) as ComputedValue<T>

@@ -21,6 +21,8 @@
 !src/
 !src/*.ts
 !src/*.md
+!src/hooks/
+!src/hooks/*.ts
 !tests/
 !tests/*.md
 !tests/*.ts
