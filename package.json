@@ -22,13 +22,25 @@
 			},
 			"types": "./dist/src/index.d.ts",
 			"typescript": "./src/index.ts"
+		},
+		"./hooks": {
+			"import": {
+				"default": "./dist/src/hooks/index.js",
+				"types": "./dist/src/hooks/index.d.ts"
+			},
+			"types": "./dist/src/hooks/index.d.ts",
+			"typescript": "./src/hooks/index.ts"
 		}
 	},
 	"files": [
-		"dist/src/index.min.js",
+		"dist/src/hooks/",
 		"dist/src/index.d.ts",
+		"dist/src/index.min.js",
+		"dist/src/types.d.ts",
+		"LICENSE",
+		"src/hooks/",
 		"src/index.ts",
-		"LICENSE"
+		"src/types.ts"
 	],
 	"keywords": [
 		"backend",
