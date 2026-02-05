@@ -155,7 +155,6 @@ function getSubscribers(target: object): Set<EffectFunction> {
 }
 
 function registerEffectRead(effect: EffectFunction, target: object, prop: PropertyKey): void {
-	// Register dependency
 	let deps = effectDependencies.get(effect)
 	if (!deps) {
 		deps = new Set<object>()
@@ -163,7 +162,6 @@ function registerEffectRead(effect: EffectFunction, target: object, prop: Proper
 	}
 	deps.add(target)
 
-	// Register property read
 	let map = effectStateReads.get(effect)
 	if (!map) {
 		map = new WeakMap<object, Set<PropertyKey>>()
@@ -174,7 +172,12 @@ function registerEffectRead(effect: EffectFunction, target: object, prop: Proper
 		set = new Set<PropertyKey>()
 		map.set(target, set)
 	}
+	const isNew = !set.has(prop)
 	set.add(prop)
+
+	if (isNew && effect.__hooks?.onDependencyAdd) {
+		try { effect.__hooks.onDependencyAdd(target, prop, effect.effectName) } catch {}
+	}
 }
 
 function didEffectReadProp(effect: EffectFunction, target: object, prop: PropertyKey): boolean {
@@ -220,16 +223,27 @@ function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void 
 	if (subs?.size === 0 || !subs) return
 
 	for (const s of subs) {
-		// If no prop specified, schedule all subscribers
 		if (prop === undefined) {
-			pendingEffects.add(s)
+			if (!pendingEffects.has(s)) {
+				pendingEffects.add(s)
+				if (s.__hooks?.onSchedule) {
+					try { s.__hooks.onSchedule(s.effectName) } catch {}
+				}
+			}
 		} else {
-			// Check if this effect reads this specific prop
 			const map = effectStateReads.get(s)
 			if (map) {
 				const set = map.get(target)
 				if (set?.has(prop) || set?.has(OWN_KEYS_SYMBOL)) {
-					pendingEffects.add(s)
+					if (!pendingEffects.has(s)) {
+						pendingEffects.add(s)
+						if (s.__hooks?.onSchedule) {
+							try { s.__hooks.onSchedule(s.effectName) } catch {}
+						}
+					}
+					if (s.__hooks?.onDependencyChange && prop !== undefined) {
+						try { s.__hooks.onDependencyChange(target, prop) } catch {}
+					}
 				}
 			}
 		}
@@ -537,7 +551,17 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	return proxy
 }
 
-export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
+export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe {
+	const onRun = composeHookInline(hooks?.onRun)
+	const onDispose = composeHookInline(hooks?.onDispose)
+	const onError = composeHookInline(hooks?.onError)
+	const onDependencyAdd = composeHookInline(hooks?.onDependencyAdd)
+	const onDependencyChange = composeHookInline(
+		(hooks as EffectHooks & { onDependencyChange?: SingleOrArray<HookFunction<[object, PropertyKey]>> } | undefined)
+			?.onDependencyChange,
+	)
+	const onSchedule = composeHookInline(hooks?.onSchedule)
+
 	const runEffect: EffectFunction = () => {
 		if (activeEffects.has(runEffect)) return
 		activeEffects.add(runEffect)
@@ -553,10 +577,28 @@ export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
 			}
 			currentEffect = runEffect
 			effectStateReads.set(runEffect, new WeakMap())
+
+			if (onRun) {
+				try { onRun(name) } catch {}
+			}
+
 			fn()
+		} catch (err) {
+			if (onError) {
+				try { onError(err as Error, name) } catch {}
+			}
+			throw err
 		} finally {
 			currentEffect = prev
 			activeEffects.delete(runEffect)
+		}
+	}
+
+	if (onDependencyAdd || onSchedule || onDependencyChange) {
+		runEffect.__hooks = {
+			...(onDependencyAdd ? { onDependencyAdd } : {}),
+			...(onDependencyChange ? { onDependencyChange } : {}),
+			...(onSchedule ? { onSchedule } : {}),
 		}
 	}
 
@@ -570,7 +612,6 @@ export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
 		cs.add(runEffect)
 	}
 
-	// Set effect name if provided
 	if (name) {
 		runEffect.effectName = name
 	}
@@ -579,6 +620,9 @@ export function effect(fn: EffectCallback, name?: EffectName): Unsubscribe {
 	else deferredEffectCreations.push(runEffect)
 
 	return (): void => {
+		if (onDispose) {
+			try { onDispose(name) } catch {}
+		}
 		cleanupEffectCompletely(runEffect)
 	}
 }
