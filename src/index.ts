@@ -1,5 +1,5 @@
 // Beacon - reactive state management system
-// This is a state management library similar to signals/reactive patterns
+import type { BatchHooks, DeriveHooks, EffectHooks, HookFunction, SingleOrArray, StateHooks } from './types.ts'
 
 // Type definitions
 export type Unsubscribe = () => void
@@ -31,6 +31,7 @@ const CONFIG = {
 const OWN_KEYS_SYMBOL: unique symbol = Symbol('[[ownKeysRead]]')
 const SUBSCRIBERS: unique symbol = Symbol('[[beacon_subscribers]]')
 const PROXY: unique symbol = Symbol('[[beacon_proxy]]')
+const HOOKS: unique symbol = Symbol('[[beacon_hooks]]')
 
 // Effect tracking state
 let currentEffect: EffectFunction | null = null
@@ -64,10 +65,16 @@ const CACHED_METHODS: unique symbol = Symbol('[[cachedMethods]]')
 // Function type for cached methods
 type CachedMethod = (...args: unknown[]) => unknown
 const frozenMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
+const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 
 // Effect function type
 type EffectFunction = {
 	(): void
+	__hooks?: {
+		onDependencyAdd?: HookFunction<[object, PropertyKey, string | undefined]>
+		onDependencyChange?: HookFunction<[object, PropertyKey]>
+		onSchedule?: HookFunction<[string | undefined]>
+	}
 	effectName?: string
 }
 
@@ -82,6 +89,10 @@ type ProxyObject = ProxyTarget & {
 
 type CachedMethodsObject = ProxyTarget & {
 	[CACHED_METHODS]?: Record<PropertyKey, CachedMethod>
+}
+
+type HooksObject = ProxyTarget & {
+	[HOOKS]?: StateHooks
 }
 
 function getCachedMethodFromWeakMap(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
@@ -182,6 +193,25 @@ function tryUnwrap(value: unknown): unknown {
 		// Failed to access PROXY property, likely due to access restrictions
 	}
 	return value
+}
+
+function composeHookInline<Args extends unknown[]>(
+	hook: SingleOrArray<HookFunction<Args>> | undefined,
+): HookFunction<Args> | undefined {
+	if (hook == null) return undefined
+	if (typeof hook === 'function') return hook
+	if (hook.length === 0) return undefined
+	if (hook.length === 1) return hook[0]
+	const fns = hook
+	return (...args: Args): void => {
+		for (let i = 0; i < fns.length; i++) {
+			try {
+				fns[i]!(...args)
+			} catch {
+				// Error isolated: hook errors must not break core
+			}
+		}
+	}
 }
 
 function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void {
