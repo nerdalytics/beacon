@@ -627,13 +627,26 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 	}
 }
 
-export function batch<T>(fn: () => T): T {
+export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
+	const onBatchStart = composeHookInline(hooks?.onBatchStart)
+	const onBatchEnd = composeHookInline(hooks?.onBatchEnd)
+	const onBatchError = composeHookInline(hooks?.onBatchError)
+
 	batchDepth++
+	const entryDepth = batchDepth
+
+	if (onBatchStart) {
+		try { onBatchStart(entryDepth) } catch {}
+	}
+
 	let result: T
 	try {
 		result = fn()
 	} catch (err) {
 		batchDepth--
+		if (onBatchError) {
+			try { onBatchError(err as Error, entryDepth) } catch {}
+		}
 		if (batchDepth === 0) {
 			pendingEffects.clear()
 			deferredEffectCreations.length = 0
@@ -655,6 +668,11 @@ export function batch<T>(fn: () => T): T {
 			throw err
 		}
 	}
+
+	if (onBatchEnd) {
+		try { onBatchEnd(entryDepth) } catch {}
+	}
+
 	return result
 }
 
