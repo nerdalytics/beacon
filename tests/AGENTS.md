@@ -7,6 +7,8 @@ Native Node.js test runner (`node --test`). No external test framework.
 | Category | Naming | Examples |
 |----------|--------|---------|
 | Core | `{primitive}-core.test.ts` | `state-core`, `effect-core`, `derive-core`, `batch-core` |
+| Hooks | `{primitive}-hooks.test.ts` | `state-hooks`, `effect-hooks`, `derive-hooks`, `batch-hooks` |
+| Hooks Utility | `hooks-{utility}.test.ts` | `hooks-compose` |
 | Integration | `{feature1}-{feature2}.test.ts` | `state-effect`, `state-derive`, `batch-integration` |
 | Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup` |
 
@@ -85,8 +87,20 @@ Configured in `node.config.json`:
 - Includes: `src/**/*.ts`
 - Excludes: `scripts/**/*.ts`
 
+## Hooks Tests
+
+Test hooks instrumentation for each primitive. Each file verifies backward compatibility (works without hooks), individual hook firing, and error isolation (hook errors never break core).
+
+| File | Tests | Covers |
+|------|-------|--------|
+| `state-hooks.test.ts` | 12 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, array methods, multiple hooks |
+| `effect-hooks.test.ts` | 8 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
+| `derive-hooks.test.ts` | 7 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
+| `batch-hooks.test.ts` | 6 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
+| `hooks-compose.test.ts` | 7 | `composeHook` utility — undefined, single, array, forwarding, error isolation |
+
 <!--— BEACON-START —>[Tests Index]
 |root: ./tests
 |IMPORTANT: Follow naming conventions and always dispose effects/derives in tests
-|.:{state-core.test.ts,effect-core.test.ts,derive-core.test.ts,batch-core.test.ts,state-derive.test.ts,state-effect.test.ts,batch-integration.test.ts,cleanup.test.ts,cyclic-dependency.test.ts,infinite-loop.test.ts,STYLE_GUIDE.md,TEST_ORGANIZATION.md}
+|.:{state-core.test.ts,effect-core.test.ts,derive-core.test.ts,batch-core.test.ts,state-derive.test.ts,state-effect.test.ts,batch-integration.test.ts,cleanup.test.ts,cyclic-dependency.test.ts,infinite-loop.test.ts,state-hooks.test.ts,effect-hooks.test.ts,derive-hooks.test.ts,batch-hooks.test.ts,hooks-compose.test.ts,STYLE_GUIDE.md,TEST_ORGANIZATION.md}
 <!--— BEACON-END —>

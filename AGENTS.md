@@ -67,7 +67,7 @@ Whitelist approach: ignores everything by default (`*`), explicitly allows speci
 
 ## Hooks System (Planned)
 
-Zero-cost instrumentation architecture documented in `HOOKS.md`, `HOOKS_API.md`, `HOOKS_CATALOG.md`, `HOOKS_TODO.md`. Not yet implemented in source. Separate module: `@nerdalytics/beacon/hooks`.
+Zero-cost instrumentation. All four primitives accept optional hooks parameter. Types in `src/types.ts`, composition utility in `src/hooks/`. Architecture documented in `HOOKS.md`, `HOOKS_API.md`, `HOOKS_CATALOG.md`, `HOOKS_TODO.md`.
 
 ## Key Root Files
 
@@ -85,7 +85,8 @@ Zero-cost instrumentation architecture documented in `HOOKS.md`, `HOOKS_API.md`,
 |root: .
 |IMPORTANT: Read docs/AGENTS.md before writing code that uses Beacon APIs. Read folder AGENTS.md before working in that domain.
 |docs/:{AGENTS.md,README.md,README.state.md,README.effect.md,README.derive.md,README.batch.md,README.core.md,README.debugging.md}
-|src/:{AGENTS.md,index.ts}
+|src/:{AGENTS.md,index.ts,types.ts}
+|src/hooks/:{AGENTS.md,index.ts,compose.ts}
 |tests/:{AGENTS.md}
 |scripts/:{naiv-benchmark.ts,run-lts-tests.js}
 |.github/workflows/:{build-test-publish.yml,update-dependencies-cache.yml}

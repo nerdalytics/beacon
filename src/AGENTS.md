@@ -76,6 +76,7 @@ Creates an internal `state()` + `effect()` pair. Returns a Proxy over `internalS
 
 <!--— BEACON-START —>[Source Index]
 |root: ./src
-|IMPORTANT: Maintain single-file architecture. Do not split into modules.
-|.:{index.ts}
+|IMPORTANT: Maintain single-file architecture for core. Hooks are a separate module.
+|.:{index.ts,types.ts}
+|hooks/:{AGENTS.md,index.ts,compose.ts}
 <!--— BEACON-END —>
