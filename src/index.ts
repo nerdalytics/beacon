@@ -38,7 +38,6 @@ let currentEffect: EffectFunction | null = null
 let batchDepth = 0
 let isNotifying = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
-const activeEffects: Set<EffectFunction> = new Set<EffectFunction>()
 const deferredEffectCreations: EffectFunction[] = []
 
 // WeakMaps for tracking relationships
@@ -70,6 +69,7 @@ const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 // Effect function type
 type EffectFunction = {
 	(): void
+	__active?: boolean
 	__hooks?: {
 		onDependencyAdd?: HookFunction<
 			[
@@ -348,7 +348,7 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 
 		// Remove parent-child relationships
 		parentEffect.delete(child)
-		activeEffects.delete(child)
+		child.__active = false
 	}
 
 	// Clean up parent relationship
@@ -360,7 +360,7 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 
 	// Final cleanup
 	parentEffect.delete(effect)
-	activeEffects.delete(effect)
+	effect.__active = false
 }
 
 // Proxy handler functions
@@ -644,8 +644,8 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 	const onSchedule = composeHookInline(hooks?.onSchedule)
 
 	const runEffect: EffectFunction = () => {
-		if (activeEffects.has(runEffect)) return
-		activeEffects.add(runEffect)
+		if (runEffect.__active) return
+		runEffect.__active = true
 		const prev = currentEffect
 		try {
 			cleanupEffect(runEffect)
@@ -675,7 +675,7 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 			throw err
 		} finally {
 			currentEffect = prev
-			activeEffects.delete(runEffect)
+			runEffect.__active = false
 		}
 	}
 
