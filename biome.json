@@ -19,7 +19,8 @@
 			"!**/tests/template.test.ts",
 			"!**/dist/**/*",
 			"!**/temp/**/*",
-			"!**/node_modules/**/*"
+			"!**/node_modules/**/*",
+			"!.claude/**/*"
 		]
 	},
 	"formatter": {
