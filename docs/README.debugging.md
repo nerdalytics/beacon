@@ -2,259 +2,140 @@
 
 ## Overview
 
-Beacon provides built-in debugging capabilities to help trace reactive state updates, effect execution, and diagnose issues like infinite loops. Debugging is controlled through environment variables and provides detailed logging without affecting production performance.
+Beacon's hook system provides zero-cost instrumentation for all four primitives. Pass hooks where you need observability. No global debug mode, no environment variables, no build flags. Hook errors are isolated and never break core reactivity.
 
-## Enabling Debug Mode
+For the full hook API, see [Hooks](./README.hooks.md).
 
-Debug mode is controlled by two environment variables:
+## Named Effects
 
-1. **NODE_ENV**: When set to `production`, debugging is disabled by default
-2. **BEACON_DEBUG**: Can override NODE_ENV to force debugging on or off
-
-```bash
-# Enable debugging (default)
-node app.js
-
-# Disable debugging in production
-NODE_ENV=production node app.js
-
-# Explicitly enable debugging
-BEACON_DEBUG=true node app.js
-
-# Force debugging even in production
-NODE_ENV=production BEACON_DEBUG=true node app.js
-```
-
-## Debug Features
-
-### 1. Named Effects
-
-Effects can be given optional names for better debugging:
+Give effects a name as the second parameter:
 
 ```typescript
-import { state, effect } from '@nerdalytics/beacon';
+import { state, effect } from '@nerdalytics/beacon'
 
-const counter = state({ count: 0 });
+const counter = state({ count: 0 })
 
-// Named effect for better debugging
 const dispose = effect(() => {
-  console.log(`Count: ${counter.count}`);
-}, 'CountLogger');
-
-// Anonymous effect (no name)
-effect(() => {
-  document.title = `Count: ${counter.count}`;
-});
+  console.log(`Count: ${counter.count}`)
+}, 'CountLogger')
 ```
 
-With `BEACON_DEBUG=true`, named effects log their lifecycle:
+The name flows into hook callbacks (`onRun`, `onError`, `onDispose`, `onSchedule`) and appears in infinite loop error messages.
 
-```
-[beacon][effect:CountLogger] Running
-[beacon][effect:CountLogger] Disposing
-```
+## Tracing State Access
 
-### 2. Read/Write Logging
-
-When debugging is enabled, all state reads and writes are logged:
+Use `StateHooks` to observe property reads and writes:
 
 ```typescript
-const user = state({ name: 'Alice', age: 30 });
+import { state } from '@nerdalytics/beacon'
 
-user.name = 'Bob';  // Logs: [beacon][write] name Bob { name: 'Alice', age: 30 }
-console.log(user.age);  // Logs: [beacon][read] age { name: 'Bob', age: 30 }
+const user = state({ name: 'Alice', age: 30 }, {
+  onRead: (prop, value) => {
+    console.log(`[read] ${String(prop)} →`, value)
+  },
+  onWrite: (prop, oldValue, newValue) => {
+    console.log(`[write] ${String(prop)}: ${oldValue} → ${newValue}`)
+  }
+})
+
+user.name = 'Bob'   // [write] name: Alice → Bob
+console.log(user.age)  // [read] age → 30
 ```
 
-### 3. Enhanced Error Messages
+Additional state hooks: `onDelete`, `onHas`, `onOwnKeys`.
 
-Infinite loop detection includes effect names when available:
+## Tracing Effect Lifecycle
+
+Use `EffectHooks` to observe when effects run, what they depend on, and when they clean up:
 
 ```typescript
-const data = state({ value: 0 });
+import { state, effect } from '@nerdalytics/beacon'
 
-// This will throw an error with the effect name
-effect(() => {
-  const val = data.value;
-  data.value = val + 1;  // Error: Infinite loop detected: effect "IncrementEffect" cannot update property "value" it depends on
-}, 'IncrementEffect');
+const counter = state({ count: 0 })
+
+const dispose = effect(() => {
+  console.log(counter.count)
+}, 'MyEffect', {
+  onRun: (name) => console.log(`[${name}] running`),
+  onDispose: (name) => console.log(`[${name}] disposed`),
+  onError: (err, name) => console.error(`[${name}] threw:`, err),
+  onDependencyAdd: (target, prop, name) => {
+    console.log(`[${name}] tracking ${String(prop)}`)
+  }
+})
+
+counter.count++
+// [MyEffect] running
+// [MyEffect] tracking count
+// 0
+// [MyEffect] running
+// [MyEffect] tracking count
+// 1
+
+dispose()
+// [MyEffect] disposed
 ```
 
-## Debug Functions
+## Tracing Derived Values
 
-Beacon uses three internal debug functions that are no-ops in production:
-
-- **devLogRead**: Logs property reads from reactive state
-- **devLogWrite**: Logs property writes to reactive state
-- **devAssert**: Throws errors with enhanced messages in debug mode
-
-These functions have zero overhead in production builds when `NODE_ENV=production` and `BEACON_DEBUG` is not set.
-
-## Common Debugging Scenarios
-
-### Tracking Unexpected Updates
+Use `DeriveHooks` to measure how often a derive recomputes versus returns cached values:
 
 ```typescript
-const state1 = state({ value: 0 });
-const state2 = state({ value: 0 });
+import { state, derive } from '@nerdalytics/beacon'
 
-effect(() => {
-  console.log('Effect running');
-  console.log(state1.value + state2.value);
-}, 'SumEffect');
+let computes = 0
+let cacheHits = 0
 
-// With BEACON_DEBUG=true, you'll see:
-// [beacon][effect:SumEffect] Running
-// [beacon][read] value { value: 0 }
-// [beacon][read] value { value: 0 }
+const items = state({ list: [1, 2, 3] })
 
-state1.value = 5;
-// [beacon][write] value 5 { value: 0 }
-// [beacon][effect:SumEffect] Running
-// [beacon][read] value { value: 5 }
-// [beacon][read] value { value: 0 }
+const total = derive(() => items.list.reduce((a, b) => a + b, 0), {
+  onCompute: () => { computes++ },
+  onCacheHit: (_value, fromCache) => { if (fromCache) cacheHits++ }
+})
+
+console.log(total.value) // computes: 1, cacheHits: 0
+console.log(total.value) // computes: 1, cacheHits: 1
+
+items.list = [1, 2, 3, 4]
+console.log(total.value) // computes: 2, cacheHits: 1
 ```
 
-### Debugging Batch Operations
+Additional derive hooks: `onDispose`, `onError`, `onDependencyChange`.
+
+## Debugging Batch Operations
+
+Use `BatchHooks` to time batch execution and catch errors:
 
 ```typescript
+import { state, batch } from '@nerdalytics/beacon'
+
+const s1 = state({ value: 0 })
+const s2 = state({ value: 0 })
+
 batch(() => {
-  user.firstName = 'Jane';
-  user.lastName = 'Doe';
-  user.age = 31;
-});
-
-// With debugging, you'll see all writes but effect only runs once:
-// [beacon][write] firstName Jane { firstName: 'John', lastName: 'Smith', age: 30 }
-// [beacon][write] lastName Doe { firstName: 'Jane', lastName: 'Smith', age: 30 }
-// [beacon][write] age 31 { firstName: 'Jane', lastName: 'Doe', age: 30 }
-// [beacon][effect:UserDisplay] Running  // Only runs once after batch
+  s1.value = 10
+  s2.value = 20
+}, {
+  onBatchStart: (depth) => console.time(`batch-${depth}`),
+  onBatchEnd: (depth) => console.timeEnd(`batch-${depth}`),
+  onBatchError: (err) => console.error('batch failed:', err)
+})
 ```
 
-### Tracking Effect Lifecycle
+## Common Debugging Patterns
 
-Named effects help you understand when effects are created and cleaned up:
+**Why did this effect re-run?**
+Use `onSchedule` to see when an effect is queued for re-execution. Combine with state `onWrite` to trace which mutation triggered it.
 
-```typescript
-// Beacon automatically cleans up effects when:
-// 1. The state object is garbage collected (via WeakMaps)
-// 2. Parent effects re-run (child effects are auto-disposed)
-// 3. You explicitly call dispose()
+**What's reading this property?**
+Use state `onRead` to log every access. Run your code and inspect the output.
 
-// Example: Effects on global/long-lived state
-const globalState = state({ value: 0 });
+**Is my derive recomputing too often?**
+Use `onCompute` and `onCacheHit` counters (see example above). A high compute-to-cache-hit ratio suggests dependencies change frequently.
 
-function setupFeature() {
-  // This effect persists as long as globalState exists
-  const dispose = effect(() => {
-    console.log(globalState.value);
-  }, 'FeatureEffect');
+**Which effect threw?**
+Use `onError` with named effects. The effect name is passed as the second argument.
 
-  // With debugging, you'll see:
-  // [beacon][effect:FeatureEffect] Running
+## Production Use
 
-  // For global state, explicit disposal may be needed:
-  return dispose; // Caller can dispose when feature is disabled
-}
-
-// The debug output helps verify cleanup:
-// [beacon][effect:FeatureEffect] Disposing
-```
-
-## Performance Considerations
-
-1. **Production Zero-Cost**: When `NODE_ENV=production` and `BEACON_DEBUG` is not set, all debug code becomes no-ops with no runtime overhead
-2. **Development Logging**: Debug logging can be verbose and impact performance in development
-3. **Named Effects**: Effect names are stored as properties on the effect function itself, minimal memory overhead
-
-## Best Practices
-
-### 1. Name Critical Effects
-
-```typescript
-// Good - named effects for important logic
-effect(() => {
-  saveToLocalStorage(appState);
-}, 'LocalStoragePersistence');
-
-effect(() => {
-  syncWithServer(userData);
-}, 'ServerSync');
-
-// OK - anonymous for simple UI updates
-effect(() => {
-  element.textContent = counter.count;
-});
-```
-
-### 2. Use Debug Mode During Development
-
-```json
-// package.json
-{
-  "scripts": {
-    "dev": "BEACON_DEBUG=true node app.js",
-    "start": "NODE_ENV=production node app.js"
-  }
-}
-```
-
-### 3. Disable in Tests When Not Needed
-
-```typescript
-// test-setup.js
-process.env.BEACON_DEBUG = 'false';  // Disable debug output in tests
-
-// Or selectively enable for specific tests
-test('debug infinite loop', () => {
-  process.env.BEACON_DEBUG = 'true';
-  // Test code that needs debugging
-});
-```
-
-## Troubleshooting
-
-### Debug Output Not Showing
-
-1. Check environment variables: `echo $NODE_ENV $BEACON_DEBUG`
-2. Ensure you're using the development build
-3. Verify console.debug is not filtered in your console
-
-### Too Much Debug Output
-
-1. Disable for specific modules by wrapping in a function:
-
-```typescript
-function withoutDebug<T>(fn: () => T): T {
-  const prev = process.env.BEACON_DEBUG;
-  process.env.BEACON_DEBUG = 'false';
-  try {
-    return fn();
-  } finally {
-    process.env.BEACON_DEBUG = prev;
-  }
-}
-```
-
-### Effect Names Not Showing
-
-Ensure you're passing the name as the second parameter to `effect()`:
-
-```typescript
-// Correct
-effect(() => { /* ... */ }, 'MyEffect');
-
-// Incorrect - name must be second parameter
-effect('MyEffect', () => { /* ... */ });  // Wrong parameter order
-```
-
-## Future Enhancements
-
-Potential future debugging features:
-
-1. **Dependency Graph Visualization**: Export effect dependency graphs
-2. **Performance Profiling**: Track effect execution times
-3. **State History**: Record state changes over time
-4. **Selective Debugging**: Debug only specific effects or state objects
-5. **Debug Hooks**: Custom callbacks for debugging events
-
-These would be implemented as separate opt-in modules to maintain zero overhead in production.
+Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. There is no global debug mode to accidentally ship.
