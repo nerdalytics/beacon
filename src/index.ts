@@ -39,6 +39,7 @@ let batchDepth = 0
 let isNotifying = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
 const deferredEffectCreations: EffectFunction[] = []
+const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
 
 // WeakMaps for tracking relationships
 const parentEffect: WeakMap<EffectFunction, EffectFunction> = new WeakMap<EffectFunction, EffectFunction>()
@@ -525,6 +526,38 @@ function createSetHandler<T>(
 		| undefined
 ): ProxyHandler<ProxyTarget>['set'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
+		// Batch fast path: minimal work, defer subscriber scheduling to batch end
+		if (batchDepth > 0 && !onWrite && !currentEffect) {
+			const oldValue = rawTarget[prop]
+			if (Object.is(oldValue, value)) return true
+			const rawValue = value !== null && typeof value === 'object' ? tryUnwrap(value) : value
+
+			// Track array length before mutation
+			let oldLength: number | undefined
+			if (Array.isArray(rawTarget) && typeof prop === 'string') {
+				const index = Number(prop)
+				if (!Number.isNaN(index) && index >= 0) {
+					oldLength = (rawTarget as unknown as unknown[]).length
+				}
+			}
+
+			rawTarget[prop] = rawValue
+
+			let props = dirtyTargets.get(rawTarget)
+			if (!props) {
+				props = new Set<PropertyKey>()
+				dirtyTargets.set(rawTarget, props)
+			}
+			props.add(prop)
+
+			if (oldLength !== undefined && (rawTarget as unknown as unknown[]).length !== oldLength) {
+				props.add('length')
+			}
+
+			return true
+		}
+
+		// Normal path
 		if (currentEffect && didEffectReadProp(currentEffect, rawTarget, prop)) {
 			const parent = parentEffect.get(currentEffect)
 			if (!parent) {
@@ -754,9 +787,21 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 		if (batchDepth === 0) {
 			pendingEffects.clear()
 			deferredEffectCreations.length = 0
+			dirtyTargets.clear()
 		}
 		throw err
 	}
+	// Process dirty targets before decrementing batchDepth so
+	// scheduleSubscribersForTarget sees batchDepth > 0 and defers flushing
+	if (batchDepth === 1 && dirtyTargets.size > 0) {
+		for (const [target, props] of dirtyTargets) {
+			for (const prop of props) {
+				scheduleSubscribersForTarget(target, prop)
+			}
+		}
+		dirtyTargets.clear()
+	}
+
 	batchDepth--
 	if (batchDepth === 0) {
 		try {
@@ -769,6 +814,7 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 		} catch (err) {
 			pendingEffects.clear()
 			deferredEffectCreations.length = 0
+			dirtyTargets.clear()
 			throw err
 		}
 	}
