@@ -32,7 +32,7 @@ A lightweight reactive state library for Node.js backends. Enables fine grained 
 - [Design Philosophy](#design-philosophy)
 - [Architecture](#architecture)
 - [Development](#development)
-- [Key Differences vs TC39 Proposal](#key-differences-vs-tc39-proposal)
+- [Key Differences vs TC39 Signals Proposal](#key-differences-vs-tc39-signals-proposal)
 - [FAQ](#faq)
    - [Why "Beacon" Instead of "Signal"?](#why-beacon-instead-of-signal)
    - [How does Beacon handle memory management?](#how-does-beacon-handle-memory-management)
@@ -403,15 +403,26 @@ npm install
 npm test
 ```
 
-## Key Differences vs [TC39 Proposal][1]
+## Key Differences vs [TC39 Signals Proposal][1]
 
-| **Aspect**                  | **@nerdalytics/beacon**                                                     | **TC39 Proposal**                                                                             |
+_The TC39 Signals proposal remains at **Stage 1** as of early 2026. Active discussion is
+narrowing its scope toward an interop-only protocol rather than a full developer-facing API._
+
+| **Aspect**                  | **@nerdalytics/beacon**                                                     | **TC39 Signals Proposal**                                                                     |
 | --------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
 | **API Style**               | Proxy-based with natural JS syntax (`state()`, `derive()`)                  | Class-based design (`Signal.State`, `Signal.Computed`)                                        |
 | **Reading/Writing Pattern** | Direct property access (`signal.count`) and assignment (`signal.count = 5`) | Method-based access (`get()`/`set()`)                                                         |
-| **Framework Support**       | High-level abstractions like `effect()` and `batch()`                       | Lower-level primitives (`Signal.subtle.Watcher`) that frameworks build upon                   |
-| **Advanced Features**       | Focused on core reactivity with automatic cleanup                           | Includes introspection capabilities, watched/unwatched callbacks, and Signal.subtle namespace |
-| **Scope and Purpose**       | Practical Node.js use cases with minimal API surface                        | Standardization with robust interoperability between frameworks                               |
+| **Framework Support**       | High-level abstractions like `effect()` and `batch()`                       | Evolving toward interop-only primitives (consumer/producer protocol) that frameworks build upon |
+| **Advanced Features**       | Focused on core reactivity with automatic cleanup                           | Includes introspection capabilities, watched/unwatched callbacks, and `Signal.subtle` namespace |
+| **Resource Disposal**       | Function-based (`dispose()`, `reactive = false`)                            | Not specified (left to framework layer)                                                        |
+| **Scope and Purpose**       | Practical Node.js use cases with minimal API surface                        | Stage 1 standardization targeting interoperability between frameworks                          |
+
+> **Standards outlook**: [Explicit Resource Management][3] (ES2025, Stage 4) introduces
+> `using`/`await using` with `Symbol.dispose` — a natural fit for Beacon's `effect()` cleanup
+> and `derive()` disposal patterns. Future Beacon versions may adopt `Disposable` to enable
+> `using dispose = effect(() => { ... })`. The [WHATWG Observable API][4] (shipping in
+> Chrome 135) addresses event stream composition, a complementary but distinct pattern from
+> Beacon's fine-grained state reactivity.
 
 ## FAQ
 
@@ -464,3 +475,5 @@ This project is licensed under the MIT License. See the [LICENSE][2] file for de
 
 [1]: https://github.com/tc39/proposal-signals
 [2]: ./LICENSE
+[3]: https://github.com/tc39/proposal-explicit-resource-management
+[4]: https://wicg.github.io/observable/
