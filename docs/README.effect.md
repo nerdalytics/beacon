@@ -4,6 +4,18 @@
 
 `effect()` creates reactive functions that automatically re-run when their dependencies change. Effects are the bridge between reactive state and side effects like DOM updates, network requests, or logging.
 
+## API Reference
+
+```typescript
+function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe
+
+type EffectCallback = () => void
+type EffectName = string
+type Unsubscribe = () => void
+```
+
+Returns a dispose function. Call it to stop the effect and clean up all subscriptions. For hooks, see [Hooks](./README.hooks.md).
+
 ## Core Concepts
 
 ### Basic Usage
@@ -448,6 +460,10 @@ effect(() => {
   }));
 });
 ```
+
+## Hooks
+
+`effect()` accepts an optional `hooks` parameter as its third argument for observing the effect lifecycle — run, dispose, error, dependency tracking, and scheduling. See [Hooks](./README.hooks.md) for the full API and examples.
 
 ## Testing Effects
 
