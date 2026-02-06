@@ -2,7 +2,7 @@
 
 ## Overview
 
-Beacon v2000.0.0 is a Proxy-based reactive state management library that provides natural JavaScript syntax while maintaining fine-grained reactivity. The architecture prioritizes developer experience while achieving acceptable performance through aggressive optimizations.
+Beacon is a Proxy-based reactive state management library that provides natural JavaScript syntax while maintaining fine-grained reactivity. The architecture prioritizes developer experience while achieving acceptable performance through aggressive optimizations.
 
 ## Core Design Principles
 
@@ -10,6 +10,7 @@ Beacon v2000.0.0 is a Proxy-based reactive state management library that provide
 2. **Fine-grained Reactivity**: Track dependencies at the property level, not object level
 3. **Automatic Cleanup**: Prevent memory leaks through proper subscription management
 4. **Performance Optimization**: Minimize overhead in hot paths through direct property manipulation
+5. **Optional Instrumentation**: All four primitives accept optional hooks for observing internal operations without affecting behavior
 
 ## System Architecture
 
@@ -22,9 +23,11 @@ Beacon v2000.0.0 is a Proxy-based reactive state management library that provide
         ↓
       Proxy   (Intercepts all operations)
         |
-     - get    → Track dependencies
-     - set    → Notify subscribers
-     - has    → Track 'in' operator
+     - get           → Track dependencies
+     - set           → Notify subscribers
+     - has           → Track 'in' operator
+     - deleteProperty → Delete with notification
+     - ownKeys       → Track key enumeration
         |
         ↓
    Raw Target   (Actual data storage)
@@ -123,20 +126,22 @@ target[prop]  // read
 target[prop] = value  // write
 ```
 
-### 2. Batch Dirty Tracking
+### 2. Pending Effects Queue
 
 During batch operations:
-- Skip immediate notifications
-- Mark targets as dirty in a Set
-- Process all notifications once at batch end
-- Reduces many notifications to 1
+- Skip `flushEffects` while `batchDepth > 0`
+- State mutations still add affected effects to `pendingEffects`
+- Effects created during batch go into `deferredEffectCreations`
+- When outermost batch ends (`batchDepth` returns to 0): run deferred effect creations, then `flushEffects()`
+- Reduces many notification cycles to one
 
-### 3. Set Reuse in flushEffects
+### 3. Array-Based Flush in flushEffects
 
-Instead of creating new Sets/Arrays for each flush:
-- Swap between two pre-allocated Sets
-- Clear and reuse instead of allocating
-- Reduces GC pressure in hot loops
+Instead of iterating `pendingEffects` directly (which could cause issues with mutation during iteration):
+- Copy effects to an array
+- Clear `pendingEffects`
+- Iterate the array
+- New effects triggered during iteration are added to `pendingEffects` and processed in the next while-loop iteration
 
 ### 4. Subscriber Cache
 
