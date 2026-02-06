@@ -4,6 +4,14 @@
 
 `state()` is the foundational primitive in Beacon that creates reactive objects. It wraps plain JavaScript objects in Proxies to enable automatic dependency tracking and change notification.
 
+## API Reference
+
+```typescript
+function state<T extends object>(initial: T, hooks?: StateHooks<T>): T
+```
+
+Returns a Proxy-wrapped version of the input object. Passing a non-object returns the value as-is. For hooks, see [Hooks](./README.hooks.md).
+
 ## Core Concepts
 
 ### Creating Reactive State
@@ -29,7 +37,7 @@ const todos = state([
 
 ### Natural JavaScript Syntax
 
-The key advantage of v2000's Proxy-based approach is natural JavaScript operations:
+The key advantage of Beacon's Proxy-based approach is natural JavaScript operations:
 
 ```typescript
 // Initialize state
@@ -116,7 +124,7 @@ Internally, Beacon optimizes by manipulating the raw target directly:
 
 ```typescript
 // User writes (goes through proxy)
-state.count++;
+counter.count++;
 
 // Internally optimized to:
 // 1. Proxy trap intercepts
@@ -173,7 +181,7 @@ const config = state({
 
 // React to config changes
 effect(() => {
-  console.log(`Dark mode: ${config.feature.darkModel}`);
+  console.log(`Dark mode: ${config.features.darkMode}`);
 });
 ```
 
@@ -181,7 +189,7 @@ effect(() => {
 
 ### 1. Primitive Values
 
-`state()` only works with objects (since v2000.0.0), not primitives:
+`state()` only works with objects, not primitives:
 
 ```typescript
 // ❌ Won't work
@@ -335,6 +343,10 @@ const reactive = state(frozen);  // Still works!
 
 // Beacon stores metadata in WeakMaps instead of on the object
 ```
+
+## Hooks
+
+`state()` accepts an optional `hooks` parameter for observing proxy operations — reads, writes, deletes, `in` checks, and key enumeration. See [Hooks](./README.hooks.md) for the full API and examples.
 
 ## Performance Tips
 
