@@ -12,7 +12,8 @@ IMPORTANT: Read the relevant doc file before writing any code that uses Beacon A
 | `README.derive.md` | Computing derived values, chaining derivations, understanding disposal requirements, or batch optimization |
 | `README.batch.md` | Grouping multiple state updates, understanding nested batches, or optimizing performance |
 | `README.core.md` | Understanding the reactive system architecture, dependency tracking internals, or performance trade-offs |
-| `README.debugging.md` | Debugging reactive state, using named effects, enabling debug logging, or troubleshooting |
+| `README.debugging.md` | Debugging reactive state, using named effects, tracing with hooks, or troubleshooting |
+| `README.hooks.md` | Using hooks for instrumentation, understanding hook composition, error isolation, or observing primitive operations |
 
 ## Critical Gotchas
 
@@ -27,5 +28,5 @@ IMPORTANT: Read the relevant doc file before writing any code that uses Beacon A
 <!--— BEACON-START —>[Docs Index]
 |root: ./docs
 |IMPORTANT: Read the relevant doc file before writing code that uses Beacon APIs
-|.:{README.md,README.state.md,README.effect.md,README.derive.md,README.batch.md,README.core.md,README.debugging.md}
+|.:{README.md,README.state.md,README.effect.md,README.derive.md,README.batch.md,README.core.md,README.debugging.md,README.hooks.md}
 <!--— BEACON-END —>
