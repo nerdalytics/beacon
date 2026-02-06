@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { derive, state } from '../src/index.ts'
+import { batch, derive, state } from '../src/index.ts'
 
 describe(
 	'Derive Hooks',
@@ -131,6 +131,30 @@ describe(
 				},
 			})
 			assert.strictEqual($d.value, 10)
+			$d.reactive = false
+		})
+
+		it('fires onDependencyChange once per property during batch', () => {
+			const changes: PropertyKey[] = []
+			const $s = state({
+				count: 0,
+			})
+			const $d = derive(() => $s.count * 2, {
+				onDependencyChange: (_target: object, prop: PropertyKey) => {
+					changes.push(prop)
+				},
+			})
+
+			changes.length = 0
+
+			batch(() => {
+				$s.count = 1
+				$s.count = 2
+				$s.count = 3
+			})
+
+			assert.strictEqual(changes.length, 1)
+			assert.strictEqual(changes[0], 'count')
 			$d.reactive = false
 		})
 	}
