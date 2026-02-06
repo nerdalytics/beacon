@@ -246,6 +246,7 @@ function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void 
 				}
 			}
 		} else {
+			if (pendingEffects.has(s) && !s.__hooks?.onDependencyChange) continue
 			const map = effectStateReads.get(s)
 			if (map) {
 				const set = map.get(target)
