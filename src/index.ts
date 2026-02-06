@@ -90,6 +90,8 @@ type EffectFunction = {
 			]
 		>
 	}
+	__prevDeps?: Set<object>
+	__prevReads?: WeakMap<object, Set<PropertyKey>>
 	effectName?: string
 }
 
@@ -317,6 +319,8 @@ function cleanupEffect(effect: EffectFunction): void {
 		effectDependencies.delete(effect)
 	}
 	effectStateReads.delete(effect)
+	effect.__prevDeps = undefined
+	effect.__prevReads = undefined
 }
 
 function cleanupEffectCompletely(effect: EffectFunction): void {
@@ -362,6 +366,26 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 	// Final cleanup
 	parentEffect.delete(effect)
 	effect.__active = false
+}
+
+function depsMatch(
+	prevDeps: Set<object>,
+	newDeps: Set<object>,
+	prevReads: WeakMap<object, Set<PropertyKey>>,
+	newReads: WeakMap<object, Set<PropertyKey>>
+): boolean {
+	if (prevDeps.size !== newDeps.size) return false
+	for (const target of newDeps) {
+		if (!prevDeps.has(target)) return false
+		const prevProps = prevReads.get(target)
+		const newProps = newReads.get(target)
+		if (!prevProps || !newProps) return false
+		if (prevProps.size !== newProps.size) return false
+		for (const prop of newProps) {
+			if (!prevProps.has(prop)) return false
+		}
+	}
+	return true
 }
 
 // Proxy handler functions
@@ -649,7 +673,13 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 		runEffect.__active = true
 		const prev = currentEffect
 		try {
-			cleanupEffect(runEffect)
+			const prevDeps = runEffect.__prevDeps
+			const prevReads = runEffect.__prevReads
+
+			// Don't call cleanupEffect — leave subscriber sets intact
+			pendingEffects.delete(runEffect)
+
+			// Still clean up children
 			const existing = childEffects.get(runEffect)
 			if (existing?.size && existing.size > 0) {
 				for (const c of existing) {
@@ -657,8 +687,10 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 					existing.delete(c)
 				}
 			}
+
 			currentEffect = runEffect
-			effectStateReads.set(runEffect, new WeakMap())
+			effectStateReads.set(runEffect, new WeakMap<object, Set<PropertyKey>>())
+			effectDependencies.set(runEffect, new Set<object>())
 
 			if (onRun) {
 				try {
@@ -667,7 +699,52 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 			}
 
 			fn()
+
+			// Compare new deps against previous
+			const newDeps = effectDependencies.get(runEffect)
+			const newReads = effectStateReads.get(runEffect)
+
+			if (newDeps && newReads && prevDeps && prevReads && depsMatch(prevDeps, newDeps, prevReads, newReads)) {
+				// Stable deps — restore previous tracking structures
+				effectStateReads.set(runEffect, prevReads)
+				effectDependencies.set(runEffect, prevDeps)
+			} else if (newDeps && newReads) {
+				// Deps changed or first run — remove stale subscriber sets
+				if (prevDeps) {
+					for (const d of prevDeps) {
+						if (!newDeps.has(d)) {
+							const dWithSubs = d as SubscribersObject
+							const subs = dWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(d)
+							subs?.delete(runEffect)
+						}
+					}
+				}
+				runEffect.__prevDeps = newDeps
+				runEffect.__prevReads = newReads
+			}
 		} catch (err) {
+			// Error during execution — clean up both old and new subscriber sets
+			if (runEffect.__prevDeps) {
+				for (const d of runEffect.__prevDeps) {
+					const dWithSubs = d as SubscribersObject
+					const subs = dWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(d)
+					subs?.delete(runEffect)
+				}
+			}
+			const newDeps = effectDependencies.get(runEffect)
+			if (newDeps) {
+				for (const d of newDeps) {
+					const dWithSubs = d as SubscribersObject
+					const subs = dWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(d)
+					subs?.delete(runEffect)
+				}
+			}
+			effectDependencies.delete(runEffect)
+			effectStateReads.delete(runEffect)
+			pendingEffects.delete(runEffect)
+			runEffect.__prevDeps = undefined
+			runEffect.__prevReads = undefined
+
 			if (onError) {
 				try {
 					onError(err as Error, name)
