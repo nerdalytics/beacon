@@ -37,6 +37,7 @@ const HOOKS: unique symbol = Symbol('[[beacon_hooks]]')
 let currentEffect: EffectFunction | null = null
 let batchDepth = 0
 let isNotifying = false
+let trackingOnly = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
 const deferredEffectCreations: EffectFunction[] = []
 
@@ -193,6 +194,27 @@ function registerEffectRead(effect: EffectFunction, target: object, prop: Proper
 			effect.__hooks.onDependencyAdd(target, prop, effect.effectName)
 		} catch {}
 	}
+}
+
+function trackRead(eff: EffectFunction, target: object, prop: PropertyKey): void {
+	let deps = effectDependencies.get(eff)
+	if (!deps) {
+		deps = new Set<object>()
+		effectDependencies.set(eff, deps)
+	}
+	deps.add(target)
+
+	let map = effectStateReads.get(eff)
+	if (!map) {
+		map = new WeakMap<object, Set<PropertyKey>>()
+		effectStateReads.set(eff, map)
+	}
+	let set = map.get(target)
+	if (!set) {
+		set = new Set<PropertyKey>()
+		map.set(target, set)
+	}
+	set.add(prop)
 }
 
 function didEffectReadProp(effect: EffectFunction, target: object, prop: PropertyKey): boolean {
@@ -428,9 +450,13 @@ function createGetHandler<T>(
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
 		if (prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS) return rawTarget[prop]
 		if (currentEffect) {
-			const subs = getSubscribers(rawTarget)
-			subs.add(currentEffect)
-			registerEffectRead(currentEffect, rawTarget, prop)
+			if (trackingOnly) {
+				trackRead(currentEffect, rawTarget, prop)
+			} else {
+				const subs = getSubscribers(rawTarget)
+				subs.add(currentEffect)
+				registerEffectRead(currentEffect, rawTarget, prop)
+			}
 		}
 		const value = rawTarget[prop]
 
@@ -496,9 +522,13 @@ function createHasHandler<T>(
 ): ProxyHandler<ProxyTarget>['has'] {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		if (currentEffect) {
-			const subs = getSubscribers(rawTarget)
-			subs.add(currentEffect)
-			registerEffectRead(currentEffect, rawTarget, prop)
+			if (trackingOnly) {
+				trackRead(currentEffect, rawTarget, prop)
+			} else {
+				const subs = getSubscribers(rawTarget)
+				subs.add(currentEffect)
+				registerEffectRead(currentEffect, rawTarget, prop)
+			}
 		}
 		const exists = prop in rawTarget
 		if (onHas) {
@@ -522,9 +552,13 @@ function createOwnKeysHandler<T>(
 ): ProxyHandler<ProxyTarget>['ownKeys'] {
 	return (rawTarget: ProxyTarget): (string | symbol)[] => {
 		if (currentEffect) {
-			const subs = getSubscribers(rawTarget)
-			subs.add(currentEffect)
-			registerEffectRead(currentEffect, rawTarget, OWN_KEYS_SYMBOL)
+			if (trackingOnly) {
+				trackRead(currentEffect, rawTarget, OWN_KEYS_SYMBOL)
+			} else {
+				const subs = getSubscribers(rawTarget)
+				subs.add(currentEffect)
+				registerEffectRead(currentEffect, rawTarget, OWN_KEYS_SYMBOL)
+			}
 		}
 		const keys = Reflect.ownKeys(rawTarget) as (string | symbol)[]
 		if (onOwnKeys) {
@@ -672,6 +706,7 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 		if (runEffect.__active) return
 		runEffect.__active = true
 		const prev = currentEffect
+		const prevTrackingOnly = trackingOnly
 		try {
 			const prevDeps = runEffect.__prevDeps
 			const prevReads = runEffect.__prevReads
@@ -698,6 +733,10 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 				} catch {}
 			}
 
+			// Set trackingOnly if we have previous deps (not first run)
+			const isFirstRun = !prevDeps
+			if (!isFirstRun) trackingOnly = true
+
 			fn()
 
 			// Compare new deps against previous
@@ -716,6 +755,15 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 							const dWithSubs = d as SubscribersObject
 							const subs = dWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(d)
 							subs?.delete(runEffect)
+						}
+					}
+					// Register effect in new subscriber sets (skipped during trackingOnly)
+					if (!isFirstRun) {
+						for (const d of newDeps) {
+							if (!prevDeps.has(d)) {
+								const subs = getSubscribers(d)
+								subs.add(runEffect)
+							}
 						}
 					}
 				}
@@ -753,6 +801,7 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 			throw err
 		} finally {
 			currentEffect = prev
+			trackingOnly = prevTrackingOnly
 			runEffect.__active = false
 		}
 	}
