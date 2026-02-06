@@ -19,13 +19,13 @@
 
 ## Architecture
 
-Single-file core: `src/index.ts` (629 lines). Zero external dependencies. Proxy-based reactive system.
+Single-file core: `src/index.ts` (900 lines). Zero external dependencies. Proxy-based reactive system.
 
 **Exports:**
-- `state<T extends object>(initial: T): T` — Proxy-wrapped reactive objects with per-property tracking
-- `effect(fn: EffectCallback, name?: EffectName): Unsubscribe` — side effects with automatic dependency tracking
-- `derive<T>(fn: () => T): ComputedValue<T>` — eagerly-computed values, returns `{ value, reactive }`, requires disposal
-- `batch<T>(fn: () => T): T` — groups updates, flushes effects once at outermost batch boundary
+- `state<T extends object>(initial: T, hooks?: StateHooks<T>): T` — Proxy-wrapped reactive objects with per-property tracking
+- `effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe` — side effects with automatic dependency tracking
+- `derive<T>(fn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>` — eagerly-computed values, returns `{ value, reactive }`, requires disposal
+- `batch<T>(fn: () => T, hooks?: BatchHooks): T` — groups updates, flushes effects once at outermost batch boundary
 
 **Key behaviors:**
 - Dependency tracking via WeakMaps + Symbols at the property level
@@ -65,9 +65,9 @@ Scopes: `state`, `derive`, `effect`, `batch`, `core`, `api`, `assets`
 
 Whitelist approach: ignores everything by default (`*`), explicitly allows specific directories and files. Markdown files (`**/*.md`) are allowed anywhere.
 
-## Hooks System (Planned)
+## Hooks System
 
-Zero-cost instrumentation. All four primitives accept optional hooks parameter. Types in `src/types.ts`, composition utility in `src/hooks/`. Architecture documented in `HOOKS.md`, `HOOKS_API.md`, `HOOKS_CATALOG.md`, `HOOKS_TODO.md`.
+Zero-cost instrumentation. All four primitives accept an optional hooks parameter as their last argument. Types in `src/types.ts`, composition utility in `src/hooks/`. See `docs/README.hooks.md` for the full API reference.
 
 ## Key Root Files
 
