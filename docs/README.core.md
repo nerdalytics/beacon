@@ -55,9 +55,9 @@ This allows precise tracking of which effect reads which property of which objec
 Effects are functions that re-run when their dependencies change:
 
 ```
-Effect Creation → Cleanup Old Deps → Track New Deps → Run Function → Queue Re-runs
-      ↑                                                                        |
-      ╰--------------------------- Dependency Change ←-------------------------╯
+Effect Creation → Run Function → Compare Deps → Stable? → Restore previous tracking
+      ↑                                         → Changed? → Clean stale deps only
+      ╰--------------------------- Dependency Change ←-------- Queue Re-runs ←--╯
 ```
 
 ### 4. Batch Optimization
@@ -66,10 +66,10 @@ Both paths use optimized direct access, but differ in notification timing:
 
 ```
 Normal (Unbatched) Path:
-  set trap → direct access → Object.is → direct set → notifySubscribers → flushEffects
+  set trap → direct access → Object.is → direct set → scheduleSubscribers → flushEffects
 
-Batched Path:
-  set trap → direct access → Object.is → direct set → mark dirty → [end of batch] → notifySubscribers once → flushEffects
+Batched Path (fast path, no write hooks):
+  set trap → Object.is → direct set → track in dirtyTargets → [batch end] → scheduleSubscribers once per prop → flushEffects
 ```
 
 The key difference: unbatched operations notify immediately (one flush per mutation), batched operations defer notifications (one flush after all mutations). A single unbatched mutation still propagates consistently through derive chains because `flushEffects` processes effects in Set insertion order, which matches creation and dependency order.
@@ -106,10 +106,11 @@ When code writes to a reactive property:
 
 Effects run in a controlled environment:
 1. Sets global `currentEffect`
-2. Cleans up previous dependencies
-3. Runs the effect function (dependencies auto-tracked)
-4. Handles nested effects via parent-child relationships
-5. Queues for re-execution on dependency changes
+2. Saves previous dependency snapshot (`__prevDeps`, `__prevReads`)
+3. Runs the effect function (dependencies auto-tracked via `trackRead` when `trackingOnly`, or full `registerEffectRead` on first run)
+4. Compares new deps against previous via `depsMatch` — if stable, restores previous tracking (zero subscriber set work); if changed, cleans only stale deps
+5. Handles nested effects via parent-child relationships
+6. Queues for re-execution on dependency changes
 
 ## Performance Optimizations
 
@@ -126,16 +127,23 @@ target[prop]  // read
 target[prop] = value  // write
 ```
 
-### 2. Pending Effects Queue
+### 2. Batch Fast Path
 
-During batch operations:
-- Skip `flushEffects` while `batchDepth > 0`
-- State mutations still add affected effects to `pendingEffects`
+During batch operations (`batchDepth > 0`), the set handler takes a fast path when `!onWrite && !currentEffect`:
+- Skip subscriber scheduling entirely — only track dirty target-property pairs in `dirtyTargets`
 - Effects created during batch go into `deferredEffectCreations`
+- At `batchDepth === 1` (before decrement): process `dirtyTargets`, call `scheduleSubscribersForTarget` once per unique property
 - When outermost batch ends (`batchDepth` returns to 0): run deferred effect creations, then `flushEffects()`
 - Reduces many notification cycles to one
 
-### 3. Array-Based Flush in flushEffects
+### 3. Stable Dependency Skip
+
+On effect re-runs, dependencies are compared against the previous run via `depsMatch`:
+- If deps are identical: restore previous tracking structures, skip subscriber set teardown and rebuild
+- If deps changed: only remove the effect from stale subscriber sets (targets no longer tracked)
+- On subsequent runs, `trackingOnly` flag tells get/has/ownKeys handlers to use lightweight `trackRead` instead of full `registerEffectRead` (skips `getSubscribers` + `Set.add`)
+
+### 4. Array-Based Flush in flushEffects
 
 Instead of iterating `pendingEffects` directly (which could cause issues with mutation during iteration):
 - Copy effects to an array
@@ -143,7 +151,7 @@ Instead of iterating `pendingEffects` directly (which could cause issues with mu
 - Iterate the array
 - New effects triggered during iteration are added to `pendingEffects` and processed in the next while-loop iteration
 
-### 4. Subscriber Cache
+### 5. Subscriber Cache
 
 Multi-level caching to avoid repeated lookups:
 - Cache subscribers at object level
@@ -157,7 +165,7 @@ Multi-level caching to avoid repeated lookups:
 ```
 Effect Disposed
        |
-       ├-→ cleanupEffect() - removes from dependencies
+       ├-→ cleanupEffect() - removes from subscribers, clears __prevDeps/__prevReads
        ╰-→ cleanupEffectCompletely() - also cleans up children
 ```
 
@@ -181,8 +189,8 @@ All tracking maps use WeakMaps:
 | Aspect | v1000 (Function-based) | v2000 (Proxy-based) |
 |--------|------------------------|---------------------|
 | Syntax | `state()`, `state.set()` | `state.value` |
-| Batch Performance (1M updates) | 19ms | 75ms (4x slower) |
-| Unbatched Performance (1M updates) | 362ms | 1100ms (3x slower) |
+| Batch Performance (1M updates) | 19ms | 36ms (2x slower) |
+| Unbatched Performance (1M updates) | 362ms | 671ms (2x slower) |
 | Developer Experience | Verbose | Natural |
 
 ## Future Considerations

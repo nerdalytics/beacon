@@ -270,12 +270,14 @@ effect(() => {
 
 ## Batching Implementation
 
-The batching system uses a depth counter to track nested batch operations:
+The batching system uses a depth counter and a deferred scheduling mechanism:
 
 1. When entering a batch, the `batchDepth` counter is incremented
-2. Effects still register for updates, but they aren't processed immediately
-3. When the outermost batch completes, effects are processed all at once
-4. This ensures effects run only once, even if multiple values they depend on change
+2. The set handler takes a fast path when `!onWrite && !currentEffect`: skips subscriber scheduling, only tracks dirty target-property pairs in `dirtyTargets`
+3. State objects with write hooks use the normal path (hooks fire per-mutation)
+4. At `batchDepth === 1` (before decrement): dirty targets are processed, calling `scheduleSubscribersForTarget` once per unique property
+5. When the outermost batch completes (`batchDepth` reaches 0): deferred effects run, then all pending effects flush
+6. This ensures effects run only once, even if multiple values they depend on change
 
 Batching provides significant performance benefits, especially with multiple interdependent values.
 
@@ -315,11 +317,12 @@ const copy = { ...signal }; // Works correctly
 
 Beacon automatically manages subscriptions and cleans up when effects are disposed:
 
-1. **Dependency cleanup**: `cleanupEffect()` removes an effect from all its dependencies
+1. **Dependency cleanup**: `cleanupEffect()` removes an effect from all its subscribers and clears `__prevDeps`/`__prevReads`
 2. **Child effect cleanup**: `cleanupEffectCompletely()` recursively cleans up nested effects
 3. **Parent-child tracking**: Maintains relationships between effects for proper cleanup
 4. **Automatic disposal**: Nested effects are cleaned up when parent effects re-run
 5. **WeakMap usage**: Enables automatic garbage collection of unreferenced objects
+6. **Stable dependency skip**: On re-runs, `depsMatch` compares new deps against previous. If stable, previous tracking structures are restored (no subscriber set work). If changed, only stale deps are removed.
 
 This system ensures there are no memory leaks from lingering effect subscriptions.
 
@@ -330,9 +333,11 @@ Several optimizations make Beacon efficient:
 1. **Per-property tracking**: Only notifies effects that read changed properties
 2. **Proxy caching**: Reuses the same Proxy instance for each object
 3. **Value equality checks**: Uses `Object.is()` to prevent unnecessary updates
-4. **Efficient batching**: Queues all updates and processes them together
-5. **WeakMap storage**: Allows garbage collection of unused effects and states
-6. **Non-enumerable metadata**: Uses Symbols to avoid property iteration overhead
+4. **Batch fast path**: During batch, set handler defers subscriber scheduling to `dirtyTargets` map, processing once per unique property at batch end
+5. **Stable dependency skip**: Effect re-runs compare deps via `depsMatch` and skip subscriber teardown/rebuild when unchanged
+6. **Deferred registration**: On subsequent runs with stable deps, `trackingOnly` mode skips `getSubscribers` + `Set.add` in proxy handlers
+7. **WeakMap storage**: Allows garbage collection of unused effects and states
+8. **Non-enumerable metadata**: Uses Symbols to avoid property iteration overhead
 
 ---
 

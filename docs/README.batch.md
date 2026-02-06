@@ -55,16 +55,20 @@ batch(() => {
 ### Execution Flow
 
 1. **Batch Start**: Increments `batchDepth` counter
-2. **State Updates**: Mutations add subscribers to `pendingEffects`, but `flushEffects` is skipped while `batchDepth > 0`
-3. **Effect Creation**: Effects created inside batch go into `deferredEffectCreations` instead of running immediately
-4. **Batch End**: Decrements `batchDepth`
-5. **Flush**: When depth reaches 0, run deferred effects, then flush all pending effects
+2. **State Updates (fast path)**: When `!onWrite && !currentEffect`, mutations skip subscriber scheduling entirely — only track dirty target-property pairs in `dirtyTargets`
+3. **State Updates (normal path)**: When write hooks exist or inside an effect, mutations use the standard path (hooks fire per-mutation, infinite loop detection active)
+4. **Effect Creation**: Effects created inside batch go into `deferredEffectCreations` instead of running immediately
+5. **Dirty Target Processing**: At `batchDepth === 1` (before decrement), iterate `dirtyTargets` and call `scheduleSubscribersForTarget` once per unique property
+6. **Batch End**: Decrements `batchDepth`
+7. **Flush**: When depth reaches 0, run deferred effects, then flush all pending effects
 
 ```
-batch() → batchDepth++ → Execute fn → mutations add to pendingEffects
+batch() → batchDepth++ → Execute fn → fast path: track dirty targets (skip scheduling)
+                                     → normal path: schedule subscribers (hooks/effects)
                                      → effect() calls go to deferredEffectCreations
-         batchDepth-- → depth === 0? → Yes → run deferred effects → flushEffects()
-                                     → No  → wait for outer batch
+         depth === 1?  → Yes → process dirtyTargets → scheduleSubscribersForTarget per prop
+         batchDepth--  → depth === 0? → Yes → run deferred effects → flushEffects()
+                                      → No  → wait for outer batch
 ```
 
 ### Nested Batches
@@ -95,24 +99,23 @@ batch(() => {
 
 ### Benchmark Results
 
-For 1,000,001 increment operations:
+For 1,000,000 iterations (median of 7 runs):
 
-| Approach | Time | Relative |
-|----------|------|----------|
-| Function-based (v1000) | 19ms | 1x |
-| Proxy + Batch (v2000) | 75ms | 4x |
-| Proxy Unbatched | 1100ms | 58x |
-| Direct Manipulation | 3ms | 0.15x |
-
-The 4x overhead vs v1000 is the trade-off for natural JavaScript syntax.
+| Scenario | Time |
+|----------|------|
+| batch + derive | 36ms |
+| batch + derive + 2 effects | 35ms |
+| state + derive (unbatched) | 294ms |
+| state + derive + 2 effects (unbatched) | 671ms |
 
 ### Why Batch is Fast
 
 The primary performance benefit of batch is **collapsing multiple mutation cycles into one**:
 
-1. **Single Notification Cycle**: N source mutations produce 1 flush instead of N flushes
-2. **Reduced Effect Executions**: Effects that depend on multiple changed properties only run once
-3. **Predictable Timing**: All related updates complete before any effects run
+1. **Deferred Scheduling**: During batch, the set handler fast path skips subscriber scheduling entirely — only tracks dirty target-property pairs. Scheduling happens once at batch end.
+2. **Single Notification Cycle**: N source mutations produce 1 flush instead of N flushes
+3. **Reduced Effect Executions**: Effects that depend on multiple changed properties only run once
+4. **Predictable Timing**: All related updates complete before any effects run
 
 Note: For a single source mutation, derive chains already propagate consistently without batch — effects run in creation order (Set insertion order), which matches dependency order. Batch optimizes the multi-mutation case.
 

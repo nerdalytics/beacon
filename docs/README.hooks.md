@@ -89,7 +89,7 @@ function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
 | `onCacheHit` | `(value, fromCache)` | `.value` accessed |
 | `onDispose` | `()` | Derive disposed (`reactive` set to `false`) |
 | `onError` | `(error)` | Compute function threw |
-| `onDependencyChange` | `(target, prop)` | A dependency changed |
+| `onDependencyChange` | `(target, prop)` | A dependency changed (once per unique property during batch) |
 
 ```typescript
 let computeCount = 0

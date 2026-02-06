@@ -15,9 +15,10 @@ Global mutable state driving the reactive system:
 | `currentEffect` | `EffectFunction \| null` | Currently executing effect (for dependency tracking) |
 | `batchDepth` | `number` | Nesting depth counter for batch operations |
 | `isNotifying` | `boolean` | Prevents re-entrant `flushEffects` calls |
+| `trackingOnly` | `boolean` | When true, get/has/ownKeys handlers skip subscriber set operations (P2 optimization) |
 | `pendingEffects` | `Set<EffectFunction>` | Effects queued for execution |
-| `activeEffects` | `Set<EffectFunction>` | Prevents re-entrant effect execution |
 | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
+| `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
 
 ## Internal Data Structures (WeakMap-based)
 
@@ -47,8 +48,8 @@ Five handler factories, each returns a ProxyHandler method:
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
-| `createGetHandler()` | `get` | Tracks reads, wraps nested objects, intercepts array mutating methods |
-| `createSetHandler()` | `set` | Infinite loop detection, `Object.is` comparison, array length tracking |
+| `createGetHandler()` | `get` | Tracks reads (or lightweight `trackRead` when `trackingOnly`), wraps nested objects, intercepts array mutating methods |
+| `createSetHandler()` | `set` | Batch fast path (defers to `dirtyTargets`), infinite loop detection, `Object.is` comparison, array length tracking |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking |
 | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
@@ -56,10 +57,12 @@ Five handler factories, each returns a ProxyHandler method:
 ## Critical Invariants
 
 1. **Proxy deduplication**: Never create two Proxies for the same target. Always check `proxyCache` and `[PROXY]` symbol first.
-2. **Effect re-entrancy guard**: `activeEffects` Set prevents an effect from running while already running.
+2. **Effect re-entrancy guard**: `__active` boolean on EffectFunction prevents an effect from running while already running.
 3. **Batch depth counting**: `batchDepth` must always return to 0. Incremented before `fn()`, decremented in all paths (success + error).
-4. **Cleanup order**: `cleanupEffect` removes from subscribers. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).
+4. **Cleanup order**: `cleanupEffect` removes from subscribers and clears `__prevDeps`/`__prevReads`. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).
 5. **`flushEffects` non-recursion**: Uses a while loop draining `pendingEffects`. New effects triggered during flush are added to `pendingEffects` and processed in the same loop iteration.
+7. **Stable dependency skip**: `runEffect` compares deps after execution via `depsMatch`. If stable, restores previous tracking structures (skips subscriber teardown/rebuild). If changed, only removes stale subscriber sets.
+8. **Batch dirty target processing**: `dirtyTargets` processed at `batchDepth === 1` (before decrement), so `scheduleSubscribersForTarget` sees `batchDepth > 0` and defers flushing. Processing after decrement would cause premature per-property flushing.
 6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects are exempt (they have a `parentEffect`).
 
 ## `derive()` Implementation
