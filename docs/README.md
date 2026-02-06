@@ -1,6 +1,6 @@
 # Beacon Documentation
 
-Comprehensive documentation for Beacon v2000.0.0 - A Proxy-based reactive state management library.
+Comprehensive documentation for Beacon — a Proxy-based reactive state management library.
 
 ## Core API
 
@@ -13,6 +13,7 @@ Comprehensive documentation for Beacon v2000.0.0 - A Proxy-based reactive state 
 
 - [**Core Concepts**](./README.core.md) - Understanding the reactive system architecture
 - [**Debugging**](./README.debugging.md) - Tools and techniques for debugging reactive state
+- [**Hooks**](./README.hooks.md) - Zero-cost instrumentation for all four primitives
 
 ## Quick Start
 
