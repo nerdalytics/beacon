@@ -84,7 +84,7 @@ Zero-cost instrumentation. All four primitives accept optional hooks parameter. 
 <!--— BEACON-START —>[Beacon Index]
 |root: .
 |IMPORTANT: Read docs/AGENTS.md before writing code that uses Beacon APIs. Read folder AGENTS.md before working in that domain.
-|docs/:{AGENTS.md,README.md,README.state.md,README.effect.md,README.derive.md,README.batch.md,README.core.md,README.debugging.md}
+|docs/:{AGENTS.md,README.md,README.state.md,README.effect.md,README.derive.md,README.batch.md,README.core.md,README.debugging.md,README.hooks.md}
 |src/:{AGENTS.md,index.ts,types.ts}
 |src/hooks/:{AGENTS.md,index.ts,compose.ts}
 |tests/:{AGENTS.md}
