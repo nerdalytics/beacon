@@ -1,1 +1,1 @@
-/Users/fibric/Code/hub/nerdalytics/beacon/AGENTS.md
+AGENTS.md
