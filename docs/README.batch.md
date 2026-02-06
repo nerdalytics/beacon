@@ -4,6 +4,14 @@
 
 `batch()` is a performance optimization that collapses multiple source mutations into a single notification cycle. Without batch, each mutation triggers its own propagation cycle — effects see the result of mutation 1 before mutation 2 happens. With batch, all mutations apply first, then effects run once with the final state. This matters when coordinating updates across multiple state objects or properties.
 
+## API Reference
+
+```typescript
+function batch<T>(fn: () => T, hooks?: BatchHooks): T
+```
+
+Returns the value returned by `fn`. For hooks, see [Hooks](./README.hooks.md).
+
 ## Core Concepts
 
 ### Basic Usage
@@ -46,18 +54,17 @@ batch(() => {
 
 ### Execution Flow
 
-1. **Batch Start**: Increments global `batchDepth` counter
-2. **State Updates**: All updates go through optimized path
-3. **Dirty Tracking**: Modified objects are marked in `batchDirtyTargets` Set
+1. **Batch Start**: Increments `batchDepth` counter
+2. **State Updates**: Mutations add subscribers to `pendingEffects`, but `flushEffects` is skipped while `batchDepth > 0`
+3. **Effect Creation**: Effects created inside batch go into `deferredEffectCreations` instead of running immediately
 4. **Batch End**: Decrements `batchDepth`
-5. **Notification**: If depth reaches 0, flush all pending notifications
+5. **Flush**: When depth reaches 0, run deferred effects, then flush all pending effects
 
 ```
-batch() called → batchDepth++ → Execute Function → Track Dirty Objects
-                                         ↓
-                batchDepth-- → depth === 0? → Yes → Notify All → Flush Effects
-                                         ↓
-                                         No - Wait for outer batch
+batch() → batchDepth++ → Execute fn → mutations add to pendingEffects
+                                     → effect() calls go to deferredEffectCreations
+         batchDepth-- → depth === 0? → Yes → run deferred effects → flushEffects()
+                                     → No  → wait for outer batch
 ```
 
 ### Nested Batches
@@ -338,6 +345,10 @@ batch(() => {
   form.canSubmit = isValid;
 });
 ```
+
+## Hooks
+
+`batch()` accepts an optional `hooks` parameter for observing the batch lifecycle — start, end, and error. See [Hooks](./README.hooks.md) for the full API and examples.
 
 ## General Tips
 
