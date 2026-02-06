@@ -9,14 +9,18 @@
 ### Function Signature
 
 ```typescript
-function derive<T>(computeFn: () => T): ComputedValue<T>
+function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
 
-interface ComputedValue<T> {
-  readonly value: T;           // The computed value (cached)
-  dispose(): void;             // Cleanup method
-  [Symbol.dispose](): void;    // Symbol-based disposal (Node.js 20.5+)
+type ComputedValue<T> = {
+  readonly value: T | undefined | null
+  reactive: boolean
 }
 ```
+
+- `value` — the cached computed result (read-only)
+- `reactive` — controls the internal effect lifecycle; set to `false` to dispose, `true` to recreate
+
+For hooks, see [Hooks](./README.hooks.md).
 
 ## Core Concepts
 
@@ -260,11 +264,11 @@ items.list.push(4);
 // Logs: "Computing derived"
 // Logs: "Computing effect"
 
-// Key difference: derive provides a cached value with disposal
+// Key difference: derive provides a cached value
 console.log(computedSum.value);  // No recomputation, returns cached value
-computedSum.dispose();  // Clean up the derived value
+computedSum.reactive = false;    // Stop tracking dependencies
 
-// Effect must be manually disposed
+// Effect must be manually disposed via its return value
 dispose();  // Clean up the effect
 ```
 
@@ -348,9 +352,9 @@ const validation = derive(() => {
 
 ## Memory Management
 
-### Resource Disposal
+### Disposal via `reactive` Toggle
 
-Derived values must be explicitly disposed to clean up their internal effects and prevent memory leaks:
+Derived values create an internal `state()` + `effect()` pair. Set `reactive` to `false` to dispose the internal effect and stop tracking dependencies:
 
 ```typescript
 const local = state({ value: 10 });
@@ -358,37 +362,19 @@ const computed = derive(() => local.value * 2);
 
 console.log(computed.value);  // 20
 
-// Clean up when no longer needed
-computed.dispose();  // Removes effect and all subscriptions
+// Dispose: stop reacting to dependency changes
+computed.reactive = false;
 
-// Or using Symbol.dispose (Node.js 20.5+)
-computed[Symbol.dispose]();
-```
+// After disposal, .value still returns the last computed value
+console.log(computed.value);  // 20 (retained, not undefined)
 
-### Using Statement Support (Node.js 20.5+)
-
-With modern JavaScript's resource management:
-
-```typescript
-// Automatic disposal with 'using' statement (requires TypeScript 5.2+ or experimental flag)
-{
-  using computed = derive(() => state.value * 2);
-  console.log(computed.value);  // Use the computed value
-  // Automatically disposed when block exits
-}
-
-// Manual disposal for broader compatibility
-const computed = derive(() => state.value * 2);
-try {
-  console.log(computed.value);
-} finally {
-  computed.dispose();  // Ensure cleanup
-}
+// Re-enable: recreates the internal effect and recomputes
+computed.reactive = true;
 ```
 
 ### Preventing Memory Leaks
 
-Without proper disposal, derived values can accumulate and cause memory leaks:
+Without disposal, derived values accumulate and their internal effects keep running:
 
 ```typescript
 // ❌ Bad - Memory leak
@@ -401,26 +387,25 @@ function createLeakyDerived() {
 function createCleanDerived() {
   const computed = derive(() => globalState.value * 2);
   const value = computed.value;
-  computed.dispose();  // Clean up after getting value
+  computed.reactive = false;  // Clean up after getting value
   return value;
 }
 
-// ✅ Better - Return disposable for caller to manage
+// ✅ Better - Return derive for caller to manage lifecycle
 function createManagedDerived() {
   return derive(() => globalState.value * 2);
-  // Caller is responsible for disposal
+  // Caller sets reactive = false when done
 }
 ```
 
-### Circular Dependencies
+### Circular References
 
-Beacon prevents circular dependencies:
+This code fails at runtime because `c` is not yet defined when `b` is created — it is a JavaScript `ReferenceError`, not a Beacon-specific check:
 
 ```typescript
 const a = state({ value: 1 });
 
-// This would create a circular dependency
-const b = derive(() => c.value + 1);  // Error!
+const b = derive(() => c.value + 1);  // ReferenceError: c is not defined
 const c = derive(() => b.value + 1);
 ```
 
@@ -441,14 +426,14 @@ function leakyComponent() {
 function cleanComponent() {
   const computed = derive(() => expensiveCalculation());
   const value = computed.value;
-  computed.dispose();
+  computed.reactive = false;
   return value;
 }
 
 // ✅ Better - Let caller manage lifecycle
 function reusableComponent() {
   return derive(() => expensiveCalculation());
-  // Caller decides when to dispose
+  // Caller sets reactive = false when done
 }
 ```
 
@@ -560,59 +545,67 @@ test('derive updates when dependencies change', () => {
 
   source.value = 15;
   expect(doubled.value).toBe(30);
-  
+
   // Clean up
-  doubled.dispose();
+  doubled.reactive = false;
 });
 
 test('derive computes eagerly', () => {
   let computeCount = 0;
   const source = state({ value: 10 });
-  
+
   const computed = derive(() => {
     computeCount++;
     return source.value * 2;
   });
-  
+
   expect(computeCount).toBe(1);  // Computed immediately on creation
-  
+
   const v1 = computed.value;
   expect(computeCount).toBe(1);  // No additional computation on access
-  
+
   source.value = 20;
   expect(computeCount).toBe(2);  // Recomputed when dependency changes
-  
+
   const v2 = computed.value;
   expect(computeCount).toBe(2);  // No additional computation on access
-  
-  computed.dispose();
+
+  computed.reactive = false;
 });
 
-test('derive supports disposal', () => {
+test('derive supports disposal via reactive toggle', () => {
   const source = state({ value: 10 });
   const computed = derive(() => source.value * 2);
-  
+
   expect(computed.value).toBe(20);
-  
-  // Dispose the computed
-  computed.dispose();
-  
-  // Should throw when accessing disposed computed
-  expect(() => computed.value).toThrow('Cannot read value of disposed computed');
-  
+
+  // Dispose the derive
+  computed.reactive = false;
+
+  // .value still returns the last computed value
+  expect(computed.value).toBe(20);
+
   // Changes to source no longer trigger recomputation
   source.value = 30;
-  // Effect has been cleaned up, no computation occurs
+  expect(computed.value).toBe(20);  // Still the old value
+
+  // Re-enable reactivity
+  computed.reactive = true;
+  expect(computed.value).toBe(60);  // Recomputed with current source
 });
 ```
 
+## Hooks
+
+`derive()` accepts an optional `hooks` parameter for observing computation, cache hits, disposal, errors, and dependency changes. See [Hooks](./README.hooks.md) for the full API and examples.
+
 ## Performance Tips
 
-1. **Dispose unused derives**: Prevent memory leaks and unnecessary computations
+1. **Set `reactive = false` on unused derives**: Prevent memory leaks and unnecessary computations
 2. **Use batch for multiple updates**: Derive only recomputes once per batch
 3. **Keep computations simple**: Complex derives run on every dependency change
 4. **Avoid deep nesting**: Chains of derives add overhead
 5. **Cache external data**: Don't refetch in derive functions
 6. **Use effects for side effects**: Keep derives pure
 7. **Profile before optimizing**: Not all computations need memoization
-8. **Consider lifecycle**: Short-lived derives should be disposed quickly
+8. **Consider lifecycle**: Short-lived derives should set `reactive = false` promptly
