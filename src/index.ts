@@ -874,23 +874,11 @@ function buildEffectHooksMap(
 		  >
 		| undefined
 ): NonNullable<EffectFunction['__hooks']> {
-	return {
-		...(onDependencyAdd
-			? {
-					onDependencyAdd,
-				}
-			: {}),
-		...(onDependencyChange
-			? {
-					onDependencyChange,
-				}
-			: {}),
-		...(onSchedule
-			? {
-					onSchedule,
-				}
-			: {}),
-	}
+	const map: NonNullable<EffectFunction['__hooks']> = Object.create(null)
+	if (onDependencyAdd) map.onDependencyAdd = onDependencyAdd
+	if (onDependencyChange) map.onDependencyChange = onDependencyChange
+	if (onSchedule) map.onSchedule = onSchedule
+	return map
 }
 
 function executeEffectBody(
