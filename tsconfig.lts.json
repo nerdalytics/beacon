@@ -49,7 +49,7 @@
 		"package.json",
 		"scripts",
 		"temp",
-		"tests/template.test.ts",
+		"tests",
 		"tsconfig.json",
 		"tsconfig.lts.json"
 	],
