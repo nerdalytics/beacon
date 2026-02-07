@@ -1,5 +1,14 @@
-* text=auto
-*.md text diff=markdown
+# Enforce LF line endings for all text files
+* text=auto eol=lf
+
+# Explicitly declare text files
+*.ts text eol=lf
+*.json text eol=lf
+*.md text eol=lf diff=markdown
+*.yaml text eol=lf
+*.toml text eol=lf
+
 .gitattributes text linguist-language=gitattributes exports-ignore
 .gitignore text exports-ignore
+
 *.png binary

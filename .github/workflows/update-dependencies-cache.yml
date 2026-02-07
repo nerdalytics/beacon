@@ -1,34 +1,34 @@
 name: Update Dependencies Cache
 permissions:
-    contents: read
-"on":
-    workflow_call:
-        inputs:
-            ref:
-                required: false
-                type: string
+  contents: read
+'on':
+  workflow_call:
+    inputs:
+      ref:
+        required: false
+        type: string
 jobs:
-    cache-deps:
-        strategy:
-            matrix:
-                node-version:
-                    - 20.x
-                    - 22.x
-                    - 24.x
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v5.0.0
-              with:
-                  ref: ${{ inputs.ref || github.ref }}
-            - uses: actions/setup-node@v6.0.0
-              with:
-                  node-version: ${{ matrix.node-version }}
-            - id: cache-dependencies
-              uses: actions/cache@v4.3.0
-              with:
-                  path: node_modules
-                  key: >-
-                      ${{ runner.os }}-node-${{ matrix.node-version }}-${{
-                      hashFiles('**/package-lock.json') }}
-            - if: steps.cache-dependencies.outputs.cache-hit != 'true'
-              run: npm ci
+  cache-deps:
+    strategy:
+      matrix:
+        node-version:
+          - 20.x
+          - 22.x
+          - 24.x
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{ matrix.node-version }}
+      - id: cache-dependencies
+        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
+        with:
+          path: node_modules
+          key: >-
+            ${{ runner.os }}-node-${{ matrix.node-version }}-${{
+            hashFiles('**/package-lock.json') }}
+      - if: steps.cache-dependencies.outputs.cache-hit != 'true'
+        run: npm ci
