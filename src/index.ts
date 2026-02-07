@@ -509,7 +509,12 @@ function createGetHandler<T>(
 			trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
 			if (value === null || typeof value !== 'object') return value
-			if (Array.isArray(rawTarget) && typeof prop === 'string' && MUTATING_ARRAY_METHODS.has(prop) && typeof value === 'function') {
+			if (
+				Array.isArray(rawTarget) &&
+				typeof prop === 'string' &&
+				MUTATING_ARRAY_METHODS.has(prop) &&
+				typeof value === 'function'
+			) {
 				return getWrappedArrayMethod(rawTarget, prop, value)
 			}
 			return wrapNestedObject(value as object, undefined)
