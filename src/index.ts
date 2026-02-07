@@ -40,6 +40,7 @@ let batchDepth = 0
 let isNotifying = false
 let isTrackingOnly = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
+const effectQueue: EffectFunction[] = []
 const deferredEffectCreations: EffectFunction[] = []
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
 
@@ -269,13 +270,14 @@ function runEffectIfActive(effect: EffectFunction): void {
 }
 
 function runPendingEffectBatch(): void {
-	const effects: EffectFunction[] = []
-	for (const eff of pendingEffects) effects.push(eff)
+	for (const eff of pendingEffects) effectQueue.push(eff)
 	pendingEffects.clear()
 
-	for (const eff of effects) {
-		runEffectIfActive(eff)
+	for (let i = 0; i < effectQueue.length; i++) {
+		const eff = effectQueue[i]
+		if (eff) runEffectIfActive(eff)
 	}
+	effectQueue.length = 0
 }
 
 function flushEffects(): void {
