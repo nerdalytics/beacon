@@ -75,7 +75,7 @@ describe(
 				value: 2,
 			})
 			const $doubled = derive((): number => $base.value * 2)
-			const $quadrupled = derive((): number => $doubled.value * 2)
+			const $quadrupled = derive((): number => ($doubled.value as number) * 2)
 
 			assert.strictEqual($base.value, 2)
 			assert.strictEqual($doubled.value, 4)
@@ -111,7 +111,7 @@ describe(
 
 			const $sum = derive((): number => $items.list.reduce((a: number, b: number): number => a + b, 0))
 
-			const $avg = derive((): number => ($items.list.length > 0 ? $sum.value / $items.list.length : 0))
+			const $avg = derive((): number => ($items.list.length > 0 ? ($sum.value as number) / $items.list.length : 0))
 
 			const $filtered = derive((): number[] => $items.list.filter((x: number): boolean => x > 2))
 

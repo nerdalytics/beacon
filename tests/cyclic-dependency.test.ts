@@ -136,8 +136,8 @@ describe(
 			// Monitor values to detect stabilization
 			effect((): void => {
 				valueHistory.push({
-					a: $signalA.value,
-					b: $signalB.value,
+					a: $signalA.value as number,
+					b: $signalB.value as number,
 				})
 			})
 
@@ -161,8 +161,8 @@ describe(
 			assert.notStrictEqual(finalB, initialB, 'B should update after source change')
 
 			// Verify consistent values
-			assert.strictEqual(finalB, finalA * 2, 'Final B value should be A * 2')
-			assert.strictEqual(finalA, 10 + finalB / 10, 'Final A value should be source + B/10')
+			assert.strictEqual(finalB, (finalA as number) * 2, 'Final B value should be A * 2')
+			assert.strictEqual(finalA, 10 + (finalB as number) / 10, 'Final A value should be source + B/10')
 		})
 
 		it('should stabilize cycles between multiple states and prevent infinite loops', (): void => {
@@ -253,14 +253,14 @@ describe(
 			const $childC = derive((): number => $parent.value / 2)
 
 			// D depends on both B and C
-			const $childD = derive((): number => $childB.value + $childC.value)
+			const $childD = derive((): number => ($childB.value as number) + ($childC.value as number))
 
 			// Track updates
 			let updateCount = 0
 			const dValues: number[] = []
 
 			effect((): void => {
-				dValues.push($childD.value)
+				dValues.push($childD.value as number)
 				updateCount++
 			})
 
@@ -304,7 +304,7 @@ describe(
 
 			// Create cycle: A depends on B
 			effect((): void => {
-				const bVal = $b.value
+				const bVal = $b.value as number
 				bValues.push(bVal)
 
 				// A becomes new B value
@@ -332,7 +332,7 @@ describe(
 			if (lastValues.length >= 2) {
 				for (let i = 1; i < lastValues.length; i++) {
 					assert.ok(
-						Math.abs(lastValues[i] - lastValues[i - 1]) < errorMargin,
+						Math.abs((lastValues[i] as number) - (lastValues[i - 1] as number)) < errorMargin,
 						'Values should converge with small differences near the end'
 					)
 				}
@@ -383,7 +383,10 @@ describe(
 			assert.ok(updateCount < 20, `Cycle should break in reasonable time, took ${updateCount} updates`)
 
 			// Verify the safety breaker kicked in
-			assert.ok($a.value < 1000 && $b.value >= 1000, 'Safety breaker should have stopped updates at the threshold')
+			assert.ok(
+				$a.value < 1000 && ($b.value as number) >= 1000,
+				'Safety breaker should have stopped updates at the threshold'
+			)
 		})
 
 		it('should allow manual cycle detection and breaking', (): void => {

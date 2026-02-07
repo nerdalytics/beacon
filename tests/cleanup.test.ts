@@ -116,7 +116,7 @@ describe(
 				value: 1,
 			})
 			const $b = derive((): number => $a.value * 2)
-			const $c = derive((): number => $b.value + 1)
+			const $c = derive((): number => ($b.value as number) + 1)
 			let effectCount = 0
 
 			const dispose = effect((): void => {

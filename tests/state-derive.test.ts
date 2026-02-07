@@ -36,8 +36,8 @@ describe(
 				value: 2,
 			})
 			const $doubled = derive((): number => $base.value * 2)
-			const $quadrupled = derive((): number => $doubled.value * 2)
-			const $final = derive((): number => $quadrupled.value + 1)
+			const $quadrupled = derive((): number => ($doubled.value as number) * 2)
+			const $final = derive((): number => ($quadrupled.value as number) + 1)
 
 			assert.strictEqual($base.value, 2)
 			assert.strictEqual($doubled.value, 4)
@@ -119,7 +119,9 @@ describe(
 
 			const $sum = derive((): number => $items.list.reduce((a: number, b: number): number => a + b, 0))
 			const $count = derive((): number => $items.list.length)
-			const $avg = derive((): number => ($count.value > 0 ? $sum.value / $count.value : 0))
+			const $avg = derive((): number =>
+				($count.value as number) > 0 ? ($sum.value as number) / ($count.value as number) : 0
+			)
 			const $evens = derive((): number[] => $items.list.filter((x: number): boolean => x % 2 === 0))
 
 			assert.strictEqual($sum.value, 15)
@@ -238,7 +240,7 @@ describe(
 			})
 
 			assert.deepStrictEqual(
-				$filtered.value.map((i: Item): string => i.name),
+				($filtered.value as Item[]).map((i: Item): string => i.name),
 				[
 					'apple',
 					'apricot',
@@ -249,7 +251,7 @@ describe(
 
 			$data.filter = 'ap'
 			assert.deepStrictEqual(
-				$filtered.value.map((i: Item): string => i.name),
+				($filtered.value as Item[]).map((i: Item): string => i.name),
 				[
 					'apple',
 					'apricot',
@@ -258,7 +260,7 @@ describe(
 
 			$data.sortBy = 'price'
 			assert.deepStrictEqual(
-				$filtered.value.map((i: Item): string => i.name),
+				($filtered.value as Item[]).map((i: Item): string => i.name),
 				[
 					'apple',
 					'apricot',
@@ -267,7 +269,7 @@ describe(
 
 			$data.filter = ''
 			assert.deepStrictEqual(
-				$filtered.value.map((i: Item): string => i.name),
+				($filtered.value as Item[]).map((i: Item): string => i.name),
 				[
 					'banana',
 					'apple',

@@ -182,7 +182,7 @@ describe(
 
 				// This effect creates a cycle: derivedResult → baseState
 				effect((): void => {
-					const value = $derivedResult.value
+					const value = $derivedResult.value as number
 					$baseState.value = value
 				})
 
