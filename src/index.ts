@@ -154,11 +154,10 @@ function getSubscribers(target: object): Set<EffectFunction> {
 	const cached = subscriberCache.get(target)
 	if (cached) return cached
 
-	const targetWithSubs = target as SubscribersObject
-	if (targetWithSubs[SUBSCRIBERS] instanceof Set) {
-		const subscriberSet = targetWithSubs[SUBSCRIBERS]
-		subscriberCache.set(target, subscriberSet)
-		return subscriberSet
+	const symbolSubs = (target as SubscribersObject)[SUBSCRIBERS]
+	if (symbolSubs instanceof Set) {
+		subscriberCache.set(target, symbolSubs)
+		return symbolSubs
 	}
 
 	const fallbackSubs = proxyCacheSubs.get(target)
@@ -320,7 +319,6 @@ function cleanupEffect(effect: EffectFunction): void {
 			const subs = depWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(dep)
 			subs?.delete(effect)
 		}
-		deps.clear()
 		effectDependencies.delete(effect)
 	}
 	effectStateReads.delete(effect)
@@ -333,7 +331,7 @@ function cleanupChildEffect(child: EffectFunction, toCleanup: EffectFunction[]):
 
 	const grandchildren = childEffects.get(child)
 	if (grandchildren) {
-		toCleanup.push(...grandchildren)
+		for (const gc of grandchildren) toCleanup.push(gc)
 		grandchildren.clear()
 		childEffects.delete(child)
 	}
@@ -348,7 +346,7 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 	const toCleanup: EffectFunction[] = []
 	const children = childEffects.get(effect)
 	if (children) {
-		toCleanup.push(...children)
+		for (const c of children) toCleanup.push(c)
 		children.clear()
 		childEffects.delete(effect)
 	}
@@ -370,6 +368,7 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 }
 
 function setContainsAll(superset: Set<PropertyKey>, subset: Set<PropertyKey>): boolean {
+	if (superset === subset) return true
 	for (const prop of subset) {
 		if (!superset.has(prop)) return false
 	}
@@ -383,7 +382,9 @@ function propsMatch(
 ): boolean {
 	const prevProps = prevReads.get(target)
 	const newProps = newReads.get(target)
-	if (!prevProps || !newProps || prevProps.size !== newProps.size) return false
+	if (!prevProps || !newProps) return false
+	if (prevProps === newProps) return true
+	if (prevProps.size !== newProps.size) return false
 	return setContainsAll(prevProps, newProps)
 }
 
@@ -406,6 +407,7 @@ function depsMatch(
 	newReads: WeakMap<object, Set<PropertyKey>>
 ): boolean {
 	if (prevDeps.size !== newDeps.size) return false
+	if (prevDeps === newDeps && prevReads === newReads) return true
 	return allDepsPropsMatch(prevDeps, newDeps, prevReads, newReads)
 }
 
@@ -735,7 +737,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 
 function disposeChildEffects(eff: EffectFunction): void {
 	const existing = childEffects.get(eff)
-	if (existing?.size && existing.size > 0) {
+	if (existing?.size) {
 		for (const c of existing) {
 			cleanupEffectCompletely(c)
 			existing.delete(c)
@@ -763,10 +765,10 @@ function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newD
 function areDepsStable(
 	newDeps: Set<object> | undefined,
 	newReads: WeakMap<object, Set<PropertyKey>> | undefined,
-	prevDeps: Set<object> | undefined,
-	prevReads: WeakMap<object, Set<PropertyKey>> | undefined
+	prevDeps: Set<object>,
+	prevReads: WeakMap<object, Set<PropertyKey>>
 ): boolean {
-	if (!newDeps || !newReads || !prevDeps || !prevReads) return false
+	if (!newDeps || !newReads) return false
 	return depsMatch(prevDeps, newDeps, prevReads, newReads)
 }
 
@@ -777,7 +779,8 @@ function tryRestoreStableDeps(
 	newDeps: Set<object> | undefined,
 	newReads: WeakMap<object, Set<PropertyKey>> | undefined
 ): boolean {
-	if (!prevDeps || !prevReads || !areDepsStable(newDeps, newReads, prevDeps, prevReads)) return false
+	if (!prevDeps || !prevReads || !newDeps || !newReads) return false
+	if (!areDepsStable(newDeps, newReads, prevDeps, prevReads)) return false
 	effectStateReads.set(eff, prevReads)
 	effectDependencies.set(eff, prevDeps)
 	return true
