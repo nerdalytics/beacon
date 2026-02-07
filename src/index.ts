@@ -503,6 +503,19 @@ function createGetHandler<T>(
 		| undefined,
 	hooks: StateHooks<T> | undefined
 ): ProxyHandler<ProxyTarget>['get'] {
+	if (!onRead && !hooks) {
+		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
+			if (isInternalSymbol(prop)) return rawTarget[prop]
+			trackDependency(rawTarget, prop)
+			const value = rawTarget[prop]
+			if (value === null || typeof value !== 'object') return value
+			if (Array.isArray(rawTarget) && typeof prop === 'string' && MUTATING_ARRAY_METHODS.has(prop) && typeof value === 'function') {
+				return getWrappedArrayMethod(rawTarget, prop, value)
+			}
+			return wrapNestedObject(value as object, undefined)
+		}
+	}
+
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
 		if (isInternalSymbol(prop)) return rawTarget[prop]
 		trackDependency(rawTarget, prop)
@@ -571,8 +584,13 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 	const oldValue = rawTarget[prop]
 	if (Object.is(oldValue, value)) return true
 
-	const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
+	const isArrayIndex = Array.isArray(rawTarget) && typeof prop === 'string'
+	const oldLength = isArrayIndex ? (rawTarget as unknown as unknown[]).length : undefined
+
 	rawTarget[prop] = value
+
+	// Skip notification bookkeeping if nothing subscribes to this target
+	if (!(rawTarget as SubscribersObject)[SUBSCRIBERS]?.size) return true
 
 	let props = dirtyTargets.get(rawTarget)
 	if (!props) {
@@ -611,10 +629,16 @@ function createSetHandler<T>(
 		  >
 		| undefined
 ): ProxyHandler<ProxyTarget>['set'] {
-	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
-		if (batchDepth > 0 && !onWrite && !currentEffect) {
-			return handleBatchFastPath(rawTarget, prop, value)
+	if (!onWrite) {
+		return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
+			if (batchDepth > 0 && !currentEffect) {
+				return handleBatchFastPath(rawTarget, prop, value)
+			}
+			return performWrite(rawTarget, prop, value, undefined)
 		}
+	}
+
+	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
 		return performWrite(rawTarget, prop, value, onWrite)
 	}
 }
