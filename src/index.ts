@@ -154,11 +154,10 @@ function getSubscribers(target: object): Set<EffectFunction> {
 	const cached = subscriberCache.get(target)
 	if (cached) return cached
 
-	const targetWithSubs = target as SubscribersObject
-	if (targetWithSubs[SUBSCRIBERS] instanceof Set) {
-		const subscriberSet = targetWithSubs[SUBSCRIBERS]
-		subscriberCache.set(target, subscriberSet)
-		return subscriberSet
+	const symbolSubs = (target as SubscribersObject)[SUBSCRIBERS]
+	if (symbolSubs instanceof Set) {
+		subscriberCache.set(target, symbolSubs)
+		return symbolSubs
 	}
 
 	const fallbackSubs = proxyCacheSubs.get(target)
