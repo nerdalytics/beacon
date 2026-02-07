@@ -224,21 +224,6 @@ function didEffectReadProp(effect: EffectFunction, target: object, prop: Propert
 	return set?.has(prop) ?? false
 }
 
-function unwrapIfObject(value: unknown): unknown {
-	return value !== null && typeof value === 'object' ? tryUnwrap(value) : value
-}
-
-function tryUnwrap(value: unknown): unknown {
-	if (!value || typeof value !== 'object') return value
-	try {
-		const asProxy = value as ProxyObject
-		if (asProxy?.[PROXY]) return value
-	} catch {
-		// Failed to access PROXY property, likely due to access restrictions
-	}
-	return value
-}
-
 function callHookSafe<Args extends unknown[]>(hook: HookFunction<Args> | undefined, ...args: Args): void {
 	if (!hook) return
 	try {
@@ -599,10 +584,9 @@ function getArrayLengthBeforeMutation(rawTarget: ProxyTarget, prop: PropertyKey)
 function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean {
 	const oldValue = rawTarget[prop]
 	if (Object.is(oldValue, value)) return true
-	const rawValue = unwrapIfObject(value)
 
 	const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
-	rawTarget[prop] = rawValue
+	rawTarget[prop] = value
 
 	let props = dirtyTargets.get(rawTarget)
 	if (!props) {
@@ -668,10 +652,9 @@ function performWrite<T>(
 
 	const oldValue = rawTarget[prop]
 	if (Object.is(oldValue, value)) return true
-	const rawValue = unwrapIfObject(value)
 
 	const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
-	rawTarget[prop] = rawValue
+	rawTarget[prop] = value
 
 	callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
 
