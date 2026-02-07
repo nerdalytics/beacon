@@ -63,6 +63,12 @@
 			},
 			"complexity": {
 				"noBannedTypes": "error",
+				"noExcessiveCognitiveComplexity": {
+					"level": "error",
+					"options": {
+						"maxAllowedComplexity": 4
+					}
+				},
 				"useLiteralKeys": "error"
 			},
 			"correctness": {
@@ -76,7 +82,8 @@
 				"useExplicitType": "error"
 			},
 			"performance": {
-				"noAccumulatingSpread": "error"
+				"noAccumulatingSpread": "error",
+				"useTopLevelRegex": "error"
 			},
 			"recommended": true,
 			"security": {

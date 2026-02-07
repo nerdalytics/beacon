@@ -1,0 +1,23 @@
+{
+	"extends": "//",
+	"linter": {
+		"domains": {
+			"react": "all"
+		},
+		"rules": {
+			"complexity": {
+				"noExcessiveCognitiveComplexity": {
+					"level": "off"
+				},
+				"useLiteralKeys": "error"
+			},
+			"performance": {
+				"useTopLevelRegex": "off"
+			},
+			"suspicious": {
+				"noConsole": "off"
+			}
+		}
+	},
+	"root": false
+}
