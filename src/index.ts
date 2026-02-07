@@ -170,33 +170,7 @@ function getSubscribers(target: object): Set<EffectFunction> {
 	return subscriberSet
 }
 
-function registerEffectRead(effect: EffectFunction, target: object, prop: PropertyKey): void {
-	let deps = effectDependencies.get(effect)
-	if (!deps) {
-		deps = new Set<object>()
-		effectDependencies.set(effect, deps)
-	}
-	deps.add(target)
-
-	let map = effectStateReads.get(effect)
-	if (!map) {
-		map = new WeakMap<object, Set<PropertyKey>>()
-		effectStateReads.set(effect, map)
-	}
-	let set = map.get(target)
-	if (!set) {
-		set = new Set<PropertyKey>()
-		map.set(target, set)
-	}
-	const isNew = !set.has(prop)
-	set.add(prop)
-
-	if (isNew) {
-		callHookSafe(effect.__hooks?.onDependencyAdd, target, prop, effect.effectName)
-	}
-}
-
-function trackReadSilently(eff: EffectFunction, target: object, prop: PropertyKey): void {
+function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey, silent: boolean): void {
 	let deps = effectDependencies.get(eff)
 	if (!deps) {
 		deps = new Set<object>()
@@ -214,7 +188,17 @@ function trackReadSilently(eff: EffectFunction, target: object, prop: PropertyKe
 		set = new Set<PropertyKey>()
 		map.set(target, set)
 	}
+
+	if (silent) {
+		set.add(prop)
+		return
+	}
+
+	const isNew = !set.has(prop)
 	set.add(prop)
+	if (isNew) {
+		callHookSafe(eff.__hooks?.onDependencyAdd, target, prop, eff.effectName)
+	}
 }
 
 function didEffectReadProp(effect: EffectFunction, target: object, prop: PropertyKey): boolean {
@@ -443,11 +427,11 @@ function wrapNestedObject(value: object, hooks: StateHooks<object> | undefined):
 function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	if (!currentEffect) return
 	if (isTrackingOnly) {
-		trackReadSilently(currentEffect, rawTarget, prop)
+		recordEffectRead(currentEffect, rawTarget, prop, true)
 	} else {
 		const subs = getSubscribers(rawTarget)
 		subs.add(currentEffect)
-		registerEffectRead(currentEffect, rawTarget, prop)
+		recordEffectRead(currentEffect, rawTarget, prop, false)
 	}
 }
 
