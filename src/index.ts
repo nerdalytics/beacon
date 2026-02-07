@@ -38,7 +38,7 @@ const HOOKS: unique symbol = Symbol('[[beacon_hooks]]')
 let currentEffect: EffectFunction | null = null
 let batchDepth = 0
 let isNotifying = false
-let trackingOnly = false
+let isTrackingOnly = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
 const deferredEffectCreations: EffectFunction[] = []
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
@@ -130,20 +130,20 @@ function getCachedMethodFromWeakMap(target: object, prop: PropertyKey, originalM
 	return wrapped
 }
 
-function storeSubscriberSet(target: object, s: Set<EffectFunction>): void {
+function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>): void {
 	try {
 		if (Object.isExtensible(target)) {
 			Object.defineProperty(target, SUBSCRIBERS, {
 				configurable: true,
 				enumerable: false,
-				value: s,
+				value: subscriberSet,
 				writable: false,
 			})
 		} else {
-			proxyCacheSubs.set(target, s)
+			proxyCacheSubs.set(target, subscriberSet)
 		}
 	} catch {
-		proxyCacheSubs.set(target, s)
+		proxyCacheSubs.set(target, subscriberSet)
 	}
 }
 
@@ -153,21 +153,21 @@ function getSubscribers(target: object): Set<EffectFunction> {
 
 	const targetWithSubs = target as SubscribersObject
 	if (targetWithSubs[SUBSCRIBERS] instanceof Set) {
-		const s = targetWithSubs[SUBSCRIBERS]
-		subscriberCache.set(target, s)
-		return s
+		const subscriberSet = targetWithSubs[SUBSCRIBERS]
+		subscriberCache.set(target, subscriberSet)
+		return subscriberSet
 	}
 
-	const fb = proxyCacheSubs.get(target)
-	if (fb) {
-		subscriberCache.set(target, fb)
-		return fb
+	const fallbackSubs = proxyCacheSubs.get(target)
+	if (fallbackSubs) {
+		subscriberCache.set(target, fallbackSubs)
+		return fallbackSubs
 	}
 
-	const s = new Set<EffectFunction>()
-	storeSubscriberSet(target, s)
-	subscriberCache.set(target, s)
-	return s
+	const subscriberSet = new Set<EffectFunction>()
+	storeSubscriberSet(target, subscriberSet)
+	subscriberCache.set(target, subscriberSet)
+	return subscriberSet
 }
 
 function registerEffectRead(effect: EffectFunction, target: object, prop: PropertyKey): void {
@@ -196,7 +196,7 @@ function registerEffectRead(effect: EffectFunction, target: object, prop: Proper
 	}
 }
 
-function trackRead(eff: EffectFunction, target: object, prop: PropertyKey): void {
+function trackReadSilently(eff: EffectFunction, target: object, prop: PropertyKey): void {
 	let deps = effectDependencies.get(eff)
 	if (!deps) {
 		deps = new Set<object>()
@@ -231,8 +231,8 @@ function unwrapIfObject(value: unknown): unknown {
 function tryUnwrap(value: unknown): unknown {
 	if (!value || typeof value !== 'object') return value
 	try {
-		const rv = value as ProxyObject
-		if (rv?.[PROXY]) return value
+		const asProxy = value as ProxyObject
+		if (asProxy?.[PROXY]) return value
 	} catch {
 		// Failed to access PROXY property, likely due to access restrictions
 	}
@@ -251,29 +251,29 @@ function findSubscribers(target: object): Set<EffectFunction> | undefined {
 	return t[SUBSCRIBERS] ?? proxyCacheSubs.get(target)
 }
 
-function addPendingEffect(s: EffectFunction): void {
-	if (pendingEffects.has(s)) return
-	pendingEffects.add(s)
-	if (s.__hooks?.onSchedule) {
+function addPendingEffect(subscriber: EffectFunction): void {
+	if (pendingEffects.has(subscriber)) return
+	pendingEffects.add(subscriber)
+	if (subscriber.__hooks?.onSchedule) {
 		try {
-			s.__hooks.onSchedule(s.effectName)
+			subscriber.__hooks.onSchedule(subscriber.effectName)
 		} catch {}
 	}
 }
 
-function scheduleSubscriberWithProp(s: EffectFunction, target: object, prop: PropertyKey): void {
-	if (pendingEffects.has(s) && !s.__hooks?.onDependencyChange) return
-	const set = effectStateReads.get(s)?.get(target)
+function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
+	if (pendingEffects.has(subscriber) && !subscriber.__hooks?.onDependencyChange) return
+	const set = effectStateReads.get(subscriber)?.get(target)
 	if (!set?.has(prop) && !set?.has(OWN_KEYS_SYMBOL)) return
-	addPendingEffect(s)
-	callHookSafe(s.__hooks?.onDependencyChange, target, prop)
+	addPendingEffect(subscriber)
+	callHookSafe(subscriber.__hooks?.onDependencyChange, target, prop)
 }
 
-function scheduleSubscriber(s: EffectFunction, target: object, prop: PropertyKey | undefined): void {
+function scheduleSubscriber(subscriber: EffectFunction, target: object, prop: PropertyKey | undefined): void {
 	if (prop === undefined) {
-		addPendingEffect(s)
+		addPendingEffect(subscriber)
 	} else {
-		scheduleSubscriberWithProp(s, target, prop)
+		scheduleSubscriberWithProp(subscriber, target, prop)
 	}
 }
 
@@ -281,8 +281,8 @@ function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void 
 	const subs = findSubscribers(target)
 	if (!subs?.size) return
 
-	for (const s of subs) {
-		scheduleSubscriber(s, target, prop)
+	for (const subscriber of subs) {
+		scheduleSubscriber(subscriber, target, prop)
 	}
 	if (batchDepth === 0 && !isNotifying) flushEffects()
 }
@@ -301,11 +301,11 @@ function runEffectIfActive(effect: EffectFunction): void {
 
 function runPendingEffectBatch(): void {
 	const effects: EffectFunction[] = []
-	for (const e of pendingEffects) effects.push(e)
+	for (const eff of pendingEffects) effects.push(eff)
 	pendingEffects.clear()
 
-	for (const effect of effects) {
-		runEffectIfActive(effect)
+	for (const eff of effects) {
+		runEffectIfActive(eff)
 	}
 }
 
@@ -327,9 +327,9 @@ function cleanupEffect(effect: EffectFunction): void {
 	pendingEffects.delete(effect)
 	const deps = effectDependencies.get(effect)
 	if (deps) {
-		for (const d of deps) {
-			const dWithSubs = d as SubscribersObject
-			const subs = dWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(d)
+		for (const dep of deps) {
+			const depWithSubs = dep as SubscribersObject
+			const subs = depWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(dep)
 			subs?.delete(effect)
 		}
 		deps.clear()
@@ -457,8 +457,8 @@ function wrapNestedObject(value: object, hooks: StateHooks<object> | undefined):
 
 function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	if (!currentEffect) return
-	if (trackingOnly) {
-		trackRead(currentEffect, rawTarget, prop)
+	if (isTrackingOnly) {
+		trackReadSilently(currentEffect, rawTarget, prop)
 	} else {
 		const subs = getSubscribers(rawTarget)
 		subs.add(currentEffect)
@@ -747,7 +747,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	return proxy
 }
 
-function cleanupRunEffectChildren(eff: EffectFunction): void {
+function disposeChildEffects(eff: EffectFunction): void {
 	const existing = childEffects.get(eff)
 	if (existing?.size && existing.size > 0) {
 		for (const c of existing) {
@@ -758,17 +758,17 @@ function cleanupRunEffectChildren(eff: EffectFunction): void {
 }
 
 function removeStaleSubscribers(eff: EffectFunction, prevDeps: Set<object>, newDeps: Set<object>): void {
-	for (const d of prevDeps) {
-		if (!newDeps.has(d)) {
-			findSubscribers(d)?.delete(eff)
+	for (const dep of prevDeps) {
+		if (!newDeps.has(dep)) {
+			findSubscribers(dep)?.delete(eff)
 		}
 	}
 }
 
 function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newDeps: Set<object>): void {
-	for (const d of newDeps) {
-		if (!prevDeps.has(d)) {
-			const subs = getSubscribers(d)
+	for (const dep of newDeps) {
+		if (!prevDeps.has(dep)) {
+			const subs = getSubscribers(dep)
 			subs.add(eff)
 		}
 	}
@@ -819,8 +819,8 @@ function updateEffectSubscriptions(
 
 function removeEffectFromSubscribers(eff: EffectFunction, deps: Set<object> | undefined): void {
 	if (!deps) return
-	for (const d of deps) {
-		findSubscribers(d)?.delete(eff)
+	for (const dep of deps) {
+		findSubscribers(dep)?.delete(eff)
 	}
 }
 
@@ -925,10 +925,10 @@ function executeEffectBody(
 	name: EffectName | undefined
 ): void {
 	const isFirstRun = !prevDeps
-	if (!isFirstRun) trackingOnly = true
+	if (!isFirstRun) isTrackingOnly = true
 
 	pendingEffects.delete(eff)
-	cleanupRunEffectChildren(eff)
+	disposeChildEffects(eff)
 
 	currentEffect = eff
 	effectStateReads.set(eff, new WeakMap<object, Set<PropertyKey>>())
@@ -962,7 +962,7 @@ function runEffectSafely(
 	name: EffectName | undefined
 ): void {
 	const prev = currentEffect
-	const prevTrackingOnly = trackingOnly
+	const prevTrackingOnly = isTrackingOnly
 	try {
 		executeEffectBody(eff, fn, eff.__prevDeps, eff.__prevReads, onRun, name)
 	} catch (err) {
@@ -971,7 +971,7 @@ function runEffectSafely(
 		throw err
 	} finally {
 		currentEffect = prev
-		trackingOnly = prevTrackingOnly
+		isTrackingOnly = prevTrackingOnly
 		eff.__active = false
 	}
 }
@@ -979,12 +979,12 @@ function runEffectSafely(
 function registerChildEffect(eff: EffectFunction): void {
 	if (!currentEffect) return
 	parentEffect.set(eff, currentEffect)
-	let cs = childEffects.get(currentEffect)
-	if (!cs) {
-		cs = new Set<EffectFunction>()
-		childEffects.set(currentEffect, cs)
+	let children = childEffects.get(currentEffect)
+	if (!children) {
+		children = new Set<EffectFunction>()
+		childEffects.set(currentEffect, children)
 	}
-	cs.add(eff)
+	children.add(eff)
 }
 
 export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe {
@@ -1051,7 +1051,7 @@ function runDeferredEffects(): void {
 	if (deferredEffectCreations.length > 0) {
 		const effectsToRun = Array.from(deferredEffectCreations)
 		deferredEffectCreations.length = 0
-		for (const e of effectsToRun) e()
+		for (const eff of effectsToRun) eff()
 	}
 }
 
