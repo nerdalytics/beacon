@@ -46,21 +46,9 @@ let rerunTempDeps: Set<object> | null = null
 let rerunTempReads: Map<object, Set<PropertyKey>> | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
 
-// WeakMaps for tracking relationships
-const parentEffect: WeakMap<EffectFunction, EffectFunction> = new WeakMap<EffectFunction, EffectFunction>()
-const childEffects: WeakMap<EffectFunction, Set<EffectFunction>> = new WeakMap<EffectFunction, Set<EffectFunction>>()
-
-const effectStateReads: WeakMap<EffectFunction, WeakMap<object, Set<PropertyKey>>> = new WeakMap<
-	EffectFunction,
-	WeakMap<object, Set<PropertyKey>>
->()
-
-const effectDependencies: WeakMap<EffectFunction, Set<object>> = new WeakMap<EffectFunction, Set<object>>()
-
 // Proxy caching
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
-const subscriberCache: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
 
 const MUTATING_ARRAY_METHODS: Set<string> = new Set(CONFIG.MUTATING_ARRAY_METHODS)
 
@@ -76,6 +64,8 @@ const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 type EffectFunction = {
 	(): void
 	__active?: boolean
+	__children?: Set<EffectFunction> | undefined
+	__deps?: Set<object> | undefined
 	__hooks?: {
 		onDependencyAdd?: HookFunction<
 			[
@@ -96,8 +86,10 @@ type EffectFunction = {
 			]
 		>
 	}
+	__parent?: EffectFunction | undefined
 	__prevDeps?: Set<object> | undefined
-	__prevReads?: WeakMap<object, Set<PropertyKey>> | undefined
+	__prevReads?: Map<object, Set<PropertyKey>> | undefined
+	__reads?: Map<object, Set<PropertyKey>> | undefined
 	effectName?: string
 }
 
@@ -151,24 +143,14 @@ function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>):
 }
 
 function getSubscribers(target: object): Set<EffectFunction> {
-	const cached = subscriberCache.get(target)
-	if (cached) return cached
-
-	const symbolSubs = (target as SubscribersObject)[SUBSCRIBERS]
-	if (symbolSubs instanceof Set) {
-		subscriberCache.set(target, symbolSubs)
-		return symbolSubs
-	}
+	const subs = (target as SubscribersObject)[SUBSCRIBERS]
+	if (subs) return subs
 
 	const fallbackSubs = proxyCacheSubs.get(target)
-	if (fallbackSubs) {
-		subscriberCache.set(target, fallbackSubs)
-		return fallbackSubs
-	}
+	if (fallbackSubs) return fallbackSubs
 
 	const subscriberSet = new Set<EffectFunction>()
 	storeSubscriberSet(target, subscriberSet)
-	subscriberCache.set(target, subscriberSet)
 	return subscriberSet
 }
 
@@ -184,17 +166,17 @@ function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey
 		return
 	}
 
-	let deps = effectDependencies.get(eff)
+	let deps = eff.__deps
 	if (!deps) {
 		deps = new Set<object>()
-		effectDependencies.set(eff, deps)
+		eff.__deps = deps
 	}
 	deps.add(target)
 
-	let map = effectStateReads.get(eff)
+	let map = eff.__reads
 	if (!map) {
-		map = new WeakMap<object, Set<PropertyKey>>()
-		effectStateReads.set(eff, map)
+		map = new Map<object, Set<PropertyKey>>()
+		eff.__reads = map
 	}
 	let set = map.get(target)
 	if (!set) {
@@ -219,7 +201,7 @@ function didEffectReadProp(effect: EffectFunction, target: object, prop: Propert
 		const set = rerunTempReads.get(target)
 		return set?.has(prop) ?? false
 	}
-	const map = effectStateReads.get(effect)
+	const map = effect.__reads
 	if (!map) return false
 	const set = map.get(target)
 	return set?.has(prop) ?? false
@@ -249,7 +231,7 @@ function addPendingEffect(subscriber: EffectFunction): void {
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
 	if (pendingEffects.has(subscriber) && !subscriber.__hooks?.onDependencyChange) return
-	const set = effectStateReads.get(subscriber)?.get(target)
+	const set = subscriber.__reads?.get(target)
 	if (!set?.has(prop) && !set?.has(OWN_KEYS_SYMBOL)) return
 	addPendingEffect(subscriber)
 	callHookSafe(subscriber.__hooks?.onDependencyChange, target, prop)
@@ -275,7 +257,7 @@ function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void 
 
 // Flush all pending effects
 function runEffectIfActive(effect: EffectFunction): void {
-	if (effectDependencies.has(effect)) {
+	if (effect.__deps !== undefined) {
 		try {
 			effect()
 		} catch (err) {
@@ -312,16 +294,16 @@ function flushEffects(): void {
 
 function cleanupEffect(effect: EffectFunction): void {
 	pendingEffects.delete(effect)
-	const deps = effectDependencies.get(effect)
+	const deps = effect.__deps
 	if (deps) {
 		for (const dep of deps) {
 			const depWithSubs = dep as SubscribersObject
 			const subs = depWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(dep)
 			subs?.delete(effect)
 		}
-		effectDependencies.delete(effect)
+		effect.__deps = undefined
 	}
-	effectStateReads.delete(effect)
+	effect.__reads = undefined
 	effect.__prevDeps = undefined
 	effect.__prevReads = undefined
 }
@@ -329,14 +311,14 @@ function cleanupEffect(effect: EffectFunction): void {
 function cleanupChildEffect(child: EffectFunction, toCleanup: EffectFunction[]): void {
 	cleanupEffect(child)
 
-	const grandchildren = childEffects.get(child)
+	const grandchildren = child.__children
 	if (grandchildren) {
 		for (const gc of grandchildren) toCleanup.push(gc)
 		grandchildren.clear()
-		childEffects.delete(child)
+		child.__children = undefined
 	}
 
-	parentEffect.delete(child)
+	child.__parent = undefined
 	child.__active = false
 }
 
@@ -344,11 +326,11 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 	cleanupEffect(effect)
 
 	const toCleanup: EffectFunction[] = []
-	const children = childEffects.get(effect)
+	const children = effect.__children
 	if (children) {
 		for (const c of children) toCleanup.push(c)
 		children.clear()
-		childEffects.delete(effect)
+		effect.__children = undefined
 	}
 
 	while (toCleanup.length > 0) {
@@ -356,14 +338,14 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 	}
 
 	// Clean up parent relationship
-	const parent = parentEffect.get(effect)
+	const parent = effect.__parent
 	if (parent) {
-		const pchildren = childEffects.get(parent)
+		const pchildren = parent.__children
 		pchildren?.delete(effect)
 	}
 
 	// Final cleanup
-	parentEffect.delete(effect)
+	effect.__parent = undefined
 	effect.__active = false
 }
 
@@ -376,8 +358,8 @@ function setContainsAll(superset: Set<PropertyKey>, subset: Set<PropertyKey>): b
 }
 
 function propsMatch(
-	prevReads: WeakMap<object, Set<PropertyKey>>,
-	newReads: WeakMap<object, Set<PropertyKey>>,
+	prevReads: Map<object, Set<PropertyKey>>,
+	newReads: Map<object, Set<PropertyKey>>,
 	target: object
 ): boolean {
 	const prevProps = prevReads.get(target)
@@ -391,8 +373,8 @@ function propsMatch(
 function allDepsPropsMatch(
 	prevDeps: Set<object>,
 	newDeps: Set<object>,
-	prevReads: WeakMap<object, Set<PropertyKey>>,
-	newReads: WeakMap<object, Set<PropertyKey>>
+	prevReads: Map<object, Set<PropertyKey>>,
+	newReads: Map<object, Set<PropertyKey>>
 ): boolean {
 	for (const target of newDeps) {
 		if (!prevDeps.has(target) || !propsMatch(prevReads, newReads, target)) return false
@@ -403,8 +385,8 @@ function allDepsPropsMatch(
 function depsMatch(
 	prevDeps: Set<object>,
 	newDeps: Set<object>,
-	prevReads: WeakMap<object, Set<PropertyKey>>,
-	newReads: WeakMap<object, Set<PropertyKey>>
+	prevReads: Map<object, Set<PropertyKey>>,
+	newReads: Map<object, Set<PropertyKey>>
 ): boolean {
 	if (prevDeps.size !== newDeps.size) return false
 	if (prevDeps === newDeps && prevReads === newReads) return true
@@ -609,7 +591,7 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 
 function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	if (!currentEffect || !didEffectReadProp(currentEffect, rawTarget, prop)) return
-	const parent = parentEffect.get(currentEffect)
+	const parent = currentEffect.__parent
 	if (parent) return
 	const effectName = currentEffect.effectName
 	const errorMsg = effectName
@@ -736,7 +718,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 }
 
 function disposeChildEffects(eff: EffectFunction): void {
-	const existing = childEffects.get(eff)
+	const existing = eff.__children
 	if (existing?.size) {
 		for (const c of existing) {
 			cleanupEffectCompletely(c)
@@ -764,9 +746,9 @@ function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newD
 
 function areDepsStable(
 	newDeps: Set<object> | undefined,
-	newReads: WeakMap<object, Set<PropertyKey>> | undefined,
+	newReads: Map<object, Set<PropertyKey>> | undefined,
 	prevDeps: Set<object>,
-	prevReads: WeakMap<object, Set<PropertyKey>>
+	prevReads: Map<object, Set<PropertyKey>>
 ): boolean {
 	if (!newDeps || !newReads) return false
 	return depsMatch(prevDeps, newDeps, prevReads, newReads)
@@ -775,24 +757,24 @@ function areDepsStable(
 function tryRestoreStableDeps(
 	eff: EffectFunction,
 	prevDeps: Set<object> | undefined,
-	prevReads: WeakMap<object, Set<PropertyKey>> | undefined,
+	prevReads: Map<object, Set<PropertyKey>> | undefined,
 	newDeps: Set<object> | undefined,
-	newReads: WeakMap<object, Set<PropertyKey>> | undefined
+	newReads: Map<object, Set<PropertyKey>> | undefined
 ): boolean {
 	if (!prevDeps || !prevReads || !newDeps || !newReads) return false
 	if (!areDepsStable(newDeps, newReads, prevDeps, prevReads)) return false
-	effectStateReads.set(eff, prevReads)
-	effectDependencies.set(eff, prevDeps)
+	eff.__reads = prevReads
+	eff.__deps = prevDeps
 	return true
 }
 
 function updateEffectSubscriptions(
 	eff: EffectFunction,
 	prevDeps: Set<object> | undefined,
-	prevReads: WeakMap<object, Set<PropertyKey>> | undefined
+	prevReads: Map<object, Set<PropertyKey>> | undefined
 ): void {
-	const newDeps = effectDependencies.get(eff)
-	const newReads = effectStateReads.get(eff)
+	const newDeps = eff.__deps
+	const newReads = eff.__reads
 
 	if (tryRestoreStableDeps(eff, prevDeps, prevReads, newDeps, newReads)) return
 
@@ -815,9 +797,9 @@ function removeEffectFromSubscribers(eff: EffectFunction, deps: Set<object> | un
 
 function cleanupEffectOnError(eff: EffectFunction): void {
 	removeEffectFromSubscribers(eff, eff.__prevDeps)
-	removeEffectFromSubscribers(eff, effectDependencies.get(eff))
-	effectDependencies.delete(eff)
-	effectStateReads.delete(eff)
+	removeEffectFromSubscribers(eff, eff.__deps)
+	eff.__deps = undefined
+	eff.__reads = undefined
 	pendingEffects.delete(eff)
 	eff.__prevDeps = undefined
 	eff.__prevReads = undefined
@@ -891,7 +873,7 @@ function tempDepsMatchPrev(
 	tempDeps: Set<object>,
 	tempReads: Map<object, Set<PropertyKey>>,
 	prevDeps: Set<object>,
-	prevReads: WeakMap<object, Set<PropertyKey>>
+	prevReads: Map<object, Set<PropertyKey>>
 ): boolean {
 	if (tempDeps.size !== prevDeps.size) return false
 	for (const target of tempDeps) {
@@ -911,19 +893,15 @@ function promoteTempToGlobal(
 	tempDeps: Set<object>,
 	tempReads: Map<object, Set<PropertyKey>>
 ): void {
-	effectDependencies.set(eff, tempDeps)
-	const weakReads = new WeakMap<object, Set<PropertyKey>>()
-	for (const [target, props] of tempReads) {
-		weakReads.set(target, props)
-	}
-	effectStateReads.set(eff, weakReads)
+	eff.__deps = tempDeps
+	eff.__reads = tempReads
 }
 
 function executeEffectBody(
 	eff: EffectFunction,
 	fn: EffectCallback,
 	prevDeps: Set<object> | undefined,
-	prevReads: WeakMap<object, Set<PropertyKey>> | undefined,
+	prevReads: Map<object, Set<PropertyKey>> | undefined,
 	onRun:
 		| HookFunction<
 				[
@@ -942,8 +920,8 @@ function executeEffectBody(
 	currentEffect = eff
 
 	if (isFirstRun) {
-		effectStateReads.set(eff, new WeakMap<object, Set<PropertyKey>>())
-		effectDependencies.set(eff, new Set<object>())
+		eff.__reads = new Map<object, Set<PropertyKey>>()
+		eff.__deps = new Set<object>()
 	} else {
 		rerunTempDeps = new Set<object>()
 		rerunTempReads = new Map<object, Set<PropertyKey>>()
@@ -1004,11 +982,11 @@ function runEffectSafely(
 
 function registerChildEffect(eff: EffectFunction): void {
 	if (!currentEffect) return
-	parentEffect.set(eff, currentEffect)
-	let children = childEffects.get(currentEffect)
+	eff.__parent = currentEffect
+	let children = currentEffect.__children
 	if (!children) {
 		children = new Set<EffectFunction>()
-		childEffects.set(currentEffect, children)
+		currentEffect.__children = children
 	}
 	children.add(eff)
 }

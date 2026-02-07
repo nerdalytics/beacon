@@ -20,16 +20,27 @@ Global mutable state driving the reactive system:
 | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
 | `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
 
+## EffectFunction Properties
+
+Effect tracking data stored directly on the function object (O(1) property access, no WeakMap overhead):
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| `__active` | `boolean` | Re-entrancy guard — prevents effect from running while already running |
+| `__children` | `Set<EffectFunction> \| undefined` | Children of this effect (nested effects) |
+| `__deps` | `Set<object> \| undefined` | Which objects this effect depends on |
+| `__hooks` | `object \| undefined` | Runtime hook callbacks (onDependencyAdd, onDependencyChange, onSchedule) |
+| `__parent` | `EffectFunction \| undefined` | Parent effect for nested cleanup |
+| `__prevDeps` | `Set<object> \| undefined` | Previous deps for stable-dependency optimization |
+| `__prevReads` | `Map<object, Set<PropertyKey>> \| undefined` | Previous reads for stable-dependency optimization |
+| `__reads` | `Map<object, Set<PropertyKey>> \| undefined` | Per-property read tracking (which props read on which targets) |
+| `effectName` | `string \| undefined` | Optional name for debugging/hooks |
+
 ## Internal Data Structures (WeakMap-based)
 
 | WeakMap | Type | Purpose |
 |---------|------|---------|
-| `parentEffect` | `EffectFunction → EffectFunction` | Effect hierarchy for nested cleanup |
-| `childEffects` | `EffectFunction → Set<EffectFunction>` | Children of an effect |
-| `effectStateReads` | `EffectFunction → WeakMap<object, Set<PropertyKey>>` | Three-level per-property read tracking |
-| `effectDependencies` | `EffectFunction → Set<object>` | Which objects an effect depends on |
 | `proxyCache` | `object → object` | Reuse same Proxy for same target |
-| `subscriberCache` | `object → Set<EffectFunction>` | Fast subscriber lookup by target |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
 | `frozenMethodCache` | `object → Map<PropertyKey, CachedMethod>` | Cached wrapped array methods for frozen objects |
 | `frozenHooksCache` | `object → StateHooks` | Hooks storage for frozen/sealed targets |
@@ -85,7 +96,7 @@ scheduleSubscribersForTarget(target, prop)
     scheduleSubscriber(subscriber, target, prop)
       → addPendingEffect(subscriber)           [prop undefined]
       → scheduleSubscriberWithProp(subscriber)  [prop defined]
-        → checks effectStateReads for matching prop or OWN_KEYS_SYMBOL
+        → checks subscriber.__reads for matching prop or OWN_KEYS_SYMBOL
         → addPendingEffect(subscriber)
   → flushEffects() if batchDepth === 0
 ```
@@ -102,7 +113,7 @@ scheduleSubscribersForTarget(target, prop)
 | `tryRestoreStableDeps` | Short-circuits if deps unchanged (via `depsMatch` → `areDepsStable`) |
 | `removeStaleSubscribers` | Removes effect from targets no longer depended on |
 | `registerNewSubscribers` | Adds effect to newly depended-on targets |
-| `registerChildEffect` | Links effect to `currentEffect` via `parentEffect`/`childEffects` |
+| `registerChildEffect` | Links effect to `currentEffect` via `__parent`/`__children` properties |
 | `attachEffectHooks` | Sets `__hooks` on `EffectFunction` for runtime hook callbacks |
 
 ### Effect Cleanup
@@ -121,13 +132,13 @@ scheduleSubscribersForTarget(target, prop)
 |----------|---------|
 | `flushEffects` | Non-recursive while loop draining `pendingEffects` |
 | `runPendingEffectBatch` | Snapshots + clears `pendingEffects`, runs each via `runEffectIfActive` |
-| `runEffectIfActive` | Guards against disposed effects (checks `effectDependencies`) |
+| `runEffectIfActive` | Guards against disposed effects (checks `effect.__deps`) |
 
 ### Subscriber Storage
 
 | Function | Purpose |
 |----------|---------|
-| `getSubscribers` | Resolves subscriber set: `subscriberCache` → `[SUBSCRIBERS]` symbol → `proxyCacheSubs` → create new |
+| `getSubscribers` | Resolves subscriber set: `[SUBSCRIBERS]` symbol → `proxyCacheSubs` → create new |
 | `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (frozen) |
 | `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol or `proxyCacheSubs` |
 
@@ -177,7 +188,7 @@ scheduleSubscribersForTarget(target, prop)
 3. **Batch depth counting**: `batchDepth` must always return to 0. Incremented before `fn()`, decremented in all paths (success + error).
 4. **Cleanup order**: `cleanupEffect` removes from subscribers and clears `__prevDeps`/`__prevReads`. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).
 5. **`flushEffects` non-recursion**: Uses a while loop draining `pendingEffects`. New effects triggered during flush are added to `pendingEffects` and processed in the same loop iteration.
-6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects are exempt (they have a `parentEffect`).
+6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects are exempt (they have a `__parent`).
 7. **Stable dependency skip**: `updateEffectSubscriptions` compares deps after execution via `tryRestoreStableDeps`. If stable, restores previous tracking structures (skips subscriber teardown/rebuild). If changed, only removes stale subscriber sets.
 8. **Batch dirty target processing**: `dirtyTargets` processed at `batchDepth === 1` (before decrement), so `scheduleSubscribersForTarget` sees `batchDepth > 0` and defers flushing. Processing after decrement would cause premature per-property flushing.
 9. **Tracking-only re-runs**: On effect re-execution, `isTrackingOnly = true` causes `trackDependency` to use `trackReadSilently` instead of `registerEffectRead` — skips subscriber set mutation and hook calls, only records reads for dep comparison.
