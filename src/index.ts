@@ -16,7 +16,6 @@ type ProxyTarget = Record<PropertyKey, unknown>
 
 // Configuration constants
 const CONFIG = {
-	MAX_BATCH_DEPTH: 100,
 	MUTATING_ARRAY_METHODS: [
 		'push',
 		'pop',
