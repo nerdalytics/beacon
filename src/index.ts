@@ -1,4 +1,5 @@
 // Beacon - reactive state management system
+import { composeHook } from './hooks/compose.ts'
 import type { BatchHooks, DeriveHooks, EffectHooks, HookFunction, SingleOrArray, StateHooks } from './types.ts'
 
 // Type definitions
@@ -236,25 +237,6 @@ function tryUnwrap(value: unknown): unknown {
 		// Failed to access PROXY property, likely due to access restrictions
 	}
 	return value
-}
-
-function composeHookInline<Args extends unknown[]>(
-	hook: SingleOrArray<HookFunction<Args>> | undefined
-): HookFunction<Args> | undefined {
-	if (hook == null) return undefined
-	if (typeof hook === 'function') return hook
-	if (hook.length === 0) return undefined
-	if (hook.length === 1) return hook[0]
-	const fns = hook
-	return (...args: Args): void => invokeHookArray(fns, args)
-}
-
-function invokeHookArray<Args extends unknown[]>(fns: HookFunction<Args>[], args: Args): void {
-	for (let i = 0; i < fns.length; i++) {
-		try {
-			fns[i]?.(...args)
-		} catch {}
-	}
 }
 
 function callHookSafe<Args extends unknown[]>(hook: HookFunction<Args> | undefined, ...args: Args): void {
@@ -745,11 +727,11 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	const cached = proxyCache.get(target)
 	if (cached) return cached as T
 
-	const onDelete = composeHookInline(hooks?.onDelete)
-	const onHas = composeHookInline(hooks?.onHas)
-	const onOwnKeys = composeHookInline(hooks?.onOwnKeys)
-	const onRead = composeHookInline(hooks?.onRead)
-	const onWrite = composeHookInline(hooks?.onWrite)
+	const onDelete = composeHook(hooks?.onDelete)
+	const onHas = composeHook(hooks?.onHas)
+	const onOwnKeys = composeHook(hooks?.onOwnKeys)
+	const onRead = composeHook(hooks?.onRead)
+	const onWrite = composeHook(hooks?.onWrite)
 
 	const handler: ProxyHandler<ProxyTarget> = {
 		deleteProperty: createDeleteHandler(onDelete),
@@ -1006,11 +988,11 @@ function registerChildEffect(eff: EffectFunction): void {
 }
 
 export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe {
-	const onRun = composeHookInline(hooks?.onRun)
-	const onDispose = composeHookInline(hooks?.onDispose)
-	const onError = composeHookInline(hooks?.onError)
-	const onDependencyAdd = composeHookInline(hooks?.onDependencyAdd)
-	const onDependencyChange = composeHookInline(
+	const onRun = composeHook(hooks?.onRun)
+	const onDispose = composeHook(hooks?.onDispose)
+	const onError = composeHook(hooks?.onError)
+	const onDependencyAdd = composeHook(hooks?.onDependencyAdd)
+	const onDependencyChange = composeHook(
 		(
 			hooks as
 				| (EffectHooks & {
@@ -1026,7 +1008,7 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 				| undefined
 		)?.onDependencyChange
 	)
-	const onSchedule = composeHookInline(hooks?.onSchedule)
+	const onSchedule = composeHook(hooks?.onSchedule)
 
 	const runEffect: EffectFunction = () => {
 		if (runEffect.__active) return
@@ -1103,9 +1085,9 @@ function handleBatchError(
 }
 
 export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
-	const onBatchStart = composeHookInline(hooks?.onBatchStart)
-	const onBatchEnd = composeHookInline(hooks?.onBatchEnd)
-	const onBatchError = composeHookInline(hooks?.onBatchError)
+	const onBatchStart = composeHook(hooks?.onBatchStart)
+	const onBatchEnd = composeHook(hooks?.onBatchEnd)
+	const onBatchError = composeHook(hooks?.onBatchError)
 
 	batchDepth++
 	const entryDepth = batchDepth
@@ -1219,11 +1201,11 @@ function runDeriveWithErrorHandling<T>(
 }
 
 export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T> {
-	const onCompute = composeHookInline(hooks?.onCompute)
-	const onCacheHit = composeHookInline(hooks?.onCacheHit)
-	const onDeriveDispose = composeHookInline(hooks?.onDispose)
-	const onError = composeHookInline(hooks?.onError)
-	const onDependencyChange = composeHookInline(hooks?.onDependencyChange)
+	const onCompute = composeHook(hooks?.onCompute)
+	const onCacheHit = composeHook(hooks?.onCacheHit)
+	const onDeriveDispose = composeHook(hooks?.onDispose)
+	const onError = composeHook(hooks?.onError)
+	const onDependencyChange = composeHook(hooks?.onDependencyChange)
 
 	const internalState = {
 		lastValue: undefined as T | undefined | null,

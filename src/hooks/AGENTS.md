@@ -46,7 +46,7 @@ Hooks are injected via optional last parameter on each API function:
 - `derive(computeFn, hooks?: DeriveHooks<T>)`
 - `batch(fn, hooks?: BatchHooks)`
 
-The core `index.ts` contains an inline `composeHookInline()` with identical logic — the exported `composeHook` in this module is for external consumers.
+The core `index.ts` imports `composeHook` from this module.
 
 ## Design Constraints
 
