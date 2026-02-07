@@ -320,7 +320,6 @@ function cleanupEffect(effect: EffectFunction): void {
 			const subs = depWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(dep)
 			subs?.delete(effect)
 		}
-		deps.clear()
 		effectDependencies.delete(effect)
 	}
 	effectStateReads.delete(effect)
@@ -333,7 +332,7 @@ function cleanupChildEffect(child: EffectFunction, toCleanup: EffectFunction[]):
 
 	const grandchildren = childEffects.get(child)
 	if (grandchildren) {
-		toCleanup.push(...grandchildren)
+		for (const gc of grandchildren) toCleanup.push(gc)
 		grandchildren.clear()
 		childEffects.delete(child)
 	}
@@ -348,7 +347,7 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 	const toCleanup: EffectFunction[] = []
 	const children = childEffects.get(effect)
 	if (children) {
-		toCleanup.push(...children)
+		for (const c of children) toCleanup.push(c)
 		children.clear()
 		childEffects.delete(effect)
 	}
@@ -735,7 +734,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 
 function disposeChildEffects(eff: EffectFunction): void {
 	const existing = childEffects.get(eff)
-	if (existing?.size && existing.size > 0) {
+	if (existing?.size) {
 		for (const c of existing) {
 			cleanupEffectCompletely(c)
 			existing.delete(c)
