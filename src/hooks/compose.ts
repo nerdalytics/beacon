@@ -8,13 +8,13 @@ export function composeHook<Args extends unknown[]>(
 	if (hook.length === 0) return undefined
 	if (hook.length === 1) return hook[0]
 	const fns = hook
-	return (...args: Args): void => {
-		for (let i = 0; i < fns.length; i++) {
-			try {
-				fns[i]?.(...args)
-			} catch {
-				// Error isolated: hook errors must not break core
-			}
-		}
+	return (...args: Args): void => invokeHookArray(fns, args)
+}
+
+function invokeHookArray<Args extends unknown[]>(fns: HookFunction<Args>[], args: Args): void {
+	for (let i = 0; i < fns.length; i++) {
+		try {
+			fns[i]?.(...args)
+		} catch {}
 	}
 }
