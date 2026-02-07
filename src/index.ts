@@ -42,6 +42,8 @@ let isTrackingOnly = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
 const effectQueue: EffectFunction[] = []
 const deferredEffectCreations: EffectFunction[] = []
+let rerunTempDeps: Set<object> | null = null
+let rerunTempReads: Map<object, Set<PropertyKey>> | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
 
 // WeakMaps for tracking relationships
@@ -172,6 +174,17 @@ function getSubscribers(target: object): Set<EffectFunction> {
 }
 
 function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey, silent: boolean): void {
+	if (silent && rerunTempDeps && rerunTempReads) {
+		rerunTempDeps.add(target)
+		let set = rerunTempReads.get(target)
+		if (!set) {
+			set = new Set<PropertyKey>()
+			rerunTempReads.set(target, set)
+		}
+		set.add(prop)
+		return
+	}
+
 	let deps = effectDependencies.get(eff)
 	if (!deps) {
 		deps = new Set<object>()
@@ -203,6 +216,10 @@ function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey
 }
 
 function didEffectReadProp(effect: EffectFunction, target: object, prop: PropertyKey): boolean {
+	if (rerunTempReads) {
+		const set = rerunTempReads.get(target)
+		return set?.has(prop) ?? false
+	}
 	const map = effectStateReads.get(effect)
 	if (!map) return false
 	const set = map.get(target)
@@ -867,6 +884,38 @@ function buildEffectHooksMap(
 	return map
 }
 
+function tempDepsMatchPrev(
+	tempDeps: Set<object>,
+	tempReads: Map<object, Set<PropertyKey>>,
+	prevDeps: Set<object>,
+	prevReads: WeakMap<object, Set<PropertyKey>>
+): boolean {
+	if (tempDeps.size !== prevDeps.size) return false
+	for (const target of tempDeps) {
+		if (!prevDeps.has(target)) return false
+		const tempProps = tempReads.get(target)
+		const prevProps = prevReads.get(target)
+		if (!tempProps || !prevProps || tempProps.size !== prevProps.size) return false
+		for (const prop of tempProps) {
+			if (!prevProps.has(prop)) return false
+		}
+	}
+	return true
+}
+
+function promoteTempToGlobal(
+	eff: EffectFunction,
+	tempDeps: Set<object>,
+	tempReads: Map<object, Set<PropertyKey>>
+): void {
+	effectDependencies.set(eff, tempDeps)
+	const weakReads = new WeakMap<object, Set<PropertyKey>>()
+	for (const [target, props] of tempReads) {
+		weakReads.set(target, props)
+	}
+	effectStateReads.set(eff, weakReads)
+}
+
 function executeEffectBody(
 	eff: EffectFunction,
 	fn: EffectCallback,
@@ -888,12 +937,29 @@ function executeEffectBody(
 	disposeChildEffects(eff)
 
 	currentEffect = eff
-	effectStateReads.set(eff, new WeakMap<object, Set<PropertyKey>>())
-	effectDependencies.set(eff, new Set<object>())
+
+	if (isFirstRun) {
+		effectStateReads.set(eff, new WeakMap<object, Set<PropertyKey>>())
+		effectDependencies.set(eff, new Set<object>())
+	} else {
+		rerunTempDeps = new Set<object>()
+		rerunTempReads = new Map<object, Set<PropertyKey>>()
+	}
 
 	callHookSafe(onRun, name)
 
 	fn()
+
+	if (!isFirstRun && rerunTempDeps && rerunTempReads && prevDeps && prevReads) {
+		if (tempDepsMatchPrev(rerunTempDeps, rerunTempReads, prevDeps, prevReads)) {
+			rerunTempDeps = null
+			rerunTempReads = null
+			return
+		}
+		promoteTempToGlobal(eff, rerunTempDeps, rerunTempReads)
+		rerunTempDeps = null
+		rerunTempReads = null
+	}
 
 	updateEffectSubscriptions(eff, prevDeps, prevReads)
 }
