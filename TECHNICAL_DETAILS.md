@@ -4,13 +4,15 @@ This document describes the internal implementation details of the Beacon librar
 
 ## Reactive System Architecture
 
-Beacon uses a fine-grained reactivity system with automatic dependency tracking. Here's how the core architecture works:
+Beacon uses a fine-grained reactivity system with automatic dependency tracking. The entire library lives in a single module (`src/index.ts`) as independent `const` function declarations sharing module-level reactive state. This design makes every export tree-shakeable — bundlers can eliminate any primitive a consumer doesn't import.
 
-1. **State Primitives**: Base reactive values that can be read and modified
+Here's how the core architecture works:
+
+1. **State Primitives**: Base reactive values created by a closure factory (`createState`)
 2. **Derived Values**: Computed values that depend on other reactive states
 3. **Effects**: Side effects that run when dependencies change
 4. **Batching**: Optimization for multiple state changes
-5. **Dependency Tracking**: Automatic tracking of dependencies
+5. **Dependency Tracking**: Automatic tracking via module-level WeakMaps
 6. **Selectors**: Targeted subscriptions to subsets of state objects
 
 ### Core API Components
@@ -27,13 +29,15 @@ Beacon's API consists of the following key functions:
 
 ### Dependency Tracking Mechanism
 
+Reactive state is coordinated through 10 module-level variables (5 mutable, 5 WeakMap/Set constants). Each `state()` call returns a closure that captures its own `value`, `subscribers` Set, and `stateId` Symbol, while reading and writing the shared module-level tracking structures.
+
 When an effect or derived state runs:
 
-1. The global `currentSubscriber` variable is set to the current effect
+1. The module-level `currentSubscriber` variable is set to the current effect
 2. Reading any state during execution registers the state as a dependency
 3. A bidirectional relationship is established:
-   - The state keeps track of its subscribers (effects that depend on it)
-   - The effect keeps track of its dependencies (states it depends on)
+   - The state's closure-scoped `subscribers` Set tracks which effects depend on it
+   - The module-level `subscriberDependencies` WeakMap tracks which subscriber sets each effect belongs to
 4. When a state changes, it notifies all its subscribers
 
 ## Cyclical Dependencies
@@ -262,11 +266,12 @@ This system ensures there are no memory leaks from lingering effect subscription
 
 Several optimizations make Beacon efficient:
 
-1. Set-based dependency tracking for fast operations
-2. Value equality checks to prevent unnecessary updates
-3. Specialized handling for small subscriber sets
+1. Closure-based state factory — eliminates class instantiation and method dispatch overhead
+2. Set-based dependency tracking for fast operations
+3. Value equality checks to prevent unnecessary updates
 4. Efficient batching to minimize effect executions
 5. WeakMap for subscriber dependencies to allow garbage collection
+6. Module-level `const` exports with `sideEffects: false` — enables tree-shaking of unused primitives
 
 ---
 
