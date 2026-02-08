@@ -1,10 +1,10 @@
-# Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
+# Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo-v2.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
 
 > Lightweight reactive state management for Node.js backends
 
 [![license:mit](https://flat.badgen.net/static/license/MIT/blue)](https://github.com/nerdalytics/beacon/blob/trunk/LICENSE)
 [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
-[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.2.5)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.2.5)
+[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.3.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.3.0)
 
 [![tech:nodejs](https://img.shields.io/badge/Node%20js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
@@ -58,6 +58,7 @@ A lightweight reactive state library for Node.js backends. Enables reactive stat
 - **Cycle handling** - Safely manages cyclic dependencies without crashing
 - **Infinite loop detection** - Automatically detects and prevents infinite update loops
 - **TypeScript-first** - Full TypeScript support with generics
+- **Tree-shakeable** - Module-level exports let bundlers eliminate unused code
 - **Lightweight** - Zero dependencies
 - **Node.js compatibility** - Works with Node.js LTS v20+ and v22+
 
@@ -444,9 +445,10 @@ Beacon follows these key principles:
 
 ## Architecture
 
-Beacon is built around a centralized reactivity system with fine-grained dependency tracking. Here's how it works:
+Beacon is built around module-level functions and a closure-based state factory with fine-grained dependency tracking. All exports are independent `const` declarations, so bundlers can tree-shake unused primitives. Here's how it works:
 
 - **Automatic Dependency Collection**: When a state is read inside an effect, Beacon automatically records this dependency
+- **Closure-based State**: Each `state()` call returns a closure over its value and subscriber set
 - **WeakMap-based Tracking**: Uses WeakMaps for automatic garbage collection
 - **Topological Updates**: Updates flow through the dependency graph in the correct order
 - **Memory-Efficient**: Designed for long-running Node.js processes
@@ -531,7 +533,7 @@ app.listen(3000);
 
 #### Can Beacon be used in browser applications?
 
-While Beacon is optimized for Node.js server-side applications, its core principles would work in browser environments. However, the library is specifically designed for backend use cases and hasn't been optimized for browser bundle sizes or DOM integration patterns.
+While Beacon is designed for Node.js server-side applications, it works in browser environments too. The library is fully tree-shakeable (`sideEffects: false`), so bundlers like esbuild, Rollup, and webpack will eliminate any primitives you don't import. It has not been optimized for DOM integration patterns.
 
 ## License
 

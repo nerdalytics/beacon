@@ -1,5 +1,5 @@
 {
-	"$schema": "https://nodejs.org/dist/v24.10.0/docs/node-config-schema.json",
+	"$schema": "https://nodejs.org/dist/v24.13.0/docs/node-config-schema.json",
 	"nodeOptions": {
 		"test-coverage-branches": 100,
 		"test-coverage-exclude": [
