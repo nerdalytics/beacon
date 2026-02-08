@@ -56,7 +56,7 @@
 		"url": "git+https://github.com/nerdalytics/beacon.git"
 	},
 	"scripts": {
-		"benchmark": "node scripts/benchmark.ts",
+		"benchmark": "node --expose-gc scripts/benchmark.ts",
 		"benchmark:naiv": "node scripts/naiv-benchmark.ts",
 		"build": "npm run build:lts",
 		"build:lts": "tsc -p tsconfig.lts.json",
