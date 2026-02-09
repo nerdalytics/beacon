@@ -598,12 +598,8 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 	const oldValue = rawTarget[prop]
 	if (Object.is(oldValue, value)) return true
 
-	const isArrayIndex = Array.isArray(rawTarget) && typeof prop === 'string'
-	const oldLength = isArrayIndex ? (rawTarget as unknown as unknown[]).length : undefined
-
 	rawTarget[prop] = value
 
-	// Skip notification bookkeeping if nothing subscribes to this target
 	if (!(rawTarget as SubscribersObject)[SUBSCRIBERS]?.size) return true
 
 	let props = dirtyTargets.get(rawTarget)
@@ -612,10 +608,6 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 		dirtyTargets.set(rawTarget, props)
 	}
 	props.add(prop)
-
-	if (oldLength !== undefined && (rawTarget as unknown as unknown[]).length !== oldLength) {
-		props.add('length')
-	}
 
 	return true
 }
@@ -1075,8 +1067,12 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 
 function flushDirtyTargets(): void {
 	for (const [target, props] of dirtyTargets) {
-		for (const prop of props) {
-			scheduleSubscribersForTarget(target, prop)
+		if (Array.isArray(target)) {
+			scheduleSubscribersForTarget(target)
+		} else {
+			for (const prop of props) {
+				scheduleSubscribersForTarget(target, prop)
+			}
 		}
 	}
 	dirtyTargets.clear()
@@ -1126,9 +1122,29 @@ function handleBatchError(
 }
 
 export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
-	const onBatchStart = composeHook(hooks?.onBatchStart)
-	const onBatchEnd = composeHook(hooks?.onBatchEnd)
-	const onBatchError = composeHook(hooks?.onBatchError)
+	if (!hooks) {
+		batchDepth++
+		let result: T
+		try {
+			result = fn()
+		} catch (err) {
+			batchDepth--
+			if (batchDepth === 0) clearBatchState()
+			throw err
+		}
+		if (batchDepth === 1 && dirtyTargets.size > 0) {
+			flushDirtyTargets()
+		}
+		batchDepth--
+		if (batchDepth === 0) {
+			flushBatchEffects()
+		}
+		return result
+	}
+
+	const onBatchStart = composeHook(hooks.onBatchStart)
+	const onBatchEnd = composeHook(hooks.onBatchEnd)
+	const onBatchError = composeHook(hooks.onBatchError)
 
 	batchDepth++
 	const entryDepth = batchDepth
