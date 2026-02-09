@@ -1,7 +1,9 @@
 import { performance } from 'node:perf_hooks'
+import { parseArgs } from 'node:util'
 import type { ComputedValue, Unsubscribe } from '../src/index.ts'
 import { batch, derive, effect, state } from '../src/index.ts'
 
+const DEFAULT_RUN_COUNT = 10
 const LOOP_LENGTH = 1_000_000
 const ERROR_FREQUENCY = 1000
 const WARMUP_RUNS = 3
@@ -18,6 +20,23 @@ const SINGLE_SUB_WRITES = 100_000
 const MANY_SUB_COUNT = 100
 const MANY_SUB_WRITES = 10_000
 
+const {
+	values,
+}: {
+	values: {
+		'run-count'?: string
+	}
+} = parseArgs({
+	options: {
+		'run-count': {
+			short: 'R',
+			type: 'string',
+		},
+	},
+	strict: false,
+})
+const RUN_COUNT: number = values['run-count'] ? Number(values['run-count']) : DEFAULT_RUN_COUNT
+
 const forceGC = (): void => {
 	if (global.gc) {
 		global.gc()
@@ -25,6 +44,51 @@ const forceGC = (): void => {
 }
 
 type BenchmarkFn = () => number
+type BenchResult = {
+	heapDeltas: number[]
+	times: number[]
+}
+
+function collectBench(fn: BenchmarkFn): BenchResult {
+	for (let i = 0; i < WARMUP_RUNS; i++) fn()
+	const times: number[] = []
+	const heapDeltas: number[] = []
+	for (let i = 0; i < BENCH_RUNS; i++) {
+		forceGC()
+		const heapBefore = process.memoryUsage().heapUsed
+		times.push(fn())
+		const heapAfter = process.memoryUsage().heapUsed
+		heapDeltas.push(heapAfter - heapBefore)
+	}
+	return {
+		heapDeltas,
+		times,
+	}
+}
+
+function printResult(name: string, result: BenchResult): void {
+	const times = result.times.slice().sort((a: number, b: number): number => a - b)
+	const heaps = result.heapDeltas.slice().sort((a: number, b: number): number => a - b)
+	const median = times[Math.floor(times.length / 2)]
+	const min = times[0]
+	const max = times[times.length - 1]
+	const mean = times.reduce((a: number, b: number): number => a + b, 0) / times.length
+	const sd = Math.sqrt(times.reduce((sum: number, v: number): number => sum + (v - mean) ** 2, 0) / times.length)
+	const heapMedian = Math.round(heaps[Math.floor(heaps.length / 2)] / 1024)
+
+	let totalT = 0
+	for (const t of result.times) totalT += t
+	const avgT = totalT / RUN_COUNT
+
+	let totalM = 0
+	for (const h of result.heapDeltas) totalM += h
+	totalM = Math.round(totalM / 1024)
+	const avgM = Math.round(totalM / RUN_COUNT)
+
+	console.info(
+		`${name}:  med=${median.toFixed(2)}ms  min=${min.toFixed(2)}ms  max=${max.toFixed(2)}ms  sd=${sd.toFixed(2)}ms  heap=${heapMedian}kb  total_t=${totalT.toFixed(2)}ms  avg_t=${avgT.toFixed(2)}ms  total_m=${totalM}kb  avg_m=${avgM}kb`
+	)
+}
 
 function classicLoop(): number {
 	const start = performance.now()
@@ -136,30 +200,6 @@ function batchPlusDerivePlusEffects(): number {
 	d1()
 	d2()
 	return end - start
-}
-
-function runBench(name: string, fn: BenchmarkFn): void {
-	for (let i = 0; i < WARMUP_RUNS; i++) fn()
-	const results: number[] = []
-	const heapDeltas: number[] = []
-	for (let i = 0; i < BENCH_RUNS; i++) {
-		forceGC()
-		const heapBefore = process.memoryUsage().heapUsed
-		results.push(fn())
-		const heapAfter = process.memoryUsage().heapUsed
-		heapDeltas.push(heapAfter - heapBefore)
-	}
-	results.sort((a: number, b: number): number => a - b)
-	heapDeltas.sort((a: number, b: number): number => a - b)
-	const median = results[Math.floor(results.length / 2)]
-	const min = results[0]
-	const max = results[results.length - 1]
-	const mean = results.reduce((a: number, b: number): number => a + b, 0) / results.length
-	const sd = Math.sqrt(results.reduce((sum: number, v: number): number => sum + (v - mean) ** 2, 0) / results.length)
-	const heapMedian = Math.round(heapDeltas[Math.floor(heapDeltas.length / 2)] / 1024)
-	console.info(
-		`${name}:  med=${median.toFixed(2)}ms  min=${min.toFixed(2)}ms  max=${max.toFixed(2)}ms  sd=${sd.toFixed(2)}ms  heap=${heapMedian}kb`
-	)
 }
 
 function stateCreation(): number {
@@ -360,24 +400,135 @@ function update100StatesBatched(): number {
 	return end - start
 }
 
-console.info(`=== Beacon Benchmark (${LOOP_LENGTH.toLocaleString()} iterations) ===`)
+type SuiteEntry =
+	| {
+			fn: BenchmarkFn
+			name: string
+	  }
+	| {
+			header: string
+	  }
+
+const suite: SuiteEntry[] = [
+	{
+		fn: classicLoop,
+		name: 'classic loop              ',
+	},
+	{
+		fn: stateNoSubscribers,
+		name: 'state no subs             ',
+	},
+	{
+		fn: statePlusDeriveNoEffects,
+		name: 'state + derive            ',
+	},
+	{
+		fn: statePlusDerivePlusEffects,
+		name: 'state + derive + 2 effects',
+	},
+	{
+		fn: batchPlusDeriveNoEffects,
+		name: 'batch + derive            ',
+	},
+	{
+		fn: batchPlusDerivePlusEffects,
+		name: 'batch + derive + 2 effects',
+	},
+	{
+		header: '--- Targeted benchmarks ---',
+	},
+	{
+		fn: stateCreation,
+		name: 'state creation            ',
+	},
+	{
+		fn: stateReadNoEffect,
+		name: 'state read (no effect)    ',
+	},
+	{
+		fn: stateWrite1Sub,
+		name: 'state write 1 sub         ',
+	},
+	{
+		fn: stateWrite100Subs,
+		name: 'state write 100 subs      ',
+	},
+	{
+		fn: effectTriggers,
+		name: 'effect triggers           ',
+	},
+	{
+		fn: manyDependencies,
+		name: 'many dependencies         ',
+	},
+	{
+		fn: deriveChainDepth10,
+		name: 'derive chain depth 10     ',
+	},
+	{
+		fn: update100StatesIndividual,
+		name: '100 states individual     ',
+	},
+	{
+		fn: update100StatesBatched,
+		name: '100 states batched        ',
+	},
+]
+
+const totalSamples: number = RUN_COUNT * BENCH_RUNS
+console.info(
+	`=== Beacon Benchmark (${LOOP_LENGTH.toLocaleString()} iterations, ${RUN_COUNT} cycles × ${BENCH_RUNS} samples = ${totalSamples} total) ===`
+)
 console.info('')
-runBench('classic loop              ', classicLoop)
-runBench('state no subs             ', stateNoSubscribers)
-runBench('state + derive            ', statePlusDeriveNoEffects)
-runBench('state + derive + 2 effects', statePlusDerivePlusEffects)
-runBench('batch + derive            ', batchPlusDeriveNoEffects)
-runBench('batch + derive + 2 effects', batchPlusDerivePlusEffects)
+
+const accumulated: Map<string, BenchResult> = new Map<string, BenchResult>()
+
+for (let cycle = 0; cycle < RUN_COUNT; cycle++) {
+	process.stderr.write(`Cycle ${cycle + 1}/${RUN_COUNT}...\n`)
+	for (const entry of suite) {
+		if ('header' in entry) continue
+		const { fn, name } = entry
+		const result = collectBench(fn)
+		const existing = accumulated.get(name)
+		if (existing) {
+			for (const t of result.times) existing.times.push(t)
+			for (const h of result.heapDeltas) existing.heapDeltas.push(h)
+		} else {
+			accumulated.set(name, {
+				heapDeltas: [
+					...result.heapDeltas,
+				],
+				times: [
+					...result.times,
+				],
+			})
+		}
+	}
+}
+
+let grandTotalTime = 0
+let grandTotalMem = 0
+
+for (const entry of suite) {
+	if ('header' in entry) {
+		console.info('')
+		console.info(entry.header)
+		console.info('')
+		continue
+	}
+	const result = accumulated.get(entry.name)
+	if (result) {
+		printResult(entry.name, result)
+		for (const t of result.times) grandTotalTime += t
+		for (const h of result.heapDeltas) grandTotalMem += h
+	}
+}
+
+const grandTotalMemKb: number = Math.round(grandTotalMem / 1024)
+const avgTimePerCycle: number = grandTotalTime / RUN_COUNT
+const avgMemPerCycle: number = Math.round(grandTotalMemKb / RUN_COUNT)
 
 console.info('')
-console.info('--- Targeted benchmarks ---')
-console.info('')
-runBench('state creation            ', stateCreation)
-runBench('state read (no effect)    ', stateReadNoEffect)
-runBench('state write 1 sub         ', stateWrite1Sub)
-runBench('state write 100 subs      ', stateWrite100Subs)
-runBench('effect triggers           ', effectTriggers)
-runBench('many dependencies         ', manyDependencies)
-runBench('derive chain depth 10     ', deriveChainDepth10)
-runBench('100 states individual     ', update100StatesIndividual)
-runBench('100 states batched        ', update100StatesBatched)
+console.info(
+	`Total: ${(grandTotalTime / 1000).toFixed(1)}s  Avg/cycle: ${(avgTimePerCycle / 1000).toFixed(1)}s  Total mem: ${grandTotalMemKb}kb  Avg mem/cycle: ${avgMemPerCycle}kb`
+)
