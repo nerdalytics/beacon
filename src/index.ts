@@ -43,6 +43,10 @@ const effectQueue: EffectFunction[] = []
 const deferredEffectCreations: EffectFunction[] = []
 let rerunTempDeps: Set<object> | null = null
 let rerunTempReads: Map<object, Set<PropertyKey>> | null = null
+let rerunReadList: (object | PropertyKey)[] | null = null
+let rerunReadIndex = 0
+let rerunStable = false
+let buildingReadList: (object | PropertyKey)[] | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
 
 // Proxy caching
@@ -88,6 +92,7 @@ type EffectFunction = {
 	__parent?: EffectFunction | undefined
 	__prevDeps?: Set<object> | undefined
 	__prevReads?: Map<object, Set<PropertyKey>> | undefined
+	__readList?: (object | PropertyKey)[] | undefined
 	__reads?: Map<object, Set<PropertyKey>> | undefined
 	effectName?: string
 }
@@ -153,8 +158,28 @@ function getSubscribers(target: object): Set<EffectFunction> {
 	return subscriberSet
 }
 
-function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey, silent: boolean): void {
-	if (silent && rerunTempDeps && rerunTempReads) {
+function replayReadListToTempCollections(list: (object | PropertyKey)[], endIndex: number): void {
+	rerunTempDeps = new Set<object>()
+	rerunTempReads = new Map<object, Set<PropertyKey>>()
+	for (let j = 0; j < endIndex; j += 2) {
+		const t = list[j] as object
+		const p = list[j + 1] as PropertyKey
+		rerunTempDeps.add(t)
+		let s = rerunTempReads.get(t)
+		if (!s) {
+			s = new Set<PropertyKey>()
+			rerunTempReads.set(t, s)
+		}
+		s.add(p)
+	}
+}
+
+function readListMatchesRead(list: (object | PropertyKey)[], target: object, prop: PropertyKey): boolean {
+	return rerunReadIndex < list.length && list[rerunReadIndex] === target && list[rerunReadIndex + 1] === prop
+}
+
+function recordSilentRead(target: object, prop: PropertyKey): void {
+	if (rerunTempDeps && rerunTempReads) {
 		rerunTempDeps.add(target)
 		let set = rerunTempReads.get(target)
 		if (!set) {
@@ -162,6 +187,21 @@ function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey
 			rerunTempReads.set(target, set)
 		}
 		set.add(prop)
+		if (buildingReadList) buildingReadList.push(target, prop)
+	}
+}
+
+function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey, silent: boolean): void {
+	if (silent) {
+		if (rerunStable && rerunReadList) {
+			if (readListMatchesRead(rerunReadList, target, prop)) {
+				rerunReadIndex += 2
+				return
+			}
+			rerunStable = false
+			replayReadListToTempCollections(rerunReadList, rerunReadIndex)
+		}
+		recordSilentRead(target, prop)
 		return
 	}
 
@@ -199,6 +239,12 @@ function didEffectReadProp(effect: EffectFunction, target: object, prop: Propert
 	if (rerunTempReads) {
 		const set = rerunTempReads.get(target)
 		return set?.has(prop) ?? false
+	}
+	if (rerunStable && rerunReadList) {
+		for (let j = 0; j < rerunReadIndex; j += 2) {
+			if (rerunReadList[j] === target && rerunReadList[j + 1] === prop) return true
+		}
+		return false
 	}
 	const map = effect.__reads
 	if (!map) return false
@@ -311,6 +357,7 @@ function cleanupEffect(effect: EffectFunction): void {
 		}
 		effect.__deps = undefined
 	}
+	effect.__readList = undefined
 	effect.__reads = undefined
 	effect.__prevDeps = undefined
 	effect.__prevReads = undefined
@@ -828,6 +875,7 @@ function cleanupEffectOnError(eff: EffectFunction): void {
 	removeEffectFromSubscribers(eff, eff.__prevDeps)
 	removeEffectFromSubscribers(eff, eff.__deps)
 	eff.__deps = undefined
+	eff.__readList = undefined
 	eff.__reads = undefined
 	pendingEffects.delete(eff)
 	eff.__prevDeps = undefined
@@ -926,6 +974,55 @@ function promoteTempToGlobal(
 	eff.__reads = tempReads
 }
 
+function clearRerunState(): void {
+	rerunReadList = null
+	rerunReadIndex = 0
+	rerunStable = false
+	rerunTempDeps = null
+	rerunTempReads = null
+	buildingReadList = null
+}
+
+function handleReadListMismatch(eff: EffectFunction): void {
+	if (rerunReadList) {
+		if (rerunStable) {
+			rerunStable = false
+			replayReadListToTempCollections(rerunReadList, rerunReadIndex)
+		}
+		eff.__readList = undefined
+		rerunReadList = null
+		rerunReadIndex = 0
+	}
+}
+
+function handleRerunResult(
+	eff: EffectFunction,
+	prevDeps: Set<object>,
+	prevReads: Map<object, Set<PropertyKey>>
+): boolean {
+	if (rerunStable && rerunReadList && rerunReadIndex === rerunReadList.length) {
+		clearRerunState()
+		return true
+	}
+
+	handleReadListMismatch(eff)
+
+	if (rerunTempDeps && rerunTempReads) {
+		if (tempDepsMatchPrev(rerunTempDeps, rerunTempReads, prevDeps, prevReads)) {
+			if (buildingReadList) {
+				eff.__readList = buildingReadList
+			}
+			clearRerunState()
+			return true
+		}
+		promoteTempToGlobal(eff, rerunTempDeps, rerunTempReads)
+		eff.__readList = undefined
+	}
+
+	clearRerunState()
+	return false
+}
+
 function executeEffectBody(
 	eff: EffectFunction,
 	fn: EffectCallback,
@@ -952,23 +1049,27 @@ function executeEffectBody(
 		eff.__reads = new Map<object, Set<PropertyKey>>()
 		eff.__deps = new Set<object>()
 	} else {
-		rerunTempDeps = new Set<object>()
-		rerunTempReads = new Map<object, Set<PropertyKey>>()
+		const existingReadList = eff.__readList
+		if (existingReadList) {
+			rerunReadList = existingReadList
+			rerunReadIndex = 0
+			rerunStable = true
+			buildingReadList = null
+		} else {
+			rerunTempDeps = new Set<object>()
+			rerunTempReads = new Map<object, Set<PropertyKey>>()
+			buildingReadList = []
+			rerunReadList = null
+			rerunStable = false
+		}
 	}
 
 	callHookSafe(onRun, name)
 
 	fn()
 
-	if (!isFirstRun && rerunTempDeps && rerunTempReads && prevDeps && prevReads) {
-		if (tempDepsMatchPrev(rerunTempDeps, rerunTempReads, prevDeps, prevReads)) {
-			rerunTempDeps = null
-			rerunTempReads = null
-			return
-		}
-		promoteTempToGlobal(eff, rerunTempDeps, rerunTempReads)
-		rerunTempDeps = null
-		rerunTempReads = null
+	if (!isFirstRun && prevDeps && prevReads) {
+		if (handleRerunResult(eff, prevDeps, prevReads)) return
 	}
 
 	updateEffectSubscriptions(eff, prevDeps, prevReads)
