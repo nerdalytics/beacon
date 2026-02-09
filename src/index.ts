@@ -219,21 +219,24 @@ function findSubscribers(target: object): Set<EffectFunction> | undefined {
 }
 
 function addPendingEffect(subscriber: EffectFunction): void {
-	if (pendingEffects.has(subscriber)) return
+	const prevSize = pendingEffects.size
 	pendingEffects.add(subscriber)
-	if (subscriber.__hooks?.onSchedule) {
+	if (pendingEffects.size === prevSize) return
+	const onSchedule = subscriber.__hooks?.onSchedule
+	if (onSchedule) {
 		try {
-			subscriber.__hooks.onSchedule(subscriber.effectName)
+			onSchedule(subscriber.effectName)
 		} catch {}
 	}
 }
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
-	if (pendingEffects.has(subscriber) && !subscriber.__hooks?.onDependencyChange) return
+	const hooks = subscriber.__hooks
+	if (pendingEffects.has(subscriber) && !hooks?.onDependencyChange) return
 	const set = subscriber.__reads?.get(target)
 	if (!set?.has(prop) && !set?.has(OWN_KEYS_SYMBOL)) return
 	addPendingEffect(subscriber)
-	callHookSafe(subscriber.__hooks?.onDependencyChange, target, prop)
+	if (hooks?.onDependencyChange) callHookSafe(hooks.onDependencyChange, target, prop)
 }
 
 function scheduleSubscriber(subscriber: EffectFunction, target: object, prop: PropertyKey | undefined): void {
@@ -267,6 +270,12 @@ function runEffectIfActive(effect: EffectFunction): void {
 }
 
 function runPendingEffectBatch(): void {
+	if (pendingEffects.size === 1) {
+		const eff = pendingEffects.values().next().value as EffectFunction
+		pendingEffects.clear()
+		runEffectIfActive(eff)
+		return
+	}
 	for (const eff of pendingEffects) effectQueue.push(eff)
 	pendingEffects.clear()
 
