@@ -687,6 +687,20 @@ function createSetHandler<T>(
 			if (batchDepth > 0 && !currentEffect) {
 				return handleBatchFastPath(rawTarget, prop, value)
 			}
+			if (!currentEffect) {
+				const oldValue = rawTarget[prop]
+				if (Object.is(oldValue, value)) return true
+				const subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+				if (!subs?.size) {
+					rawTarget[prop] = value
+					return true
+				}
+				const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
+				rawTarget[prop] = value
+				scheduleSubscribersForTarget(rawTarget, prop)
+				notifyLengthChangeIfNeeded(rawTarget, oldLength)
+				return true
+			}
 			return performWrite(rawTarget, prop, value, undefined)
 		}
 	}
