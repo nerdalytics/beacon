@@ -18,6 +18,12 @@ const SINGLE_SUB_WRITES = 100_000
 const MANY_SUB_COUNT = 100
 const MANY_SUB_WRITES = 10_000
 
+const forceGC = (): void => {
+	if (global.gc) {
+		global.gc()
+	}
+}
+
 type BenchmarkFn = () => number
 
 function classicLoop(): number {
@@ -135,15 +141,24 @@ function batchPlusDerivePlusEffects(): number {
 function runBench(name: string, fn: BenchmarkFn): void {
 	for (let i = 0; i < WARMUP_RUNS; i++) fn()
 	const results: number[] = []
-	for (let i = 0; i < BENCH_RUNS; i++) results.push(fn())
+	const heapDeltas: number[] = []
+	for (let i = 0; i < BENCH_RUNS; i++) {
+		forceGC()
+		const heapBefore = process.memoryUsage().heapUsed
+		results.push(fn())
+		const heapAfter = process.memoryUsage().heapUsed
+		heapDeltas.push(heapAfter - heapBefore)
+	}
 	results.sort((a: number, b: number): number => a - b)
+	heapDeltas.sort((a: number, b: number): number => a - b)
 	const median = results[Math.floor(results.length / 2)]
 	const min = results[0]
 	const max = results[results.length - 1]
 	const mean = results.reduce((a: number, b: number): number => a + b, 0) / results.length
 	const sd = Math.sqrt(results.reduce((sum: number, v: number): number => sum + (v - mean) ** 2, 0) / results.length)
+	const heapMedian = Math.round(heapDeltas[Math.floor(heapDeltas.length / 2)] / 1024)
 	console.info(
-		`${name}:  med=${median.toFixed(2)}ms  min=${min.toFixed(2)}ms  max=${max.toFixed(2)}ms  sd=${sd.toFixed(2)}ms`
+		`${name}:  med=${median.toFixed(2)}ms  min=${min.toFixed(2)}ms  max=${max.toFixed(2)}ms  sd=${sd.toFixed(2)}ms  heap=${heapMedian}kb`
 	)
 }
 
