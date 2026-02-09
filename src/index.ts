@@ -776,6 +776,14 @@ function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: State
 	}
 }
 
+const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
+	deleteProperty: createDeleteHandler(undefined),
+	get: createGetHandler(undefined, undefined),
+	has: createHasHandler(undefined),
+	ownKeys: createOwnKeysHandler(undefined),
+	set: createSetHandler(undefined),
+}
+
 export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	if (initial === null || initial === undefined || typeof initial !== 'object') return initial
 
@@ -787,11 +795,18 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	const cached = proxyCache.get(target)
 	if (cached) return cached as T
 
-	const onDelete = composeHook(hooks?.onDelete)
-	const onHas = composeHook(hooks?.onHas)
-	const onOwnKeys = composeHook(hooks?.onOwnKeys)
-	const onRead = composeHook(hooks?.onRead)
-	const onWrite = composeHook(hooks?.onWrite)
+	if (!hooks) {
+		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
+		proxyCache.set(target, proxy)
+		defineProxyProperties(target, proxy, undefined)
+		return proxy
+	}
+
+	const onDelete = composeHook(hooks.onDelete)
+	const onHas = composeHook(hooks.onHas)
+	const onOwnKeys = composeHook(hooks.onOwnKeys)
+	const onRead = composeHook(hooks.onRead)
+	const onWrite = composeHook(hooks.onWrite)
 
 	const handler: ProxyHandler<ProxyTarget> = {
 		deleteProperty: createDeleteHandler(onDelete),
