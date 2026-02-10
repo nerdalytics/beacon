@@ -23,15 +23,9 @@ Implemented in `property-same-value.test.ts`.
 
 ---
 
-### 3. Batch Effect Deduplication
+### 3. Batch Effect Deduplication — Done
 
-**Gap**: `batch-integration.test.ts` tests fixed update patterns only.
-
-**Property**: For any N writes to the same property within a batch, subscribed effects fire at most once when the
-batch completes — and only if the final value differs from the initial value.
-
-**Value**: Discovers edge cases like writing the same value multiple times, writing back to the original, or
-sequences that return to the initial value via intermediate changes.
+Implemented in `property-batch-dedup.test.ts`.
 
 ---
 
