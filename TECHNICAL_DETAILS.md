@@ -1,18 +1,16 @@
 # Beacon Technical Details
 
-This document describes the internal implementation details of the Beacon library. It's intended for developers who want to understand how Beacon works under the hood or need to troubleshoot advanced scenarios.
-
 ## Migration from v1000.x to v2000.0.0
 
-Version 2000.0.0 represents a major architectural shift from function-based to Proxy-based reactive state:
+Version 2000.0.0 shifts from function-based to Proxy-based reactive state.
 
 ### Key Changes
 
-1. **Natural JavaScript Syntax**: Instead of `state()` function calls, use direct property access
-2. **Proxy-based Reactivity**: All state objects are wrapped in Proxies for automatic tracking
-3. **Per-property Tracking**: Dependencies are tracked at the property level, not object level
-4. **Always-eager Computed Values**: Removed lazy evaluation complexity for simpler mental model
-5. **Removed APIs**: `select`, `lens`, `readonlyState`, `protectedState` are no longer available
+1. **Natural JavaScript Syntax**: Direct property access instead of `state()` function calls
+2. **Proxy-based Reactivity**: All state objects wrapped in Proxies for automatic tracking
+3. **Per-property Tracking**: Dependencies tracked at the property level, not object level
+4. **Always-eager Computed Values**: No lazy evaluation; simpler mental model
+5. **Removed APIs**: `select`, `lens`, `readonlyState`, `protectedState` are gone
 
 ### API Comparison
 
@@ -24,59 +22,38 @@ Version 2000.0.0 represents a major architectural shift from function-based to P
 | `derive(() => count() * 2)` | `derive(() => signal.count * 2)` |
 | Returns function | Returns `{ value: T }` |
 
-## Reactive System Architecture
+## Dependency Tracking
 
-Beacon uses a Proxy-based fine-grained reactivity system with automatic dependency tracking. Here's how the core architecture works:
+When an effect or derived value runs:
 
-1. **State Primitives**: Proxy-wrapped reactive objects with natural JavaScript syntax
-2. **Derived Values**: Computed values that eagerly update when dependencies change
-3. **Effects**: Side effects that run when dependencies change
-4. **Batching**: Optimization for multiple state changes
-5. **Per-Property Tracking**: Fine-grained dependency tracking at the property level
-
-### Core API Components
-
-Beacon's API consists of the following key functions:
-
-- **state**: Creates a reactive Proxy object that tracks property access and mutations
-- **derive**: Creates an eagerly-computed value that updates when dependencies change
-- **effect**: Registers side effects that run when dependencies change
-- **batch**: Groups multiple updates to optimize performance
-
-### Dependency Tracking Mechanism
-
-When an effect or derived state runs:
-
-1. The global `currentEffect` variable is set to the current effect
+1. The global `currentEffect` variable is set to the running effect
 2. Proxy get/has/ownKeys traps track property access at a granular level
-3. A three-level tracking system is established:
+3. A three-level tracking system records dependencies:
    - Per-property reads: `WeakMap<Subscriber, WeakMap<object, Set<PropertyKey>>>()`
-   - Dependency objects: `WeakMap<Subscriber, Set<object>>()`  
-   - Subscriber sets: Stored on objects via Symbol or in WeakMap fallback
-4. When a property changes, only effects that read that specific property are notified
+   - Dependency objects: `WeakMap<Subscriber, Set<object>>()`
+   - Subscriber sets: stored on objects via Symbol or in WeakMap fallback
+4. When a property changes, only effects that read that specific property run
 
-### Computed Values (derive)
-
-The `derive()` function creates eagerly-evaluated computed values:
+## Computed Values (derive)
 
 ```typescript
 export function derive<T>(computeFn: () => T): ComputedValue<T>
 ```
 
-Key implementation details:
+Implementation details:
 
 1. **Eager Evaluation**: Computes immediately when dependencies change
-2. **Circular Dependency Detection**: Throws error if computation creates a cycle
+2. **Circular Dependency Detection**: Throws if computation creates a cycle
 3. **Value Caching**: Stores the computed value to avoid recalculation
-4. **Proxy Wrapper**: Returns a Proxy with a `value` getter for consistency
+4. **Proxy Wrapper**: Returns a Proxy with a `value` getter
 5. **Effect-based Updates**: Uses an internal effect to track dependencies
-6. **Batch Optimization**: When multiple dependencies change within a batch, derive only recomputes once
+6. **Batch Optimization**: Recomputes once per batch, not once per dependency change
 
-The computed value acts as both a subscriber (to its dependencies) and a publisher (to effects that read it).
+A computed value acts as both subscriber (to its dependencies) and publisher (to effects that read it).
 
-#### Batch Optimization for Derive
+### Batch Interaction
 
-One of the most significant performance optimizations is how derive functions interact with batching:
+Derive functions recompute once per batch instead of once per dependency change:
 
 ```typescript
 // Without batch: derive recomputes for each dependency change
@@ -94,62 +71,49 @@ batch(() => {
 // Total: 1 recomputation
 ```
 
-This optimization is particularly valuable for complex computations like filtering and sorting large datasets. A derive function that depends on multiple filter criteria will only recompute once when all criteria are updated together in a batch, reducing recomputations from N to 1.
+A derive that depends on multiple filter criteria recomputes once when all criteria change together in a batch, reducing N recomputations to 1.
 
 Note: This optimization applies when updating multiple independent sources. For a single source mutation feeding into a derive chain, consistency is guaranteed without batch — effects run in Set insertion order, which matches creation order, which necessarily matches dependency order (you can't reference a derive before it exists).
 
 ## Cyclical Dependencies
 
-Beacon uses a queue-based update propagation mechanism that handles cyclical dependencies without crashing. Here's what you should know:
+Beacon uses queue-based update propagation to handle cyclical dependencies:
 
-### How Beacon Handles Cycles
+- **Non-recursive propagation**: Updates are processed in a queue, preventing stack overflows
+- **Value equality checks**: Updates only trigger when values actually change, breaking potential loops
 
-- **Non-recursive propagation**: Updates are processed in a queue, preventing stack overflows even with cycles
-- **Value equality checks**: Updates only trigger when values actually change, which helps break potential loops
-- **Queue-based processing**: All pending effects are collected first, then processed in batches
+### Process Flow
 
-This approach has several benefits:
-- Prevents stack overflows that would occur with recursive propagation
-- Naturally handles cycles that eventually stabilize
-- Ensures consistent propagation of changes through the dependency graph
+When a state property changes:
 
-### Behavior with Different Types of Cycles
+1. The state checks if the new value differs (using `Object.is`)
+2. If different, it adds all subscribers to a global `pendingSubscribers` set
+3. If not in a batch, `notifySubscribers` processes all pending effects
+4. If any effect triggers further updates, those are added to the queue
+5. Processing continues until no more effects fire
 
-1. **Simple cycles with stable values**: If values converge (reach a stable point), the system will naturally stop updating
-2. **Mathematical feedback loops**: Systems where values grow or shrink with each cycle will exhibit different behaviors:
-   - Values converging to zero will eventually stop due to floating-point precision
-   - Values growing unbounded will continue until reaching JavaScript limits (e.g., Infinity)
-   - Systems with a stable point (like a factor of 1.0) will stop updating quickly
+### Behavior with Different Cycle Types
 
-### Detailed Process Flow
-
-When a state's value changes, the following happens:
-
-1. The state checks if the new value is different (using `Object.is`)
-2. If different, it adds all its subscribers to a global `pendingSubscribers` set
-3. If not in a batch operation, the `notifySubscribers` function runs
-4. `notifySubscribers` processes all pending effects in the queue
-5. If any effect triggers further updates, those are added to the queue
-6. Processing continues until no more effects are triggered
-
-This approach ensures that even with cyclical dependencies, the updates will process correctly without causing infinite recursion or stack overflows.
+1. **Converging values**: The system stops when values stabilize
+2. **Mathematical feedback loops**:
+   - Values converging to zero stop at floating-point precision limits
+   - Values growing unbounded continue until reaching JavaScript limits (e.g., Infinity)
+   - Systems with a stable point (like a factor of 1.0) stop quickly
 
 ## Infinite Loop Detection
 
-Beacon implements robust infinite loop detection to prevent runaway updates that would otherwise crash applications. This mechanism specifically targets direct self-mutation patterns, where an effect reads from a state and then immediately updates that same state.
+Beacon detects direct self-mutation — where an effect reads from a state and then writes to that same state.
 
-### How Infinite Loop Detection Works
-
-When an effect runs, Beacon tracks which states it reads from using the `stateTracking` system. Before a state update completes, Beacon checks if:
+When an effect runs, Beacon tracks which states it reads via the `stateTracking` system. Before a state update completes, Beacon checks:
 
 1. The update is happening inside an effect
-2. The effect has read from the same state it's now trying to update
-3. The effect is not part of a nested effect chain (which would be a legitimate use case)
+2. The effect read from the same state it now writes to
+3. The effect is not part of a nested effect chain (a legitimate use case)
 
-If these conditions are met, Beacon throws an error: "Infinite loop detected: effect() cannot update a state() it depends on!"
+If all three hold, Beacon throws: "Infinite loop detected: effect() cannot update a state() it depends on!"
 
 ```typescript
-// This pattern will throw an error
+// This throws
 effect(() => {
   const value = signal.count;
   signal.count = value + 1; // Error: Infinite loop detected!
@@ -158,107 +122,74 @@ effect(() => {
 
 ### Direct vs. Indirect Cycles
 
-It's important to understand the difference between:
-
-1. **Direct infinite loops**: An effect reads and writes to the same state (blocked with error)
-2. **Cyclic dependencies**: Multiple states form update cycles through different effects (allowed but managed)
+Direct infinite loops (an effect reads and writes the same state) throw an error. Cyclic dependencies across different effects are allowed:
 
 ```typescript
-// DIRECT LOOP - BLOCKED WITH ERROR
+// DIRECT LOOP — BLOCKED
 effect(() => {
   const value = signal.count;
   signal.count = value + 1; // Error thrown
 });
 
-// INDIRECT CYCLE - ALLOWED WITH SAFE HANDLING
+// INDIRECT CYCLE — ALLOWED
 effect(() => {
-  target.value = source.value * 2; // Safe: reading source, updating target
+  target.value = source.value * 2; // reads source, updates target
 });
 
 effect(() => {
-  source.value = target.value / 2; // Safe: different effect
+  source.value = target.value / 2; // different effect
 });
 ```
 
-### Safe Patterns for Avoiding Infinite Loops
+### Safe Patterns
 
-Beacon allows several patterns that appear cyclical but are actually safe:
-
-1. **Separate states pattern**: Use separate source and target states
+1. **Separate states**: Read from one state, write to another
    ```typescript
    effect(() => {
-     // Read from source, write to target
      target.value = source.value * 2;
    });
    ```
 
-2. **Derived values pattern**: Use derive() for computed values
+2. **Derived values**: Use `derive()` for computed values
    ```typescript
    const doubled = derive(() => source.value * 2);
    ```
 
-3. **Conditional update pattern**: Only update when specific conditions are met
+3. **Conditional updates**: Only write when the value changes significantly
    ```typescript
    effect(() => {
      const newValue = calculate();
-     // Only update if significantly different
      if (Math.abs(newValue - state.value) > 0.01) {
        state.value = newValue;
      }
    });
    ```
 
-4. **Complete cycles with stabilization**: Cycles that eventually stabilize
+4. **Stabilizing cycles**: Multi-effect cycles that converge
    ```typescript
-   // A → B → C → A cycle that stabilizes
    effect(() => { signalB.value = signalA.value * 2 });
    effect(() => { signalC.value = signalB.value + 5 });
    effect(() => {
      const newA = signalC.value / 5;
-     // Stabilization condition
      if (Math.abs(newA - signalA.value) > 0.001) {
        signalA.value = newA;
      }
    });
    ```
 
-### Technical Implementation
-
-The infinite loop detection uses a combination of:
-
-1. **Per-property tracking**: Each property read is tracked separately using `WeakMap<object, Set<PropertyKey>>()`
-2. **Effect context tracking**: The current effect is tracked during execution
-3. **Proxy trap logging**: Get, has, and ownKeys operations are recorded per property
-4. **Pre-update checks**: Before updating a property, Beacon checks if the current effect has read that specific property
-
-This approach catches infinite loops early, before they cause application crashes, while still allowing legitimate cyclic update patterns that eventually stabilize.
-
-## Best Practices for Avoiding Problematic Cycles
-
-While Beacon handles cycles gracefully in terms of not crashing, applications with unbounded update cycles may experience performance issues as updates continue to propagate. Here are some best practices:
-
-- **Careful dependency design**: Design your state relationships to avoid unintentional cycles
-- **Break circular dependencies**: Use intermediate values that don't depend on both sides of a cycle
-- **Limit recursive updates**: Include logic that stabilizes values (e.g., rounding or limiting values)
-- **Use batching**: The `batch()` function helps limit cascade effects from rapidly changing values
-- **Equality checks**: For complex objects, implement deep equality in update functions to prevent unnecessary cycles
-
-### Example: Breaking a Cycle with Intermediate Value
+### Breaking a Derive-State Cycle
 
 Instead of:
 ```typescript
-// Problematic cycle
 const signal = state({ value: 0 });
 const b = derive(() => signal.value + 1);
 effect(() => { signal.value = b.value; }); // Creates a cycle
 ```
 
-Use:
+Add a stabilization condition:
 ```typescript
-// Cycle broken with intermediate value
 const signal = state({ value: 0 });
 const b = derive(() => signal.value + 1);
-// Store the desired update in an intermediate value
 effect(() => {
   const newValue = b.value;
   // Only update if significantly different, breaking the cycle
@@ -270,65 +201,49 @@ effect(() => {
 
 ## Batching Implementation
 
-The batching system uses a depth counter and a deferred scheduling mechanism:
+The batching system uses a depth counter and deferred scheduling:
 
-1. When entering a batch, the `batchDepth` counter is incremented
+1. Entering a batch increments the `batchDepth` counter
 2. The set handler takes a fast path when `!onWrite && !currentEffect`: skips subscriber scheduling, only tracks dirty target-property pairs in `dirtyTargets`
 3. State objects with write hooks use the normal path (hooks fire per-mutation)
 4. At `batchDepth === 1` (before decrement): dirty targets are processed, calling `scheduleSubscribersForTarget` once per unique property
 5. When the outermost batch completes (`batchDepth` reaches 0): deferred effects run, then all pending effects flush
-6. This ensures effects run only once, even if multiple values they depend on change
+6. Effects run once, even if multiple values they depend on changed
 
-Batching provides significant performance benefits, especially with multiple interdependent values.
+## Proxy Edge Cases
 
-## Proxy Implementation Details
+**Array Methods**: Mutating methods (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`) are intercepted to trigger reactivity.
 
-### How the Proxy System Works
-
-Beacon v2000.0.0 uses JavaScript Proxies to provide natural syntax for reactive state:
-
-1. **Proxy Creation**: `state()` wraps objects in Proxies that intercept all operations
-2. **Property Access**: Get traps track which properties each effect reads
-3. **Property Mutation**: Set traps trigger notifications to dependent effects
-4. **Array Methods**: Special handling for mutating array methods (push, pop, etc.)
-5. **Nested Objects**: Automatically wrapped in Proxies for deep reactivity
-
-### Handling Edge Cases
-
-**Frozen/Sealed Objects**: Uses WeakMap fallbacks for metadata storage when objects are not extensible:
+**Frozen/Sealed Objects**: WeakMap fallbacks store metadata when objects are not extensible:
 ```typescript
 const frozen = Object.freeze({ value: 42 });
-const reactive = state(frozen); // Still works via WeakMap storage
+const reactive = state(frozen); // Works via WeakMap storage
 ```
 
-**Symbol Properties**: Special handling to avoid interference with internal symbols:
+**Symbol Properties**: Special handling avoids interference with internal symbols:
 ```typescript
 const SUBSCRIBERS = Symbol('[[beacon_subscribers]]');
 const PROXY = Symbol('[[beacon_proxy]]');
 ```
 
-**Spread Operations**: Efficient handling without triggering stack overflows:
+**Spread Operations**: Handled without triggering stack overflows:
 ```typescript
 const signal = state({ a: 1, b: 2 });
 const copy = { ...signal }; // Works correctly
 ```
 
-## Memory Management and Cleanup
+## Memory Management
 
-Beacon automatically manages subscriptions and cleans up when effects are disposed:
+Beacon manages subscriptions automatically:
 
 1. **Dependency cleanup**: `cleanupEffect()` removes an effect from all its subscribers and clears `__prevDeps`/`__prevReads`
 2. **Child effect cleanup**: `cleanupEffectCompletely()` recursively cleans up nested effects
 3. **Parent-child tracking**: Maintains relationships between effects for proper cleanup
 4. **Automatic disposal**: Nested effects are cleaned up when parent effects re-run
-5. **WeakMap usage**: Enables automatic garbage collection of unreferenced objects
+5. **WeakMap usage**: Enables garbage collection of unreferenced objects
 6. **Stable dependency skip**: On re-runs, `depsMatch` compares new deps against previous. If stable, previous tracking structures are restored (no subscriber set work). If changed, only stale deps are removed.
 
-This system ensures there are no memory leaks from lingering effect subscriptions.
-
 ## Performance Optimizations
-
-Several optimizations make Beacon efficient:
 
 1. **Per-property tracking**: Only notifies effects that read changed properties
 2. **Proxy caching**: Reuses the same Proxy instance for each object
