@@ -65,15 +65,9 @@ Implemented in `property-batch-error.test.ts`.
 
 ---
 
-### 10. Dynamic Dependency Tracking Under Arbitrary Branch Sequences
+### 10. Dynamic Dependency Tracking Under Arbitrary Branch Sequences — Done
 
-**Gap**: `state-effect.test.ts:62-116` tests one condition flip (`true` → `false`).
-
-**Property**: For any sequence of boolean toggles, an effect with a conditional branch only fires when the
-currently-tracked dependency changes — never on updates to the inactive branch's dependency.
-
-**Value**: Rapidly toggling conditions exercises the `tryRestoreStableDeps` optimization path. Sequences like
-`[true, false, true, false, true]` test whether stale subscriber sets are properly cleaned up and re-established.
+Implemented in `property-dynamic-deps.test.ts`.
 
 ---
 
