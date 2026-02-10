@@ -11,6 +11,7 @@ Native Node.js test runner (`node --test`). No external test framework.
 | Hooks Utility | `hooks-{utility}.test.ts` | `hooks-compose` |
 | Integration | `{feature1}-{feature2}.test.ts` | `state-effect`, `state-derive`, `batch-integration` |
 | Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup` |
+| Property-Based | `property-{topic}.test.ts` | `property-array-mutations`, `property-same-value`, `property-proxy-identity` |
 
 Template: `template.test.ts` — excluded via `--test-skip-pattern="COMPONENT NAME"`
 
@@ -99,8 +100,26 @@ Test hooks instrumentation for each primitive. Each file verifies backward compa
 | `batch-hooks.test.ts` | 6 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
 | `hooks-compose.test.ts` | 7 | `composeHook` utility — undefined, single, array, forwarding, error isolation |
 
+## Property-Based Tests
+
+Randomized invariant testing for each primitive. Uses `fc` (fast-check) for property generation.
+
+| File | Tests |
+|------|-------|
+| `property-array-mutations.test.ts` | Reactive array mutations preserve invariants |
+| `property-same-value.test.ts` | Same-value optimization (Object.is) |
+| `property-batch-dedup.test.ts` | Batch effect deduplication |
+| `property-derive-consistency.test.ts` | Derive value consistency |
+| `property-proxy-identity.test.ts` | Proxy identity invariants |
+| `property-cleanup.test.ts` | Effect cleanup completeness |
+| `property-infinite-loop.test.ts` | Infinite loop detection boundary |
+| `property-deep-reactivity.test.ts` | Deep reactivity at arbitrary depths |
+| `property-batch-error.test.ts` | Batch error recovery |
+| `property-dynamic-deps.test.ts` | Dynamic dependency tracking |
+| `property-frozen-sealed.test.ts` | Frozen/sealed object reactivity |
+
 <!--— BEACON-START —>[Tests Index]
 |root: ./tests
 |IMPORTANT: Follow naming conventions and always dispose effects/derives in tests
-|.:{state-core.test.ts,effect-core.test.ts,derive-core.test.ts,batch-core.test.ts,state-derive.test.ts,state-effect.test.ts,batch-integration.test.ts,cleanup.test.ts,cyclic-dependency.test.ts,infinite-loop.test.ts,state-hooks.test.ts,effect-hooks.test.ts,derive-hooks.test.ts,batch-hooks.test.ts,hooks-compose.test.ts,STYLE_GUIDE.md,TEST_ORGANIZATION.md}
+|.:{state-core.test.ts,effect-core.test.ts,derive-core.test.ts,batch-core.test.ts,state-derive.test.ts,state-effect.test.ts,batch-integration.test.ts,cleanup.test.ts,cyclic-dependency.test.ts,infinite-loop.test.ts,state-hooks.test.ts,effect-hooks.test.ts,derive-hooks.test.ts,batch-hooks.test.ts,hooks-compose.test.ts,property-array-mutations.test.ts,property-same-value.test.ts,property-batch-dedup.test.ts,property-derive-consistency.test.ts,property-proxy-identity.test.ts,property-cleanup.test.ts,property-infinite-loop.test.ts,property-deep-reactivity.test.ts,property-batch-error.test.ts,property-dynamic-deps.test.ts,property-frozen-sealed.test.ts,README.md,STYLE_GUIDE.md,TEST_ORGANIZATION.md,PROPERTY_BASED_TESTING.md}
 <!--— BEACON-END —>

@@ -88,8 +88,8 @@ Zero-cost instrumentation. All four primitives accept an optional hooks paramete
 |src/:{AGENTS.md,index.ts,types.ts}
 |src/hooks/:{AGENTS.md,index.ts,compose.ts}
 |tests/:{AGENTS.md}
-|scripts/:{naiv-benchmark.ts,run-lts-tests.js}
-|.github/workflows/:{build-test-publish.yml,update-dependencies-cache.yml}
+|scripts/:{benchmark.ts,memory-benchmark.ts,naiv-benchmark.ts,run-lts-tests.js,biome.json,README.md}
+|.github/workflows/:{build-test-publish.yml,update-dependencies-cache.yml,check-action-versions.yml}
 |assets/:{beacon-logo-v2.svg,beacon-logo.svg}
 |blogs/:{AGENTS.md,SERIES_OUTLINE.md,TIMELINE.md}
 <!--— BEACON-END —>
