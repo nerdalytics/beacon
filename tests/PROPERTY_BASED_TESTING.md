@@ -29,15 +29,9 @@ Implemented in `property-batch-dedup.test.ts`.
 
 ---
 
-### 4. Derive Consistency (Referential Transparency)
+### 4. Derive Consistency (Referential Transparency) — Done
 
-**Gap**: `derive-core.test.ts` tests specific formulas (`*2`, `+`, string concat).
-
-**Property**: For any pure function `f` and any state value, `derive(() => f(s.value)).value` always equals
-`f(s.value)` — both at creation and after any state update.
-
-**Value**: Catches caching bugs where the derived value becomes stale. Arbitrary `initial`/`updated` pairs
-exercise cache invalidation and recomputation across a wide input space.
+Implemented in `property-derive-consistency.test.ts`.
 
 ---
 
