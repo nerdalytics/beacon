@@ -91,4 +91,5 @@ Zero-cost instrumentation. All four primitives accept an optional hooks paramete
 |scripts/:{naiv-benchmark.ts,run-lts-tests.js}
 |.github/workflows/:{build-test-publish.yml,update-dependencies-cache.yml}
 |assets/:{beacon-logo-v2.svg,beacon-logo.svg}
+|blogs/:{AGENTS.md,SERIES_OUTLINE.md,TIMELINE.md}
 <!--— BEACON-END —>
