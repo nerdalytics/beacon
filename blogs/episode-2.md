@@ -2,34 +2,47 @@
 
 The best APIs don't come from design documents. They come from someone doing something you didn't expect.
 
-## The CLI Script
+## The Migration Tool
 
-The first real test came quietly.
+The first real test wasn't quiet at all.
 
-A few days after tagging `1.0.0`, I wired Beacon into an internal CLI tool. The tool managed configuration state — flags, connection strings, runtime options — and needed to propagate changes when a user edited a config file mid-session. The old approach was a tangle of callbacks and manual bookkeeping. The new approach was three lines:
+After the rewrite landed, I put Beacon to work in a CMS migration tool — a CLI pipeline that moved large volumes of content from one content management system to another. The data set was large enough to require parallel work items, each processing a batch of content independently. The whole thing was backed by SQLite for tracking progress and resuming interrupted runs.
+
+The first version worked the obvious way. Each worker function received the raw values it needed — total item count, processed count, failed count — and logged its own progress to the console. Every function that touched the pipeline needed access to the same metadata. Counts were passed as arguments, threaded through call stacks, updated in place, and printed wherever they happened to change.
+
+It was a mess. Not because the logic was wrong, but because the concerns were tangled. Migration logic, progress tracking, and console output were all interleaved in the same functions. Adding a new statistic meant touching every function in the chain. Changing the log format meant hunting down every `console.log` call scattered across the pipeline.
+
+Beacon untangled it. Instead of passing raw values, I passed reactive state:
 
 ```typescript
-const config = state(loadConfig());
-
-effect(() => {
-  applyConfig(config());
+const progress = state({
+  failed: 0,
+  processed: 0,
+  total: 1000,
 });
 
-// When the file changes:
-config.set(loadConfig());
+// Any worker, anywhere in the pipeline, updates the state
+progress.update((p) => ({ ...p, processed: p.processed + 1 }));
+
+// One centralized effect handles all the logging
+effect(() => {
+  const p = progress();
+  const pct = ((p.processed / p.total) * 100).toFixed(1);
+  console.log(`Progress: ${p.processed}/${p.total} (${pct}%) | Failed: ${p.failed}`);
+});
 ```
 
-State holds the config. An effect applies it. When the file changes, set the new value. The effect re-runs. That's it.
+The state object was passed down through the pipeline. Workers updated it wherever they finished processing an item — or wherever they encountered a failure. They didn't log anything. They didn't need to know about totals or percentages or formatting. They just incremented a counter on a reactive object and moved on.
 
-I kept waiting for the edge case. The race condition. The subscription leak. It didn't come. The CLI tool ran for weeks without a single Beacon-related issue. Not because the code was perfect — the internals were the pre-rewrite v1 code, full of problems I'd discover later — but because the pattern was sound. A reactive container that notifies dependents when it changes is a correct abstraction for "something changed, now deal with it."
+A single effect at the top of the pipeline owned all the console output. It reacted to every state change, formatted the progress line, and printed it. One place for logging logic. One place to change if the format needed updating. The migration functions stayed focused on migration.
 
-That quiet success was dangerous. It gave me the confidence that maybe this library was done.
+The rewrite of the data ingestion pipeline — from scattered logging to centralized reactive progress — was the moment Beacon stopped being an experiment and started being a tool I reached for by default.
 
 ## SQLite and Effects
 
-The second project was more ambitious.
+The migration tool already used SQLite for tracking progress. But the persistence was manual — explicit writes at specific points in the pipeline. The next project pushed that further.
 
-A backend service needed persistent state — the kind that survives process restarts. The state itself was straightforward: configuration, task queues, processing checkpoints. The persistence layer was SQLite. The question was how to connect them.
+A backend service needed persistent state — the kind that survives process restarts. The state itself was straightforward: configuration, task queues, processing checkpoints. The persistence layer was SQLite. The question was how to connect them without scattering save calls everywhere.
 
 The obvious approach: manually save to the database whenever state changes. Call `db.save()` after every `.set()`. Sprinkle persistence logic throughout the business code. Hope you never forget a save call.
 
