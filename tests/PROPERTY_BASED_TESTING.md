@@ -11,32 +11,15 @@ cases to minimal reproductions.
 
 ## Opportunities (ordered by ROI)
 
-### 1. Array Mutation Equivalence (Model-Based Testing)
+### 1. Array Mutation Equivalence (Model-Based Testing) — Done
 
-**Gap**: `state-core.test.ts` tests one fixed mutation sequence (`splice→reverse→sort→truncate`).
-
-**Property**: For any initial array and any sequence of mutating operations (`push`, `pop`, `shift`, `unshift`,
-`splice`, `sort`, `reverse`), a reactive array produces the same result as a plain `Array` given the same operations.
-
-**Technique**: Model-based testing — plain `Array` is the oracle.
-
-**Value**: Combinatorial explosion of mutation sequences is impossible to cover by hand. Catches subtle bugs in
-length notifications after `splice` with insertion, or `shift`/`unshift` index tracking.
-
-**Status**: Implemented in `property-array-mutations.test.ts`
+Implemented in `property-array-mutations.test.ts`.
 
 ---
 
-### 2. Same-Value Optimization Across Types
+### 2. Same-Value Optimization Across Types — Done
 
-**Gap**: `state-effect.test.ts:118-141` only tests with values `5` and `10`.
-
-**Property**: Setting a state property to its current value never triggers subscribed effects, regardless of value
-type — including edge cases like `NaN`, `-0` vs `0`, `Infinity`, empty strings.
-
-**Value**: The `Object.is` semantics used internally have well-known edge cases (`NaN !== NaN` but
-`Object.is(NaN, NaN)` is true; `0 === -0` but `Object.is(0, -0)` is false). PBT naturally explores these
-boundaries.
+Implemented in `property-same-value.test.ts`.
 
 ---
 
