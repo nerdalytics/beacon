@@ -28,13 +28,13 @@ TC39 is the committee that standardizes JavaScript. When they propose something,
 
 Reading the proposal was clarifying. The TC39 authors had arrived at the same decomposition I was circling: a small set of primitives that compose into complex reactive behavior. State holds values. Computed values derive from state. Effects run when their dependencies change. That's the entire model.
 
-But the proposal was aimed at the browser. The motivating examples were UI-centric. The performance considerations assumed rendering pipelines. The scheduling model assumed frame budgets. Every design decision carried the weight of needing to work inside React, Vue, Solid, and Angular simultaneously.
+But the proposal's gravity was unmistakably UI. The contributors were predominantly framework authors — Angular, Vue, Solid, Preact, Svelte — and the motivating examples reflected that world. The design was deliberately runtime-agnostic, but the conversations, the trade-offs, the implicit assumptions all orbited the browser. Every design decision carried the weight of needing to work inside React, Vue, Solid, and Angular simultaneously.
 
-I didn't need any of that.
+That wasn't my world.
 
 I needed something for Node.js. For backend services that manage configuration, coordinate workers, stream data through pipelines, and persist state to databases. For processes that run for hours or days, not milliseconds between frames.
 
-The TC39 proposal told me the primitives were right. It also told me the constraints were wrong — wrong for my use case, at least. I didn't need to support every framework's rendering model. I didn't need to worry about 16ms frame budgets. I didn't need microtask scheduling or priority lanes.
+The TC39 proposal told me the primitives were right. It also told me the context was wrong — wrong for my use case, at least. I didn't need to support every framework's rendering model. I didn't need the effect API left deliberately unspecified so each framework could wire in its own scheduling.
 
 I needed four things: state, effect, derive, batch. Four primitives. Nothing else.
 
