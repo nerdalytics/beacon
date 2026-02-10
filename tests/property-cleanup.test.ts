@@ -14,6 +14,13 @@ import { effect, state } from '../src/index.ts'
  * @see tests/PROPERTY_BASED_TESTING.md — Opportunity #6
  */
 
+// --- Helpers ---
+
+function defined<T>(value: T | undefined, msg: string): T {
+	if (value === undefined) throw new Error(msg)
+	return value
+}
+
 // --- Types ---
 
 type Unsubscribe = () => void
@@ -65,9 +72,12 @@ describe(
 						min: -1000,
 					}),
 					(n: number, updatedValue: number): void => {
-						const disposeMask = fc.sample(subsetArb(n), {
-							numRuns: 1,
-						})[0]
+						const disposeMask = defined(
+							fc.sample(subsetArb(n), {
+								numRuns: 1,
+							})[0],
+							'fc.sample must return at least one element'
+						)
 
 						const $s = state({
 							value: 0,
@@ -84,7 +94,8 @@ describe(
 							const idx = i
 							disposers.push(
 								effect((): void => {
-									runs[idx]++
+									const current = defined(runs[idx], `runs[${idx}] missing`)
+									runs[idx] = current + 1
 									$s.value
 								})
 							)
@@ -102,8 +113,8 @@ describe(
 
 						// Dispose the subset
 						for (let i = 0; i < n; i++) {
-							if (disposeMask[i]) {
-								disposers[i]()
+							if (defined(disposeMask[i], `disposeMask[${i}] missing`)) {
+								defined(disposers[i], `disposers[${i}] missing`)()
 							}
 						}
 
@@ -112,7 +123,7 @@ describe(
 
 						// Verify: disposed effects did not run, non-disposed effects ran exactly once
 						for (let i = 0; i < n; i++) {
-							if (disposeMask[i]) {
+							if (defined(disposeMask[i], `disposeMask[${i}] missing`)) {
 								assert.strictEqual(runs[i], 0, `disposed effect ${i} should not have run`)
 							} else {
 								const expected = Object.is(0, updatedValue) ? 0 : 1
@@ -122,8 +133,8 @@ describe(
 
 						// Cleanup remaining
 						for (let i = 0; i < n; i++) {
-							if (!disposeMask[i]) {
-								disposers[i]()
+							if (!defined(disposeMask[i], `disposeMask[${i}] missing`)) {
+								defined(disposers[i], `disposers[${i}] missing`)()
 							}
 						}
 					}
@@ -137,9 +148,12 @@ describe(
 		it('disposal order does not affect which effects fire', (): void => {
 			fc.assert(
 				fc.property(effectCountArb, (n: number): void => {
-					const order = fc.sample(permutationArb(n), {
-						numRuns: 1,
-					})[0]
+					const order = defined(
+						fc.sample(permutationArb(n), {
+							numRuns: 1,
+						})[0],
+						'fc.sample must return at least one element'
+					)
 
 					const $s = state({
 						value: 0,
@@ -156,7 +170,8 @@ describe(
 						const idx = i
 						disposers.push(
 							effect((): void => {
-								runs[idx]++
+								const current = defined(runs[idx], `runs[${idx}] missing`)
+								runs[idx] = current + 1
 								$s.value
 							})
 						)
@@ -169,7 +184,7 @@ describe(
 
 					// Dispose ALL effects in a random permutation order
 					for (const idx of order) {
-						disposers[idx]()
+						defined(disposers[idx], `disposers[${idx}] missing`)()
 					}
 
 					// Update state — no effects should fire
@@ -188,9 +203,12 @@ describe(
 		it('incremental disposal: after each dispose, remaining effects still fire', (): void => {
 			fc.assert(
 				fc.property(effectCountArb, (n: number): void => {
-					const order = fc.sample(permutationArb(n), {
-						numRuns: 1,
-					})[0]
+					const order = defined(
+						fc.sample(permutationArb(n), {
+							numRuns: 1,
+						})[0],
+						'fc.sample must return at least one element'
+					)
 
 					const $s = state({
 						value: 0,
@@ -208,7 +226,8 @@ describe(
 						const idx = i
 						disposers.push(
 							effect((): void => {
-								runs[idx]++
+								const current = defined(runs[idx], `runs[${idx}] missing`)
+								runs[idx] = current + 1
 								$s.value
 							})
 						)
@@ -222,7 +241,7 @@ describe(
 						}
 
 						// Dispose one more effect
-						disposers[idx]()
+						defined(disposers[idx], `disposers[${idx}] missing`)()
 						disposed.add(idx)
 
 						// Update state
@@ -247,9 +266,12 @@ describe(
 		it('double-dispose is safe for any effect in any order', (): void => {
 			fc.assert(
 				fc.property(effectCountArb, (n: number): void => {
-					const order = fc.sample(permutationArb(n), {
-						numRuns: 1,
-					})[0]
+					const order = defined(
+						fc.sample(permutationArb(n), {
+							numRuns: 1,
+						})[0],
+						'fc.sample must return at least one element'
+					)
 
 					const $s = state({
 						value: 0,
@@ -266,11 +288,12 @@ describe(
 
 					// Dispose each effect twice in random order — should never throw
 					for (const idx of order) {
+						const dispose = defined(disposers[idx], `disposers[${idx}] missing`)
 						assert.doesNotThrow((): void => {
-							disposers[idx]()
+							dispose()
 						})
 						assert.doesNotThrow((): void => {
-							disposers[idx]()
+							dispose()
 						})
 					}
 
@@ -312,51 +335,60 @@ describe(
 						const disposers: Unsubscribe[][] = []
 
 						for (let si = 0; si < nStates; si++) {
-							runs.push([])
-							disposers.push([])
+							const runsRow: number[] = []
+							const disposersRow: Unsubscribe[] = []
+							runs.push(runsRow)
+							disposers.push(disposersRow)
 							for (let ei = 0; ei < nEffectsPerState; ei++) {
 								const stateIdx = si
 								const effectIdx = ei
-								runs[si].push(0)
-								disposers[si].push(
+								runsRow.push(0)
+								disposersRow.push(
 									effect((): void => {
-										runs[stateIdx][effectIdx]++
-										states[stateIdx].value
+										const stateRuns = defined(runs[stateIdx], `runs[${stateIdx}] missing`)
+										const current = defined(stateRuns[effectIdx], `runs[${stateIdx}][${effectIdx}] missing`)
+										stateRuns[effectIdx] = current + 1
+										defined(states[stateIdx], `states[${stateIdx}] missing`).value
 									})
 								)
 							}
 						}
 
 						// Dispose all effects on state 0
+						const disposers0 = defined(disposers[0], 'disposers[0] missing')
 						for (let ei = 0; ei < nEffectsPerState; ei++) {
-							disposers[0][ei]()
+							defined(disposers0[ei], `disposers[0][${ei}] missing`)()
 						}
 
 						// Reset all counters
 						for (let si = 0; si < nStates; si++) {
+							const runsRow = defined(runs[si], `runs[${si}] missing`)
 							for (let ei = 0; ei < nEffectsPerState; ei++) {
-								runs[si][ei] = 0
+								runsRow[ei] = 0
 							}
 						}
 
 						// Update state 0 — no effects should fire
-						states[0].value = 999
+						defined(states[0], 'states[0] missing').value = 999
+						const runs0 = defined(runs[0], 'runs[0] missing')
 						for (let ei = 0; ei < nEffectsPerState; ei++) {
-							assert.strictEqual(runs[0][ei], 0, `disposed effect on state 0 should not fire`)
+							assert.strictEqual(runs0[ei], 0, `disposed effect on state 0 should not fire`)
 						}
 
 						// Update state 1 — all its effects should still fire
 						if (nStates > 1) {
-							states[1].value = 888
+							defined(states[1], 'states[1] missing').value = 888
+							const runs1 = defined(runs[1], 'runs[1] missing')
 							for (let ei = 0; ei < nEffectsPerState; ei++) {
-								assert.strictEqual(runs[1][ei], 1, `effect on state 1 should still fire`)
+								assert.strictEqual(runs1[ei], 1, `effect on state 1 should still fire`)
 							}
 						}
 
 						// Cleanup remaining
 						for (let si = 1; si < nStates; si++) {
+							const disposersRow = defined(disposers[si], `disposers[${si}] missing`)
 							for (let ei = 0; ei < nEffectsPerState; ei++) {
-								disposers[si][ei]()
+								defined(disposersRow[ei], `disposers[${si}][${ei}] missing`)()
 							}
 						}
 					}

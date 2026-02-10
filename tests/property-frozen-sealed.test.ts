@@ -47,6 +47,14 @@ const shallowObjArb: fc.Arbitrary<SealedState> = fc.dictionary(
 	}
 )
 
+// --- Helpers ---
+
+function firstKey(keys: string[]): string {
+	const k = keys[0]
+	if (k === undefined) throw new Error('unreachable: fc.pre guarantees keys.length > 0')
+	return k
+}
+
 // --- Tests ---
 
 describe(
@@ -97,6 +105,7 @@ describe(
 				fc.property(shallowObjArb, (obj: SealedState): void => {
 					const keys = Object.keys(obj)
 					fc.pre(keys.length > 0)
+					const key = firstKey(keys)
 
 					const sealed = Object.seal({
 						...obj,
@@ -108,11 +117,11 @@ describe(
 
 					const dispose = effect((): void => {
 						runs++
-						lastRead = $s[keys[0]] as number
+						lastRead = $s[key] as number
 					})
 
 					assert.strictEqual(runs, 1, 'effect should run once initially')
-					assert.strictEqual(lastRead, obj[keys[0]], 'should read correct value')
+					assert.strictEqual(lastRead, obj[key], 'should read correct value')
 
 					dispose()
 				}),
@@ -127,6 +136,7 @@ describe(
 				fc.property(shallowObjArb, (obj: SealedState): void => {
 					const keys = Object.keys(obj)
 					fc.pre(keys.length > 0)
+					const key = firstKey(keys)
 
 					const frozen = Object.freeze({
 						...obj,
@@ -138,11 +148,11 @@ describe(
 
 					const dispose = effect((): void => {
 						runs++
-						lastRead = $s[keys[0]] as number
+						lastRead = $s[key] as number
 					})
 
 					assert.strictEqual(runs, 1, 'effect should run once initially')
-					assert.strictEqual(lastRead, obj[keys[0]], 'should read correct value')
+					assert.strictEqual(lastRead, obj[key], 'should read correct value')
 
 					dispose()
 				}),
@@ -157,12 +167,12 @@ describe(
 				fc.property(shallowObjArb, intArb, (obj: SealedState, newValue: number): void => {
 					const keys = Object.keys(obj)
 					fc.pre(keys.length > 0)
+					const key = firstKey(keys)
 
 					const sealed = Object.seal({
 						...obj,
 					})
 					const $s = state(sealed) as SealedState
-					const key = keys[0]
 					const oldValue = obj[key]
 					fc.pre(!Object.is(oldValue, newValue))
 
@@ -210,12 +220,12 @@ describe(
 				fc.property(shallowObjArb, intArb, (obj: SealedState, newValue: number): void => {
 					const keys = Object.keys(obj)
 					fc.pre(keys.length > 0)
+					const key = firstKey(keys)
 
 					const sealed = Object.seal({
 						...obj,
 					})
 					const $s = state(sealed) as SealedState
-					const key = keys[0]
 					const oldValue = obj[key]
 					fc.pre(!Object.is(oldValue, newValue))
 
@@ -257,12 +267,12 @@ describe(
 				fc.property(shallowObjArb, intArb, (obj: SealedState, newValue: number): void => {
 					const keys = Object.keys(obj)
 					fc.pre(keys.length > 0)
+					const key = firstKey(keys)
 
 					const sealed = Object.seal({
 						...obj,
 					})
 					const $s = state(sealed) as SealedState
-					const key = keys[0]
 
 					// Direct write outside any effect — the value DOES get stored
 					// even though effect notifications are skipped by the fast path
@@ -445,12 +455,12 @@ describe(
 					const keysB = Object.keys(childB)
 					fc.pre(keysA.length > 0 && keysB.length > 0)
 					fc.pre(childA !== childB)
+					const keyA = firstKey(keysA)
 
 					const $s = state({
 						child: childA as Record<string, number>,
 					})
 
-					const keyA = keysA[0]
 					const $d = derive((): number => ($s.child as Record<string, number>)[keyA] as number)
 
 					assert.strictEqual($d.value, childA[keyA])
@@ -481,8 +491,11 @@ describe(
 						minLength: 2,
 					}),
 					(children: FrozenChild[]): void => {
+						const firstChild = children[0]
+						if (firstChild === undefined) throw new Error('unreachable: minLength is 2')
+
 						const $s = state({
-							child: children[0] as FrozenChild,
+							child: firstChild,
 						})
 
 						let runs = 0
@@ -500,6 +513,7 @@ describe(
 						})
 
 						const last = children[children.length - 1]
+						if (last === undefined) throw new Error('unreachable: minLength is 2')
 						assert.ok(runs <= 1, `effect ran ${runs} times, expected at most 1`)
 						// $s.child returns a proxy, not the raw frozen ref — verify a property value
 						const lastKey = Object.keys(last)[0]

@@ -72,6 +72,8 @@ describe(
 						}
 					)[0]
 
+					if (throwAtDepth === undefined) throw new Error('fc.sample returned empty array')
+
 					// Trigger the error
 					assert.throws(
 						(): void => {
@@ -123,6 +125,8 @@ describe(
 							numRuns: 1,
 						}
 					)[0]
+
+					if (throwAtDepth === undefined) throw new Error('fc.sample returned empty array')
 
 					// Trigger the error
 					try {
@@ -222,6 +226,8 @@ describe(
 								numRuns: 1,
 							}
 						)[0]
+
+						if (throwAtDepth === undefined) throw new Error('fc.sample returned empty array')
 
 						// Trigger error
 						try {

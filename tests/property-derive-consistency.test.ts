@@ -287,6 +287,7 @@ describe(
 						})
 
 						const lastValue = updates[updates.length - 1]
+						if (lastValue === undefined) throw new Error('updates must be non-empty')
 						assert.strictEqual(
 							$d.value,
 							t.apply(lastValue),

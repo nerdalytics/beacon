@@ -234,7 +234,9 @@ describe(
 						let result = 0
 
 						const dispose = effect((): void => {
-							result = states[$selector.value].value
+							const active = states[$selector.value]
+							if (!active) throw new Error(`no state at index ${$selector.value}`)
+							result = active.value
 						})
 
 						assert.strictEqual(result, initialBranch * 10)
@@ -242,13 +244,17 @@ describe(
 						for (const branch of branchSequence) {
 							$selector.value = branch
 
-							const expected = states[branch].value
+							const activeBranchState = states[branch]
+							if (!activeBranchState) throw new Error(`no state at index ${branch}`)
+							const expected = activeBranchState.value
 							assert.strictEqual(result, expected, `result mismatch after switching to branch ${branch}`)
 
 							// Update a non-active state — result should not change
 							const inactiveIdx = (branch + 1) % 6
+							const inactiveState = states[inactiveIdx]
+							if (!inactiveState) throw new Error(`no state at index ${inactiveIdx}`)
 							const prevResult = result
-							states[inactiveIdx].value = states[inactiveIdx].value + 1000
+							inactiveState.value = inactiveState.value + 1000
 							assert.strictEqual(
 								result,
 								prevResult,
