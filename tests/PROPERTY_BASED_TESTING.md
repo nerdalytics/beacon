@@ -47,14 +47,9 @@ Implemented in `property-cleanup.test.ts`.
 
 ---
 
-### 7. Infinite Loop Detection Boundary
+### 7. Infinite Loop Detection Boundary — Done
 
-**Gap**: `infinite-loop.test.ts` tests ~8 specific patterns with fixed property names.
-
-**Property**: Effect reading property `p` and writing same `p` on same target always throws. Reading `p` and
-writing different property `q` never throws.
-
-**Value**: Explores property key handling — numeric-like strings, keys that could collide with internal symbols.
+Implemented in `property-infinite-loop.test.ts`.
 
 ---
 
