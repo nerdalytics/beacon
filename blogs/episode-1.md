@@ -58,9 +58,9 @@ Four primitives. Each one simple enough to explain in a sentence. Powerful enoug
 
 March 30, 2025. A Sunday.
 
-The experimental code had been accumulating for weeks — scattered files, abandoned branches, notes-to-self in comments. That Sunday, I sat down and decided the experiments were over. It was time to turn this into a library.
+The experimental code had been accumulating for weeks — scattered files, abandoned branches, notes-to-self in comments. Months of experimenting, discarding, restarting. By that Sunday, the code existed. It worked. What it lacked was a narrative.
 
-Six commits hit the repository that day:
+I took the logical groups of code and arranged them into commits — not in the order I'd written them, but in the order that told the story of how I'd come to understand signals. Six commits hit the repository that day:
 
 The first was the foundation. `epoch(core): initial project structure and state implementation.` The state primitive, the reactive container, the subscriber tracking — all extracted from the experiments and refactored into a coherent module.
 
