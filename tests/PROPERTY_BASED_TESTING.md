@@ -35,16 +35,9 @@ Implemented in `property-derive-consistency.test.ts`.
 
 ---
 
-### 5. Proxy Identity Invariant
+### 5. Proxy Identity Invariant — Done
 
-**Gap**: `state-core.test.ts:192-209` tests with two specific objects.
-
-**Properties**:
-- `state(obj) === state(obj)` (idempotent wrapping)
-- `state(state(obj)) === state(obj)` (already-proxied objects returned as-is)
-
-**Value**: Exercises the `proxyCache` WeakMap and `[PROXY]` symbol check with diverse object shapes — empty
-objects, deeply nested, arrays-as-values, etc.
+Implemented in `property-proxy-identity.test.ts`.
 
 ---
 
