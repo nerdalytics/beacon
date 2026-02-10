@@ -66,7 +66,17 @@ The first was the foundation. `epoch(core): initial project structure and state 
 
 The second added effects. `feat(effect): add effect implementation.` The automatic dependency tracking, the re-execution on change, the subscription lifecycle.
 
-The third tackled the hard problems. `feat(core): add cleanup and cyclic dependency handling.` When an effect re-runs, its previous subscriptions need to be cleaned up — otherwise you get ghost dependencies that trigger phantom re-runs. And cyclic dependencies needed a strategy: what happens when Effect A writes to state that Effect B reads, and Effect B writes to state that Effect A reads? The answer was queue-based processing — no recursion, no stack overflow, convergence through value equality.
+The third tackled the hard problems. `feat(core): add cleanup and cyclic dependency handling.` Two distinct problems, actually.
+
+The first was cleanup. When an effect re-runs, its previous subscriptions need to be torn down — otherwise you get ghost dependencies that trigger phantom re-runs. If an effect conditionally reads property A or property B based on some flag, and the flag changes, the effect must stop listening to the branch it no longer takes. That means tracking dependencies per-execution, diffing against the previous set, and unsubscribing from stale ones.
+
+The second was harder: what happens when an effect writes to state it also reads? Most signal implementations I studied solved this with a counter. Run the effect, track how many times it re-triggers itself, and if that count exceeds some threshold — 100, 500, 1000 — declare it an infinite loop and throw. The numbers were arbitrary. Magic constants with no theoretical basis. Maybe they make sense in UI environments where you have frame budgets and can afford a few hundred wasted cycles before bailing out. For a backend library that might run inside a hot loop processing thousands of events per second, "wait for 500 re-triggers before noticing something is wrong" felt reckless.
+
+I'm not writing a compiler. Statically analyzing the function body passed to `effect()` to determine whether it will converge is out of scope. So the detection had to be dynamic, and it had to be immediate.
+
+The rule I landed on was simple: if an effect writes to a property it read during the current execution, that's an infinite loop. Always. No counter, no threshold, no grace period. One read-write cycle on the same property in the same effect is enough to know it will never converge. Throw immediately.
+
+This left the other case: cyclic dependencies between *different* effects. Effect A writes to state that Effect B reads, and Effect B writes to state that Effect A reads. That's not necessarily infinite — it depends on whether the values converge. The answer was queue-based processing. Effects trigger other effects by enqueuing them rather than calling them recursively. No stack overflow. Convergence through value equality — if an effect re-runs but produces the same values, the chain stops.
 
 The fourth commit rounded out the primitives. `feat(batch): implement batch operations and enhance documentation.` Batch was the final piece: group multiple state writes, defer all effect execution until the batch completes, then flush once.
 
