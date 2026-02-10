@@ -1,0 +1,199 @@
+# From Angular Signals to npm publish
+
+You don't have to use a framework to be inspired by one.
+
+---
+
+## The Spark
+
+It starts the way most side projects start: someone else's problem catches your attention.
+
+I work alongside Angular developers. In 2023, Angular introduced signals — a reactive primitive that tracks values and automatically notifies consumers when those values change. I watched colleagues adopt them. I watched the API surface shrink. Components that previously required elaborate lifecycle management became a handful of declarations: here's a value, here's what happens when it changes.
+
+I'm not an Angular developer. I don't build SPAs. My work is backend Node.js — servers, CLI tools, data pipelines. But the concept lodged in my head anyway.
+
+What is a signal, really?
+
+Strip away the framework bindings, the template integration, the change detection optimization. At its core, a signal is a value that tells you when it changes. That's it. A container with a notification mechanism. The simplest useful abstraction over mutable state.
+
+The more I thought about it, the less it felt like a framework feature. It felt like a pattern. A pattern that had nothing inherently to do with browsers, DOM updates, or component rendering. A pattern that should work anywhere you have state that changes and code that needs to respond.
+
+The question formed slowly over weeks: what would signals look like if they weren't built for a framework?
+
+## Down the Rabbit Hole
+
+The question led me to the TC39 Signals proposal.
+
+TC39 is the committee that standardizes JavaScript. When they propose something, it means the idea has graduated from "framework feature" to "language-level concern." The Signals proposal was exactly that — an attempt to bring reactive primitives into the JavaScript specification itself.
+
+Reading the proposal was clarifying. The TC39 authors had arrived at the same decomposition I was circling: a small set of primitives that compose into complex reactive behavior. State holds values. Computed values derive from state. Effects run when their dependencies change. That's the entire model.
+
+But the proposal was aimed at the browser. The motivating examples were UI-centric. The performance considerations assumed rendering pipelines. The scheduling model assumed frame budgets. Every design decision carried the weight of needing to work inside React, Vue, Solid, and Angular simultaneously.
+
+I didn't need any of that.
+
+I needed something for Node.js. For backend services that manage configuration, coordinate workers, stream data through pipelines, and persist state to databases. For processes that run for hours or days, not milliseconds between frames.
+
+The TC39 proposal told me the primitives were right. It also told me the constraints were wrong — wrong for my use case, at least. I didn't need to support every framework's rendering model. I didn't need to worry about 16ms frame budgets. I didn't need microtask scheduling or priority lanes.
+
+I needed four things: state, effect, derive, batch. Four primitives. Nothing else.
+
+## The Experimental Phase
+
+Knowing what you want to build and knowing how to build it are different problems separated by weeks of bad code.
+
+The experimental phase was messy. I wrote reactive containers that leaked memory. I wrote dependency tracking that missed updates. I wrote batch implementations that deadlocked. Each prototype taught me something, mostly about what not to do.
+
+The first attempt was too clever. I tried to build a pull-based system where computed values lazily recalculated on read. It was elegant in theory and a nightmare to debug. Stale values appeared in effects because the evaluation order was unpredictable. A pull-based system works when you control the read timing — in a render loop, for instance. It falls apart when effects can fire at any moment in response to arbitrary writes.
+
+The second attempt was too simple. A global event emitter that broadcast every change to every listener. It worked but scaled terribly. Ten state variables with ten effects meant a hundred notifications per change, most of them irrelevant.
+
+The third attempt found the shape. Property-level tracking. Each state property maintains its own set of subscribers. When a property changes, only the effects that actually read that property are notified. No wasted notifications. No global broadcast. The dependency graph is implicit — built automatically as effects run and read state.
+
+The mental model solidified: **state** holds values and tracks who reads them. **Effect** declares "run this function, and re-run it whenever anything it reads changes." **Derive** is a computed value that stays in sync with its dependencies. **Batch** groups multiple writes so effects run once, not once per write.
+
+Four primitives. Each one simple enough to explain in a sentence. Powerful enough in combination to model any reactive system I could think of.
+
+## March 30th
+
+March 30, 2025. A Sunday.
+
+The experimental code had been accumulating for weeks — scattered files, abandoned branches, notes-to-self in comments. That Sunday, I sat down and decided the experiments were over. It was time to turn this into a library.
+
+Six commits hit the repository that day:
+
+The first was the foundation. `epoch(core): initial project structure and state implementation.` The state primitive, the reactive container, the subscriber tracking — all extracted from the experiments and refactored into a coherent module.
+
+The second added effects. `feat(effect): add effect implementation.` The automatic dependency tracking, the re-execution on change, the subscription lifecycle.
+
+The third tackled the hard problems. `feat(core): add cleanup and cyclic dependency handling.` When an effect re-runs, its previous subscriptions need to be cleaned up — otherwise you get ghost dependencies that trigger phantom re-runs. And cyclic dependencies needed a strategy: what happens when Effect A writes to state that Effect B reads, and Effect B writes to state that Effect A reads? The answer was queue-based processing — no recursion, no stack overflow, convergence through value equality.
+
+The fourth commit rounded out the primitives. `feat(batch): implement batch operations and enhance documentation.` Batch was the final piece: group multiple state writes, defer all effect execution until the batch completes, then flush once.
+
+Two more commits followed — contribution docs and a performance documentation script. Housekeeping. The kind of work you do when you've just built something and you're staring at it, wondering if it's real.
+
+The API that emerged was function-based:
+
+```javascript
+import { state, effect, derive, batch } from '@nerdalytics/beacon'
+
+// Create reactive state
+const count = state(0)
+
+// Read the value by calling the state as a function
+console.log(count()) // 0
+
+// Write the value with .set()
+count.set(5)
+console.log(count()) // 5
+
+// Effects run automatically when their dependencies change
+effect(() => {
+  console.log(`Count is now: ${count()}`)
+})
+// logs: "Count is now: 5"
+
+count.set(10)
+// logs: "Count is now: 10"
+
+// Derive computes values from state
+const doubled = derive(() => count() * 2)
+console.log(doubled()) // 20
+
+// Batch groups updates — effects fire once, not twice
+batch(() => {
+  count.set(100)
+  count.set(200)
+})
+// logs: "Count is now: 200" (only once)
+```
+
+`state(0)` creates a reactive container. Call it to read. Call `.set()` to write. That's the contract. No classes, no decorators, no configuration objects. Just functions.
+
+The design was deliberate. Functions are the most composable unit in JavaScript. They close over scope. They pass as arguments. They return from other functions. A signal that *is* a function can go anywhere a function can go — into arrays, into maps, into higher-order functions, across module boundaries. No wrapping, no unwrapping, no ceremony.
+
+Two days later, on April 1st, I formatted the code with Biome, fixed lint warnings, updated dependencies, configured npm publishing, and tagged `1.0.0`.
+
+Three days. From scattered experiments to a published npm package.
+
+## First Contact with Reality
+
+Publishing a library is a statement. It says: this is ready. It says: someone else could use this.
+
+Both of those statements were premature.
+
+I started using Beacon immediately — in internal tooling, in CLI scripts, in small backend services. The API worked. The mental model was sound. `state`, `effect`, `derive`, `batch` composed the way I'd hoped.
+
+But the internals had problems.
+
+The first sign was the selector primitive. Within a day of publishing, I needed a way to subscribe to a specific property of a state object without subscribing to every property. The `select()` function was born — a targeted subscription mechanism. It worked, but the implementation felt bolted on. It was a patch over a design that hadn't anticipated the need.
+
+Over the next eleven days, the patches accumulated. CI pipelines were added and immediately restructured. The README was rewritten. Test files multiplied as edge cases surfaced. Each fix was reasonable on its own. Together, they painted a picture: the architecture was straining under the weight of real-world requirements.
+
+On April 10th, eleven days after `1.0.0`, I did what needed to be done.
+
+`epoch(core): complete rewrite of the library (#6)`.
+
+Not a refactor. Not a major version bump. A complete rewrite. The same four primitives, the same mental model, but entirely new internals. The dependency tracking was rebuilt. The subscriber notification was rebuilt. The batch processing was rebuilt. Everything that existed on March 30th was replaced.
+
+The PR was merged the same day it was opened. There was no deliberation. The old code wasn't salvageable in the way that mattered — structurally sound enough to extend. The new code was.
+
+## The Version Question
+
+The rewrite created a problem that had nothing to do with code.
+
+What version number do you give a complete rewrite?
+
+Semver says `2.0.0`. The major version increments when you make breaking changes. A complete rewrite certainly qualifies. But `2.0.0` felt wrong. It implied a linear progression — version 1 evolved into version 2. That's not what happened. Version 1 was thrown away. Version 2 was written from scratch. The relationship between them was conceptual, not genealogical.
+
+I went looking for precedent and found Epoch Semantic Versioning.
+
+The idea is simple: prepend the semver version with an epoch number, expressed as a multiple of 1000. A regular semver version `1.2.3` in epoch 0 stays `1.2.3`. But when you make a change so fundamental that it represents a new era — a complete rewrite, a paradigm shift, a from-scratch reimplementation — you increment the epoch.
+
+The formula: `(EPOCH * 1000) + MAJOR.MINOR.PATCH`
+
+Epoch 0 produced `1.0.0`. The genesis version. Function-based signals, first attempt.
+
+Epoch 1 produced `1000.0.0`. The rewrite. Still function-based, but entirely new internals. The major version resets to 0 within the new epoch. Minor and patch versions track incremental changes within that epoch.
+
+The scheme communicates something that standard semver can't: the *magnitude* of the change. `2.0.0` says "breaking changes." `1000.0.0` says "this is a different library that happens to solve the same problem." The version number itself tells you to re-evaluate your assumptions.
+
+There's a practical benefit too. If a breaking security fix ever becomes necessary — the kind that requires every consumer to update immediately — epoch semver can express the urgency. A jump from `1000.x.x` to `2000.0.0` signals "stop what you're doing and migrate." A jump from `1.x.x` to `2.0.0` signals "check the changelog when you get around to it." The encoding carries weight that bare numbers don't.
+
+Some people find epoch versioning excessive. For a library with a handful of users and a single maintainer, `2.0.0` would have been fine. But versioning is a communication tool, and I wanted precision. `1000.0.0` was the precise message: epoch 1 starts here.
+
+## What Came Next
+
+With `1000.0.0` tagged, the real work began.
+
+Over the next four days, the library matured rapidly. Custom equality functions landed in `1000.2.0` — the ability to tell Beacon "these two values are the same" using your own comparison logic, preventing unnecessary effect re-runs when values change shape but not meaning. Minification and package configuration improvements followed in `1000.2.1`.
+
+Then silence.
+
+From April 14 to October 23, 2025 — six months — the git log shows nothing. No commits. No PRs. No issues.
+
+This wasn't abandonment. It was the opposite. Beacon was in production. It was managing state in CLI tools. It was coordinating effects in a SQLite persistence layer. It was doing exactly what it was built to do, quietly, without requiring changes.
+
+Six months of silence in a git log can mean two things: the project is dead, or the project is done. Beacon was neither — it was stable. Stable enough that the next change wouldn't come from a bug report or a missing feature. It would come from a question: what if the entire API paradigm was wrong?
+
+But that's a story for another episode.
+
+## Takeaway
+
+Sometimes the best way to understand a concept is to rip it out of its context and rebuild it somewhere else entirely.
+
+Angular's signals were designed for component rendering. The TC39 proposal was designed for cross-framework compatibility. Beacon was designed for none of those things. It was designed for backend Node.js — for servers, scripts, and long-running processes that have no DOM, no render loop, no frame budget.
+
+The concept transferred because the concept was sound. Reactive state management isn't a UI pattern. It's a state management pattern. The framework context was incidental, not essential.
+
+You don't need permission to be inspired by something outside your domain. You don't need the original authors' use case to match yours. You don't even need the concept to survive the transfer intact — Beacon's API looks nothing like Angular's signals, and the TC39 proposal would barely recognize it.
+
+What you need is the willingness to pull an idea apart, examine the pieces, and reassemble them for your own problem. The result might be unrecognizable. It might be better. It might be worse. But it will be *yours*, shaped by constraints that no one else has, solving problems that no one else faces.
+
+That's how Beacon started. A concept borrowed from a framework I don't use, rebuilt for a runtime where nobody expected it, published on a Sunday afternoon after three days of focused work. Three days and one version number. Then eleven days, a complete rewrite, and a version number that jumps by a thousand.
+
+The library that exists today — two epochs, dozens of optimizations, a hooks system, property-based tests, and a Proxy-based architecture later — is unrecognizable from what shipped on March 30th. But March 30th is where it started. And it started because someone else's framework did something interesting, and I couldn't stop thinking about it.
+
+---
+
+*Next episode: "Real Users Break Everything" — what happens when Beacon meets production, and how every feature in the v1000 era was a direct response to something that went wrong.*

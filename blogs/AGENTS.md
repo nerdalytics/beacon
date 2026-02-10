@@ -8,6 +8,7 @@
 |------|---------|
 | `SERIES_OUTLINE.md` | Episode structure, hooks, takeaways, code sample notes |
 | `TIMELINE.md` | Git history by epoch with dates, tags, PRs |
+| `episode-1.md` | Episode 1 draft — "From Angular Signals to npm publish" |
 
 ## Writing Conventions
 
@@ -20,7 +21,7 @@
 
 | # | Title | Status |
 |---|-------|--------|
-| 1 | From Angular Signals to npm publish | Outlined |
+| 1 | From Angular Signals to npm publish | Draft |
 | 2 | Real Users Break Everything | Outlined |
 | 3 | Killing Your Own APIs | Outlined |
 | 4 | AI Helped Build This (And Then I Had to Take the Wheel) | Outlined |
@@ -30,5 +31,5 @@
 <!--— BEACON-START —>[Blogs Index]
 |root: ./blogs
 |IMPORTANT: This is a writing workspace, not code. Drafts are markdown prose, not implementation.
-|{SERIES_OUTLINE.md,TIMELINE.md}
+|{SERIES_OUTLINE.md,TIMELINE.md,episode-1.md}
 <!--— BEACON-END —>
