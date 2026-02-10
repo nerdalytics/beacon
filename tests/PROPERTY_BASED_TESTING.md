@@ -71,6 +71,12 @@ Implemented in `property-dynamic-deps.test.ts`.
 
 ---
 
+### 11. Frozen/Sealed Object Reactivity (WeakMap Fallback Paths) — Done
+
+Implemented in `property-frozen-sealed.test.ts`.
+
+---
+
 ## Summary
 
 | # | Scenario | PBT Technique | Current Gap |
@@ -85,3 +91,4 @@ Implemented in `property-dynamic-deps.test.ts`.
 | 8 | Deep reactivity | Arbitrary nesting depths | Depth 1–2 |
 | 9 | Batch error recovery | Arbitrary throw-at-depth | Depth 3 |
 | 10 | Dynamic dependencies | Arbitrary toggle sequences | Single flip |
+| 11 | Frozen/sealed reactivity | Arbitrary sealed/frozen objects | No coverage |
