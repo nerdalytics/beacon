@@ -459,7 +459,7 @@ function createDeleteHandler<T>(
 				]
 		  >
 		| undefined
-): ProxyHandler<ProxyTarget>['deleteProperty'] {
+): NonNullable<ProxyHandler<ProxyTarget>['deleteProperty']> {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		const had = Object.hasOwn(rawTarget, prop)
 		const ok = delete rawTarget[prop]
@@ -558,7 +558,7 @@ function createGetHandler<T>(
 		  >
 		| undefined,
 	hooks: StateHooks<T> | undefined
-): ProxyHandler<ProxyTarget>['get'] {
+): NonNullable<ProxyHandler<ProxyTarget>['get']> {
 	if (!onRead && !hooks) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
 			if (isInternalSymbol(prop)) return rawTarget[prop]
@@ -601,7 +601,7 @@ function createHasHandler<T>(
 				]
 		  >
 		| undefined
-): ProxyHandler<ProxyTarget>['has'] {
+): NonNullable<ProxyHandler<ProxyTarget>['has']> {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		trackDependency(rawTarget, prop)
 		const exists = prop in rawTarget
@@ -619,7 +619,7 @@ function createOwnKeysHandler<T>(
 				]
 		  >
 		| undefined
-): ProxyHandler<ProxyTarget>['ownKeys'] {
+): NonNullable<ProxyHandler<ProxyTarget>['ownKeys']> {
 	return (rawTarget: ProxyTarget): (string | symbol)[] => {
 		trackDependency(rawTarget, OWN_KEYS_SYMBOL)
 		const keys = Reflect.ownKeys(rawTarget) as (string | symbol)[]
@@ -681,7 +681,7 @@ function createSetHandler<T>(
 				]
 		  >
 		| undefined
-): ProxyHandler<ProxyTarget>['set'] {
+): NonNullable<ProxyHandler<ProxyTarget>['set']> {
 	if (!onWrite) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
 			if (batchDepth > 0 && !currentEffect) {
