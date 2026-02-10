@@ -64,6 +64,10 @@ I took the logical groups of code and arranged them into commits — not in the 
 
 The first was the foundation. `epoch(core): initial project structure and state implementation.` The state primitive, the reactive container, the subscriber tracking — all extracted from the experiments and refactored into a coherent module.
 
+That `epoch` prefix wasn't accidental. Before writing the first commit, I'd already adopted [Epoch Semantic Versioning](https://antfu.me/posts/epoch-semver). Standard semver has a blind spot: it can't distinguish a routine breaking change from a security-critical one that demands immediate migration. Every breaking change gets the same signal — bump the major version. A rename of a rarely-used option and a fix for a critical vulnerability that reshapes the public API look identical in the version number.
+
+Epoch semver solves this with a simple encoding: `(EPOCH * 1000) + MAJOR.MINOR.PATCH`. Regular semver lives in epoch 0. Within any epoch, versioning works exactly as you'd expect — patch for fixes, minor for features, major for breaking changes. But when a change is so fundamental it represents a new era — a complete rewrite, a paradigm shift — you increment the epoch. The commit types reflected this: `epoch` for paradigm shifts, `breaking` for API changes, `feat` for features, `fix` for patches. At the time, `1.0.0` sat comfortably in epoch 0.
+
 The second added effects. `feat(effect): add effect implementation.` The automatic dependency tracking, the re-execution on change, the subscription lifecycle.
 
 The third tackled the hard problems. `feat(core): add cleanup and cyclic dependency handling.` Two distinct problems, actually.
@@ -81,8 +85,6 @@ This left the other case: cyclic dependencies between *different* effects. Effec
 The fourth commit rounded out the primitives. `feat(batch): implement batch operations and enhance documentation.` Batch was the final piece: group multiple state writes, defer all effect execution until the batch completes, then flush once.
 
 Two more commits followed — contribution docs and a performance documentation script. Housekeeping. The kind of work you do when you've just built something and you're staring at it, wondering if it's real.
-
-One detail buried in that contribution guide would prove prescient: the commit message format was built around [Epoch Semantic Versioning](https://antfu.me/posts/epoch-semver). The idea is simple — prepend the semver version with an epoch number, expressed as a multiple of 1000. The formula: `(EPOCH * 1000) + MAJOR.MINOR.PATCH`. Regular semver lives in epoch 0. When a change is so fundamental it represents a new era — a complete rewrite, a paradigm shift — you increment the epoch. The commit types reflected this from day one: `epoch` for paradigm shifts, `breaking` for API changes, `feat` for features, `fix` for patches. At the time, `1.0.0` sat comfortably in epoch 0. The scheme felt like over-engineering for a library with zero users. I didn't expect to need it eleven days later.
 
 The API that emerged was function-based:
 
@@ -160,13 +162,13 @@ The rewrite created a version problem — but not the one you might expect.
 
 Standard semver says `2.0.0`. Breaking changes increment the major version. A complete rewrite certainly qualifies. But `2.0.0` implies a linear progression — version 1 evolved into version 2. That's not what happened. Version 1 was thrown away. Version 2 was written from scratch. The relationship between them was conceptual, not genealogical.
 
-This was exactly the scenario epoch versioning was designed for. The scheme I'd adopted from day one — almost as an afterthought in the contribution guide — suddenly had a purpose. The `epoch` commit type that had seemed like over-engineering on March 30th was the precise tool for April 10th.
+This was exactly the scenario epoch versioning was designed for. A complete rewrite isn't a breaking change — it's a new era. The `epoch` commit type I'd been using since the first commit was the precise tool for this moment.
 
 `1000.0.0`. Epoch 1, major 0, minor 0, patch 0. The major version resets within the new epoch. Minor and patch versions track incremental changes from there.
 
 The scheme communicates something that standard semver can't: the *magnitude* of the change. `2.0.0` says "breaking changes." `1000.0.0` says "this is a different library that happens to solve the same problem." The version number itself tells you to re-evaluate your assumptions.
 
-There's a practical benefit too. If a breaking security fix ever becomes necessary — the kind that requires every consumer to update immediately — epoch semver can express the urgency. A jump from `1000.x.x` to `2000.0.0` signals "stop what you're doing and migrate." A jump from `1.x.x` to `2.0.0` signals "check the changelog when you get around to it." The encoding carries weight that bare numbers don't.
+And the security blind spot that motivated the choice in the first place? Within epoch 1, it works exactly as designed. If `1000.1.0` is out and a security vulnerability requires changing the public API, that's a breaking change — `1001.0.0`. The major version bumps within the epoch. Consumers see the major version jump and know: this isn't a minor update, read the changelog, the API changed. But the epoch stays the same — it's still the same library, the same architecture, the same mental model. An epoch bump to `2000.0.0` would mean something far more drastic: throw away your assumptions entirely, this is a different library now.
 
 Some people find epoch versioning excessive. For a library with a handful of users and a single maintainer, `2.0.0` would have been fine. But versioning is a communication tool, and I wanted precision. `1000.0.0` was the precise message: epoch 1 starts here.
 
