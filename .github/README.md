@@ -11,7 +11,7 @@
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![linter:biome](https://img.shields.io/badge/biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white)](https://biomejs.dev/)
 
-A lightweight reactive state library for Node.js backends. Enables fine grained state management with automatic dependency tracking and efficient updates for server-side applications.
+Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
 
 <details>
 <summary><Strong>Table of Contents</Strong></summary>
@@ -95,13 +95,12 @@ Beacon is built around three core primitives:
 2. **Derived States**: Computed values that update automatically
 3. **Effects**: Side effects that run automatically when dependencies change
 
-The library handles all the dependency tracking and updates automatically, so you can focus on your business logic.
 
 ## API Reference
 
 ### Version Compatibility
 
-The table below tracks when features were introduced and when function signatures were changed.
+Feature and signature history:
 
 | API | Introduced | Last Updated | Notes |
 |-----|------------|--------------|-------|
@@ -304,11 +303,9 @@ Each hook accepts a single function or an array of functions (`SingleOrArray<Hoo
 
 ## Advanced Features
 
-Beacon includes several advanced capabilities that help you build robust applications.
-
 ### Infinite Loop Protection
 
-Beacon prevents common mistakes that could cause infinite loops:
+An effect that reads a property and then writes to it throws an error:
 
 ```typescript
 import { state, effect } from '@nerdalytics/beacon';
@@ -327,7 +324,7 @@ const increment = () => signal.count++;
 
 ### Automatic Cleanup
 
-All subscriptions are automatically cleaned up when effects are unsubscribed:
+Unsubscribing an effect cleans up all its dependencies and children:
 
 ```typescript
 import { state, effect } from '@nerdalytics/beacon';
@@ -355,40 +352,24 @@ cleanup();
 
 Beacon follows these key principles:
 
-1. **Simplicity**: Minimal API surface with powerful primitives
-2. **Fine-grained reactivity**: Track dependencies at exactly the right level
+1. **Simplicity**: Minimal API surface — four primitives
+2. **Fine-grained reactivity**: Per-property dependency tracking
 3. **Predictability**: State changes flow predictably through the system
 4. **Performance**: Optimize for server workloads and memory efficiency
 5. **Type safety**: Full TypeScript support with generics
 
 ## Architecture
 
-Beacon is built around a centralized reactivity system with fine-grained dependency tracking. Here's how it works:
+Beacon is built around a centralized reactivity system with per-property dependency tracking:
 
 - **Automatic Dependency Collection**: When a state is read inside an effect, Beacon automatically records this dependency
 - **WeakMap-based Tracking**: Uses WeakMaps for automatic garbage collection
 - **Topological Updates**: Updates flow through the dependency graph in the correct order
 - **Memory-Efficient**: Designed for long-running Node.js processes
 
-### Dependency Tracking
-
-When a state is read inside an effect, Beacon automatically records this dependency relationship and sets up a subscription.
-
-### Infinite Loop Prevention
-
-Beacon actively detects when an effect tries to update a state it depends on, preventing common infinite update cycles:
-
-```typescript
-// This would throw: "Infinite loop detected"
-effect(() => {
-  const value = signal.count;
-  signal.count = value + 1; // Error! Updating a state the effect depends on
-});
-```
-
 ### Cyclic Dependencies
 
-Beacon employs two complementary strategies for handling cyclical updates:
+Beacon handles cyclical updates with two strategies:
 
 1. **Active Detection**: The system tracks which states an effect reads from and writes to. If an effect attempts to directly update a state it depends on, Beacon throws a clear error.
 2. **Safe Cycles**: For indirect cycles and safe update patterns, Beacon uses a queue-based update system that won't crash even with cyclical dependencies. When states form a cycle where values eventually stabilize, the system handles these updates efficiently without stack overflows.
@@ -428,15 +409,15 @@ narrowing its scope toward an interop-only protocol rather than a full developer
 
 #### Why "Beacon" Instead of "Signal"?
 
-Beacon represents how the library broadcasts notifications when state changes—just like a lighthouse guides ships. The name avoids confusion with the TC39 proposal and similar libraries while accurately describing the core functionality.
+The name describes what the library does—broadcast changes, like a lighthouse—and sidesteps confusion with the TC39 Signals proposal.
 
 #### How does Beacon handle memory management?
 
-Beacon uses WeakMaps for dependency tracking, ensuring that unused states and effects can be garbage collected. When you unsubscribe an effect, all its internal subscriptions are automatically cleaned up.
+WeakMaps tie dependency tracking to object lifetime—unused states and effects are garbage collected. Unsubscribing an effect removes all its subscriptions.
 
 #### Can I use Beacon with Express or other frameworks?
 
-Yes! Beacon works well as a state management solution in any Node.js application:
+Yes. Beacon works in any Node.js application:
 
 ```typescript
 import express from 'express';
@@ -461,7 +442,7 @@ app.listen(3000);
 
 #### Can Beacon be used in browser applications?
 
-While Beacon is optimized for Node.js server-side applications, its core principles would work in browser environments. However, the library is specifically designed for backend use cases and hasn't been optimized for browser bundle sizes or DOM integration patterns.
+Beacon runs in any JavaScript environment. It is optimized for bundle size, execution performance, and memory, but provides no DOM integration—pair it with a view library for browser use.
 
 ## License
 

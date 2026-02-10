@@ -10,7 +10,7 @@
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![linter:biome](https://img.shields.io/badge/biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white)](https://biomejs.dev/)
 
-A lightweight reactive state library for Node.js backends. Enables fine grained state management with automatic dependency tracking and efficient updates for server-side applications.
+Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
 
 ## Installation
 
@@ -40,7 +40,7 @@ doubled.reactive = false;
 
 ## Documentation
 
-Full documentation, API reference, and examples available at:
+Documentation and API reference:
 **[github.com/nerdalytics/beacon](https://github.com/nerdalytics/beacon)**
 
 ## License
