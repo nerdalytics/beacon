@@ -36,7 +36,7 @@ I needed something for Node.js. For backend services that manage configuration, 
 
 The TC39 proposal told me the primitives were right. It also told me the context was wrong — wrong for my use case, at least. I didn't need to support every framework's rendering model. I didn't need the effect API left deliberately unspecified so each framework could wire in its own scheduling.
 
-I needed four things: state, effect, derive, batch. Four primitives. Nothing else.
+I needed four things: state, effect, derived, batch. Four primitives. Nothing else.
 
 ## The Experimental Phase
 
@@ -82,43 +82,49 @@ The fourth commit rounded out the primitives. `feat(batch): implement batch oper
 
 Two more commits followed — contribution docs and a performance documentation script. Housekeeping. The kind of work you do when you've just built something and you're staring at it, wondering if it's real.
 
+One detail buried in that contribution guide would prove prescient: the commit message format was built around [Epoch Semantic Versioning](https://antfu.me/posts/epoch-semver). The idea is simple — prepend the semver version with an epoch number, expressed as a multiple of 1000. The formula: `(EPOCH * 1000) + MAJOR.MINOR.PATCH`. Regular semver lives in epoch 0. When a change is so fundamental it represents a new era — a complete rewrite, a paradigm shift — you increment the epoch. The commit types reflected this from day one: `epoch` for paradigm shifts, `breaking` for API changes, `feat` for features, `fix` for patches. At the time, `1.0.0` sat comfortably in epoch 0. The scheme felt like over-engineering for a library with zero users. I didn't expect to need it eleven days later.
+
 The API that emerged was function-based:
 
-```javascript
-import { state, effect, derive, batch } from '@nerdalytics/beacon'
+```typescript
+import { state, derived, effect, batch } from "@nerdalytics/beacon";
 
 // Create reactive state
-const count = state(0)
+const count = state(0);
+const doubled = derived(() => count() * 2);
 
-// Read the value by calling the state as a function
-console.log(count()) // 0
+// Read values
+console.log(count()); // => 0
+console.log(doubled()); // => 0
 
-// Write the value with .set()
-count.set(5)
-console.log(count()) // 5
+// Setup an effect that automatically runs when dependencies change
+// effect() returns a cleanup function that removes all subscriptions when called
+const unsubscribe = effect(() => {
+  console.log(`Count is ${count()}, doubled is ${doubled()}`);
+});
+// => "Count is 0, doubled is 0" (effect runs immediately when created)
 
-// Effects run automatically when their dependencies change
-effect(() => {
-  console.log(`Count is now: ${count()}`)
-})
-// logs: "Count is now: 5"
+// Update values - effect automatically runs after each change
+count.set(5);
+// => "Count is 5, doubled is 10"
 
-count.set(10)
-// logs: "Count is now: 10"
+// Update with a function
+count.update((n) => n + 1);
+// => "Count is 6, doubled is 12"
 
-// Derive computes values from state
-const doubled = derive(() => count() * 2)
-console.log(doubled()) // 20
-
-// Batch groups updates — effects fire once, not twice
+// Batch updates (only triggers effects once at the end)
 batch(() => {
-  count.set(100)
-  count.set(200)
-})
-// logs: "Count is now: 200" (only once)
+  count.set(10);
+  count.set(20);
+});
+// => "Count is 20, doubled is 40" (only once)
+
+// Unsubscribe the effect to stop it from running on future updates
+// and clean up all its internal subscriptions
+unsubscribe();
 ```
 
-`state(0)` creates a reactive container. Call it to read. Call `.set()` to write. That's the contract. No classes, no decorators, no configuration objects. Just functions.
+`state(0)` creates a reactive container. Call it to read. Call `.set()` to write. `derived()` computes values from state. `effect()` returns a cleanup function — call it and the subscriptions are gone. That's the entire contract. No classes, no decorators, no configuration objects. Just functions.
 
 The design was deliberate. Functions are the most composable unit in JavaScript. They close over scope. They pass as arguments. They return from other functions. A signal that *is* a function can go anywhere a function can go — into arrays, into maps, into higher-order functions, across module boundaries. No wrapping, no unwrapping, no ceremony.
 
@@ -132,7 +138,7 @@ Publishing a library is a statement. It says: this is ready. It says: someone el
 
 Both of those statements were premature.
 
-I started using Beacon immediately — in internal tooling, in CLI scripts, in small backend services. The API worked. The mental model was sound. `state`, `effect`, `derive`, `batch` composed the way I'd hoped.
+I started using Beacon immediately — in internal tooling, in CLI scripts, in small backend services. The API worked. The mental model was sound. `state`, `effect`, `derived`, `batch` composed the way I'd hoped.
 
 But the internals had problems.
 
@@ -150,21 +156,13 @@ The PR was merged the same day it was opened. There was no deliberation. The old
 
 ## The Version Question
 
-The rewrite created a problem that had nothing to do with code.
+The rewrite created a version problem — but not the one you might expect.
 
-What version number do you give a complete rewrite?
+Standard semver says `2.0.0`. Breaking changes increment the major version. A complete rewrite certainly qualifies. But `2.0.0` implies a linear progression — version 1 evolved into version 2. That's not what happened. Version 1 was thrown away. Version 2 was written from scratch. The relationship between them was conceptual, not genealogical.
 
-Semver says `2.0.0`. The major version increments when you make breaking changes. A complete rewrite certainly qualifies. But `2.0.0` felt wrong. It implied a linear progression — version 1 evolved into version 2. That's not what happened. Version 1 was thrown away. Version 2 was written from scratch. The relationship between them was conceptual, not genealogical.
+This was exactly the scenario epoch versioning was designed for. The scheme I'd adopted from day one — almost as an afterthought in the contribution guide — suddenly had a purpose. The `epoch` commit type that had seemed like over-engineering on March 30th was the precise tool for April 10th.
 
-I went looking for precedent and found Epoch Semantic Versioning.
-
-The idea is simple: prepend the semver version with an epoch number, expressed as a multiple of 1000. A regular semver version `1.2.3` in epoch 0 stays `1.2.3`. But when you make a change so fundamental that it represents a new era — a complete rewrite, a paradigm shift, a from-scratch reimplementation — you increment the epoch.
-
-The formula: `(EPOCH * 1000) + MAJOR.MINOR.PATCH`
-
-Epoch 0 produced `1.0.0`. The genesis version. Function-based signals, first attempt.
-
-Epoch 1 produced `1000.0.0`. The rewrite. Still function-based, but entirely new internals. The major version resets to 0 within the new epoch. Minor and patch versions track incremental changes within that epoch.
+`1000.0.0`. Epoch 1, major 0, minor 0, patch 0. The major version resets within the new epoch. Minor and patch versions track incremental changes from there.
 
 The scheme communicates something that standard semver can't: the *magnitude* of the change. `2.0.0` says "breaking changes." `1000.0.0` says "this is a different library that happens to solve the same problem." The version number itself tells you to re-evaluate your assumptions.
 
