@@ -73,7 +73,11 @@ Implemented in `property-dynamic-deps.test.ts`.
 
 ### 11. Frozen/Sealed Object Reactivity (WeakMap Fallback Paths) — Done
 
-Implemented in `property-frozen-sealed.test.ts`.
+Implemented in `property-frozen-sealed.test.ts`. Two suites: synthetic root-level sealed/frozen
+objects (8 properties exercising proxyCacheSubs, frozenMethodCache, proxyCache WeakMap paths), and
+real-use-case frozen children of extensible parents (7 properties: replacement triggers effects,
+read-through returns correct values, proxy identity stable across reads, derive updates on
+replacement, batch replacement deduplicates, all primitive properties readable, same-ref is no-op).
 
 ---
 
@@ -91,4 +95,4 @@ Implemented in `property-frozen-sealed.test.ts`.
 | 8 | Deep reactivity | Arbitrary nesting depths | Depth 1–2 |
 | 9 | Batch error recovery | Arbitrary throw-at-depth | Depth 3 |
 | 10 | Dynamic dependencies | Arbitrary toggle sequences | Single flip |
-| 11 | Frozen/sealed reactivity | Arbitrary sealed/frozen objects | No coverage |
+| 11 | Frozen/sealed reactivity | Arbitrary sealed/frozen objects + children | No coverage |

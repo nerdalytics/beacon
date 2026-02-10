@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import fc from 'fast-check'
-import { effect, state } from '../src/index.ts'
+import { batch, derive, effect, state } from '../src/index.ts'
 
 /**
  * Property-based tests for frozen and sealed object reactivity.
@@ -311,6 +311,268 @@ describe(
 				),
 				{
 					numRuns: 200,
+				}
+			)
+		})
+	}
+)
+
+// --- Types for real-use-case tests ---
+
+type FrozenChild = Readonly<Record<string, number>>
+
+type ParentWithFrozenChild = {
+	child: FrozenChild
+	label: string
+}
+
+// --- Arbitraries for real-use-case tests ---
+
+const frozenChildArb: fc.Arbitrary<FrozenChild> = fc
+	.dictionary(
+		fc.string({
+			maxLength: 8,
+			minLength: 1,
+		}),
+		intArb,
+		{
+			maxKeys: 6,
+			minKeys: 1,
+		}
+	)
+	.map(
+		(obj: Record<string, number>): FrozenChild =>
+			Object.freeze({
+				...obj,
+			})
+	)
+
+// --- Real-use-case tests: frozen/sealed children of extensible parents ---
+
+describe(
+	'Property-Based: Frozen/Sealed Children of Reactive State',
+	{
+		concurrency: true,
+		timeout: 30000,
+	},
+	(): void => {
+		it('replacing a frozen child triggers effects', (): void => {
+			fc.assert(
+				fc.property(frozenChildArb, frozenChildArb, (childA: FrozenChild, childB: FrozenChild): void => {
+					fc.pre(childA !== childB)
+
+					const $s = state<ParentWithFrozenChild>({
+						child: childA,
+						label: 'test',
+					})
+
+					// $s.child returns a Proxy wrapping childA, not childA itself
+					const proxyA = $s.child
+					let runs = 0
+					const dispose = effect((): void => {
+						runs++
+						void $s.child
+					})
+
+					assert.strictEqual(runs, 1)
+
+					runs = 0
+					$s.child = childB
+
+					assert.strictEqual(runs, 1, 'effect should fire when frozen child is replaced')
+					assert.notStrictEqual($s.child, proxyA, 'should return a different proxy after replacement')
+
+					dispose()
+				}),
+				{
+					numRuns: 300,
+				}
+			)
+		})
+
+		it('reading through frozen child proxies returns correct values', (): void => {
+			fc.assert(
+				fc.property(frozenChildArb, (child: FrozenChild): void => {
+					const keys = Object.keys(child)
+					fc.pre(keys.length > 0)
+
+					const $s = state({
+						child,
+					})
+
+					// Reading through the proxy should return the same values
+					for (const key of keys) {
+						assert.strictEqual(
+							($s.child as Record<string, number>)[key],
+							child[key],
+							`reading key "${key}" through proxy should match original`
+						)
+					}
+				}),
+				{
+					numRuns: 300,
+				}
+			)
+		})
+
+		it('frozen child proxy identity is stable across reads', (): void => {
+			fc.assert(
+				fc.property(frozenChildArb, (child: FrozenChild): void => {
+					const $s = state({
+						child,
+					})
+
+					// wrapNestedObject returns the same proxy via proxyCache
+					const read1 = $s.child
+					const read2 = $s.child
+					assert.strictEqual(read1, read2, 'consecutive reads should return same proxy')
+
+					// Also stable after an unrelated write
+					$s.child = child // same reference, Object.is → no-op
+					const read3 = $s.child
+					assert.strictEqual(read1, read3, 'should be same proxy after same-ref write')
+				}),
+				{
+					numRuns: 300,
+				}
+			)
+		})
+
+		it('derive updates when a frozen child is replaced', (): void => {
+			fc.assert(
+				fc.property(frozenChildArb, frozenChildArb, (childA: FrozenChild, childB: FrozenChild): void => {
+					const keysA = Object.keys(childA)
+					const keysB = Object.keys(childB)
+					fc.pre(keysA.length > 0 && keysB.length > 0)
+					fc.pre(childA !== childB)
+
+					const $s = state({
+						child: childA as Record<string, number>,
+					})
+
+					const keyA = keysA[0]
+					const $d = derive((): number => ($s.child as Record<string, number>)[keyA] as number)
+
+					assert.strictEqual($d.value, childA[keyA])
+
+					$s.child = childB as Record<string, number>
+
+					// After replacement, derive re-evaluates and reads keyA
+					// from the new child (may be undefined if key doesn't exist)
+					assert.strictEqual(
+						$d.value,
+						(childB as Record<string, number>)[keyA],
+						'derive should reflect the replaced child'
+					)
+
+					$d.reactive = false
+				}),
+				{
+					numRuns: 300,
+				}
+			)
+		})
+
+		it('batch replacement of frozen children deduplicates', (): void => {
+			fc.assert(
+				fc.property(
+					fc.array(frozenChildArb, {
+						maxLength: 8,
+						minLength: 2,
+					}),
+					(children: FrozenChild[]): void => {
+						const $s = state({
+							child: children[0] as FrozenChild,
+						})
+
+						let runs = 0
+						const dispose = effect((): void => {
+							runs++
+							void $s.child
+						})
+
+						runs = 0
+
+						batch((): void => {
+							for (const c of children) {
+								$s.child = c
+							}
+						})
+
+						const last = children[children.length - 1]
+						assert.ok(runs <= 1, `effect ran ${runs} times, expected at most 1`)
+						// $s.child returns a proxy, not the raw frozen ref — verify a property value
+						const lastKey = Object.keys(last)[0]
+						if (lastKey !== undefined) {
+							assert.strictEqual(
+								($s.child as Record<string, number>)[lastKey],
+								last[lastKey],
+								'should reflect the last frozen child'
+							)
+						}
+
+						dispose()
+					}
+				),
+				{
+					numRuns: 300,
+				}
+			)
+		})
+
+		it('all primitive properties of a frozen child are readable through proxy', (): void => {
+			fc.assert(
+				fc.property(frozenChildArb, (child: FrozenChild): void => {
+					const keys = Object.keys(child)
+					fc.pre(keys.length > 0)
+
+					const $s = state({
+						child,
+					})
+
+					// Every primitive-valued property on the frozen child should
+					// be readable through the parent proxy without violating the
+					// ES Proxy invariant (non-writable + non-configurable must
+					// return the exact target value — only holds for primitives
+					// since wrapNestedObject would return a different Proxy for objects)
+					for (const key of keys) {
+						assert.strictEqual(
+							($s.child as Record<string, number>)[key],
+							child[key],
+							`frozen child key "${key}" should be readable through proxy`
+						)
+					}
+				}),
+				{
+					numRuns: 300,
+				}
+			)
+		})
+
+		it('same frozen reference replacement is a no-op', (): void => {
+			fc.assert(
+				fc.property(frozenChildArb, (child: FrozenChild): void => {
+					const $s = state({
+						child,
+					})
+
+					let runs = 0
+					const dispose = effect((): void => {
+						runs++
+						void $s.child
+					})
+
+					runs = 0
+
+					// Replacing with the exact same reference — Object.is returns true
+					$s.child = child
+
+					assert.strictEqual(runs, 0, 'same frozen reference should not trigger effect')
+
+					dispose()
+				}),
+				{
+					numRuns: 300,
 				}
 			)
 		})
