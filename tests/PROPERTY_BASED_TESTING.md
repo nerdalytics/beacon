@@ -41,15 +41,9 @@ Implemented in `property-proxy-identity.test.ts`.
 
 ---
 
-### 6. Cleanup Completeness Under Arbitrary Disposal Order
+### 6. Cleanup Completeness Under Arbitrary Disposal Order — Done
 
-**Gap**: `cleanup.test.ts:204-251` tests one specific interleaving (create 3, dispose middle).
-
-**Property**: For any N effects on the same state, disposing any subset means only non-disposed effects fire on
-subsequent updates.
-
-**Value**: Exercises subscriber set removal ordering. Disposing effects in different orders can expose bugs in
-subscriber iteration or set mutation during traversal.
+Implemented in `property-cleanup.test.ts`.
 
 ---
 
