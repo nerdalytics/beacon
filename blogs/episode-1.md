@@ -16,7 +16,7 @@ What is a signal, really?
 
 Strip away the framework bindings, the template integration, the change detection optimization. At its core, a signal is a value that tells you when it changes. That's it. A container with a notification mechanism. The simplest useful abstraction over mutable state.
 
-The more I thought about it, the less it felt like a framework feature. It felt like a pattern. A pattern that had nothing inherently to do with browsers, DOM updates, or component rendering. A pattern that should work anywhere you have state that changes and code that needs to respond.
+The more I thought about it, the less it felt like a framework feature. It felt like something more fundamental. A way to manage mutable state that had nothing to do with browsers or component rendering. Something that should work anywhere state changes and code needs to respond.
 
 The question formed slowly over weeks: what would signals look like if they weren't built for a framework?
 
@@ -182,7 +182,7 @@ Then silence.
 
 From April 14 to October 23, 2025 — six months — the git log shows nothing. No commits. No PRs. No issues.
 
-This wasn't abandonment. It was the opposite. Beacon was in production. It was managing state in CLI tools. It was coordinating effects in a SQLite persistence layer. It was doing exactly what it was built to do, quietly, without requiring changes.
+This wasn't abandonment. It was the opposite. Beacon was in production. It was managing state in CLI tools and coordinating effects in a SQLite persistence layer. Doing what it was built to do, without requiring changes.
 
 Six months of silence in a git log can mean two things: the project is dead, or the project is done. Beacon was neither — it was stable. Stable enough that the next change wouldn't come from a bug report or a missing feature. It would come from a question: what if the entire API paradigm was wrong?
 
@@ -190,19 +190,15 @@ But that's a story for another episode.
 
 ## Takeaway
 
-Sometimes the best way to understand a concept is to rip it out of its context and rebuild it somewhere else entirely.
+Angular's signals were designed for component rendering. The TC39 proposal was designed for cross-framework compatibility. Beacon was designed for backend Node.js — servers, scripts, and long-running processes with no DOM, no render loop, no frame budget.
 
-Angular's signals were designed for component rendering. The TC39 proposal was designed for cross-framework compatibility. Beacon was designed for none of those things. It was designed for backend Node.js — for servers, scripts, and long-running processes that have no DOM, no render loop, no frame budget.
+Reactive state management isn't a UI pattern. It's a state pattern that happened to grow up in UI frameworks.
 
-The concept transferred because the concept was sound. Reactive state management isn't a UI pattern. It's a state management pattern. The framework context was incidental, not essential.
+Beacon's API looks nothing like Angular's signals, and the TC39 proposal would barely recognize it. That's fine. The point was never to port someone else's library. It was to take an idea apart and put it back together for a different problem. The result doesn't have to resemble the inspiration.
 
-You don't need permission to be inspired by something outside your domain. You don't need the original authors' use case to match yours. You don't even need the concept to survive the transfer intact — Beacon's API looks nothing like Angular's signals, and the TC39 proposal would barely recognize it.
+That's how Beacon started. A concept from a framework I don't use, rebuilt for a runtime where nobody expected it, published on a Sunday afternoon. Three days and one version number. Then eleven days, a complete rewrite, and a version number that jumps by a thousand.
 
-What you need is the willingness to pull an idea apart, examine the pieces, and reassemble them for your own problem. The result might be unrecognizable. It might be better. It might be worse. But it will be *yours*, shaped by constraints that no one else has, solving problems that no one else faces.
-
-That's how Beacon started. A concept borrowed from a framework I don't use, rebuilt for a runtime where nobody expected it, published on a Sunday afternoon after three days of focused work. Three days and one version number. Then eleven days, a complete rewrite, and a version number that jumps by a thousand.
-
-The library that exists today — two epochs, dozens of optimizations, a hooks system, property-based tests, and a Proxy-based architecture later — is unrecognizable from what shipped on March 30th. But March 30th is where it started. And it started because someone else's framework did something interesting, and I couldn't stop thinking about it.
+The library that exists today — two epochs, dozens of optimizations, a hooks system, property-based tests, a Proxy-based architecture — is unrecognizable from what shipped on March 30th. But March 30th is where it started. And it started because someone else's framework did something interesting, and I couldn't stop thinking about it.
 
 ---
 
