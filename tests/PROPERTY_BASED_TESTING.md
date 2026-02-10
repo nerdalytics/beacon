@@ -53,14 +53,9 @@ Implemented in `property-infinite-loop.test.ts`.
 
 ---
 
-### 8. Deep Reactivity at Arbitrary Nesting Depths
+### 8. Deep Reactivity at Arbitrary Nesting Depths — Done
 
-**Gap**: Tests exercise nesting at depth 1–2 only.
-
-**Property**: For any nesting depth N, writing to the deepest property triggers an effect reading that path.
-
-**Value**: The proxy wrapping in `resolveValue` → `wrapNestedObject` is recursive. PBT reveals depth-dependent
-issues in proxy caching or subscriber tracking.
+Implemented in `property-deep-reactivity.test.ts`.
 
 ---
 
