@@ -12,9 +12,9 @@
 	"files": {
 		"ignoreUnknown": true,
 		"includes": [
-			"**/*.ts",
+			"*.json",
 			"**/*.js",
-			"**/*.json",
+			"**/*.ts",
 			"!package-lock.json",
 			"!**/tests/template.test.ts",
 			"!**/dist/**/*",
