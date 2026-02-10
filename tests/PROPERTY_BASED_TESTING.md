@@ -59,15 +59,9 @@ Implemented in `property-deep-reactivity.test.ts`.
 
 ---
 
-### 9. Batch Error Recovery (Depth Invariant)
+### 9. Batch Error Recovery (Depth Invariant) — Done
 
-**Gap**: `batch-core.test.ts:58-76` tests error propagation at depth 3.
-
-**Property**: After a batch throws at any nesting depth K of N, the system remains functional — subsequent
-non-batched writes immediately trigger effects (proving `batchDepth` returned to 0).
-
-**Value**: A bug where `batchDepth` leaks (missing decrement in a specific error path) would leave the system
-permanently in batched mode. Hand-picked depths cannot cover all throw-at-depth-K-of-N combinations.
+Implemented in `property-batch-error.test.ts`.
 
 ---
 
