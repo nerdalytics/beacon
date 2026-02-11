@@ -4,7 +4,7 @@ You don't have to use a framework to be inspired by one.
 
 ---
 
-## The spark
+## Why is everyone talking about signals
 
 It starts the way most side projects start: someone else's problem catches your attention.
 
@@ -20,7 +20,7 @@ The more I thought about it, the less it seemed tied to any framework. It was a 
 
 The question formed slowly over weeks: what would signals look like if they weren't built for a framework?
 
-## Down the rabbit hole
+## Even TC39 has a proposal
 
 The question led me to the TC39 Signals proposal.
 
@@ -38,19 +38,21 @@ The TC39 proposal confirmed the primitives. But the context was wrong for my use
 
 I needed four things: state, effect, derived, batch. Four primitives. Nothing else.
 
-## The experimental phase
+## Maybe derived values can't be lazy
 
 Knowing what you want to build and knowing how to build it are different problems separated by weeks of bad code.
 
 It was messy. I wrote reactive containers that leaked memory. I wrote dependency tracking that missed updates. I wrote batch implementations that deadlocked. Each prototype taught me something, mostly about what not to do.
 
-I tried a purely pull-based system first, where computed values lazily recalculated on read. The TC39 proposal described this approach: derived values don't recompute eagerly, they wait until someone reads them, avoiding redundant computation. Elegant in theory. In practice, I couldn't make it work.
+I tried a purely pull-based system first, where computed values lazily recalculated on read. The TC39 proposal described this approach: derived values don't recompute eagerly, they wait until someone reads them. Elegant in theory. In practice, I couldn't make it work.
 
 The problem was derived values inside effects. A derived value that lazily recomputes on read has no mechanism to tell an effect "your dependency changed, re-run." The effect sits idle, waiting for a notification that never comes, because the derived value only knows it's stale when someone pulls from it. Nothing triggers that pull. I'd see effects running with stale derived values, or sitting idle when they should have fired. The dependency graph was incomplete: state notified its direct subscribers, but the change signal died at the derived boundary instead of propagating upward to the effects that consumed it.
 
-I needed a way to propagate change notifications through derived values to their dependent effects, but I didn't see it yet. A purely pull-based derived value is invisible to its consumers. It recomputes on read, but nothing tells an effect to read it again. The TC39 proposal solves this with a push-pull hybrid: derived values stay lazy but propagate dirty flags upward so effects know to re-execute, and only then does the derived value recompute. Solid takes a different path: its createMemo is eager by default, pushing recomputation immediately when dependencies change, with an option to pull a fresh value early if read before the scheduler reaches it. Different architectures, same insight: purely lazy and purely eager are both incomplete.
+I needed a way to propagate change notifications through derived values to their dependent effects, but I didn't see it yet. A purely pull-based derived value is invisible to its consumers. The TC39 proposal solves this with a push-pull hybrid: derived values stay lazy but propagate dirty flags upward so effects know to re-execute, and only then does the derived value recompute.
 
-I didn't know enough to build the pull-based hybrid. Push-based was within reach: experience with event-driven patterns, enough research, and good ideas and code snippets from Claude Sonnet and Opus.
+Solid takes a different path: its createMemo is eager by default, pushing recomputation immediately when dependencies change, with an option to pull a fresh value early if read before the scheduler reaches it. Different architectures, same insight: purely lazy and purely eager are both incomplete.
+
+I didn't know enough to build the pull-based hybrid. Ryan Carniato's GitHub discussions on Solid's eager evaluation gave me the direction. Push-based was within reach due to experience with event-driven patterns, enough research, and good ideas and code snippets from Claude Sonnet and Opus.
 
 What eventually worked was a push-based system with property-level tracking. Each state property maintains its own set of subscribers. When a property changes, only effects that read that property are notified. No wasted notifications. No global broadcast. The dependency graph is explicit, built automatically as effects run and read state.
 
@@ -58,7 +60,9 @@ The mental model solidified: **state** holds values and tracks who reads them. *
 
 Four primitives.
 
-## March 30th
+## Someone should look at this code
+
+I showed the code to colleagues at work. They're mostly React developers, and React is a religion. A reactive state library with no roots in their ecosystem didn't register. If I wanted feedback, I'd have to publish it.
 
 March 30, 2025. A Sunday.
 
@@ -138,9 +142,9 @@ Two days later, on April 1st, I formatted the code with Biome, fixed lint warnin
 
 Three days. From scattered experiments to a published npm package.
 
-## First contact with reality
+## Brave enough to use it at work
 
-I started using Beacon immediately in internal tooling, CLI scripts, small backend services. The API worked. The mental model was sound. `state`, `effect`, `derived`, `batch` composed the way I'd hoped.
+Using your own untested library in customer projects takes nerve. But that was the point: colleagues would touch the code, and they'd tell me what worked and what didn't. I put Beacon into internal tooling, CLI scripts, and customer-facing services. The API worked. The mental model was sound. `state`, `effect`, `derived`, `batch` composed the way I'd hoped.
 
 But the internals had problems.
 
@@ -156,7 +160,7 @@ I rewrote the whole thing. Same four primitives, same mental model, but every li
 
 I merged the PR the same day. The old code couldn't support extension. The new code could.
 
-## The version question
+## I planned for this since the first commit
 
 The rewrite created a version problem.
 
@@ -172,7 +176,7 @@ And the security blind spot that motivated the choice in the first place? Within
 
 A colleague told me I was overthinking version numbers. For a library with a handful of users and a single maintainer, `2.0.0` would have been fine. But versioning is a communication tool, and I wanted precision. `1000.0.0` was the precise message: epoch 1 starts here.
 
-## What came next
+## No issues for months
 
 With `1000.0.0` tagged, the real work began.
 
@@ -180,7 +184,9 @@ Over the next four days, features landed. `1000.2.0` added custom equality funct
 
 Then months of using it. Beacon managed state in CLI tools, a persistence layer, a customer project that processed Excel into Storybook stories via Salesforce. It worked.
 
-Until a debugging session changed my mind. The customer project had a strange bug: data processed, API calls succeeded, but no stories appeared. I added effects to log internals. The script went from one hour to sixteen and counting. Profiling pointed straight at Beacon: every added effect cost real memory and CPU. The library I'd built to manage state was now the bottleneck.
+Until I came back from vacation. A colleague had worked on the customer project while I was away. He didn't understand signals, so he removed them and wrote his own code. I tried to salvage his business logic while restoring the reactive layer.
+
+My usual debugging approach was effect-based logging: add `effect()` calls to trace how state flows through the system. It had worked before. This time, data processed, API calls succeeded, but no stories appeared. I kept adding effects to narrow the problem down. The script went from one hour per run to sixteen and counting. Profiling pointed straight at Beacon: every added effect cost real memory and CPU. The library I'd built to manage state was now the bottleneck.
 
 Around the same time, I read blog posts about using Proxies for state management. The API was clean. Natural. `state = 5` instead of `state.set(5)`. The idea lodged itself the same way Angular's signals had.
 
