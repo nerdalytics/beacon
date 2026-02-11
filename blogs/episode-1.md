@@ -8,7 +8,7 @@ You don't have to use a framework to be inspired by one.
 
 It starts the way most side projects start: someone else's problem catches your attention.
 
-I work alongside Angular developers. In 2023, Angular introduced signals, a reactive primitive that tracks values and notifies consumers when they change. I watched colleagues adopt them. I watched the API surface shrink. Components that previously required elaborate lifecycle management became a handful of declarations: here's a value, here's what happens when it changes.
+I orchestrate Angular developers. In late 2023, Angular shipped signals as a stable feature in version 17, a reactive primitive that tracks values and notifies consumers when they change. I watched colleagues adopt them. I watched the API surface shrink. Components that previously required elaborate lifecycle management became a handful of declarations: here's a value, here's what happens when it changes.
 
 I'm not an Angular developer. I don't build SPAs. My work is backend Node.js: servers, CLI tools, data pipelines. But the concept lodged in my head anyway.
 
@@ -44,11 +44,15 @@ Knowing what you want to build and knowing how to build it are different problem
 
 It was messy. I wrote reactive containers that leaked memory. I wrote dependency tracking that missed updates. I wrote batch implementations that deadlocked. Each prototype taught me something, mostly about what not to do.
 
-I tried a pull-based system first, where computed values lazily recalculated on read. Elegant in theory, a nightmare to debug. Stale values appeared in effects because the evaluation order was unpredictable. A pull-based system works when you control the read timing, in a render loop, for instance. It falls apart when effects can fire at any moment in response to arbitrary writes.
+I tried a purely pull-based system first, where computed values lazily recalculated on read. The TC39 proposal described this approach: derived values don't recompute eagerly, they wait until someone reads them, avoiding redundant computation. Elegant in theory. In practice, I couldn't make it work.
 
-Then a global event emitter that broadcast every change to every listener. It worked but scaled terribly. Ten state variables with ten effects meant a hundred notifications per change, most of them irrelevant.
+The problem was derived values inside effects. A derived value that lazily recomputes on read has no mechanism to tell an effect "your dependency changed, re-run." The effect sits idle, waiting for a notification that never comes, because the derived value only knows it's stale when someone pulls from it. Nothing triggers that pull. I'd see effects running with stale derived values, or sitting idle when they should have fired. The dependency graph was incomplete: state notified its direct subscribers, but the change signal died at the derived boundary instead of propagating upward to the effects that consumed it.
 
-What eventually worked was property-level tracking. Each state property maintains its own set of subscribers. When a property changes, only effects that read that property are notified. No wasted notifications. No global broadcast. The dependency graph is implicit, built automatically as effects run and read state.
+I needed a way to propagate change notifications through derived values to their dependent effects, but I didn't see it yet. A purely pull-based derived value is invisible to its consumers. It recomputes on read, but nothing tells an effect to read it again. The TC39 proposal solves this with a push-pull hybrid: derived values stay lazy but propagate dirty flags upward so effects know to re-execute, and only then does the derived value recompute. Solid takes a different path: its createMemo is eager by default, pushing recomputation immediately when dependencies change, with an option to pull a fresh value early if read before the scheduler reaches it. Different architectures, same insight: purely lazy and purely eager are both incomplete.
+
+I didn't know enough to build the pull-based hybrid. Push-based was within reach: experience with event-driven patterns, enough research, and good ideas and code snippets from Claude Sonnet and Opus.
+
+What eventually worked was a push-based system with property-level tracking. Each state property maintains its own set of subscribers. When a property changes, only effects that read that property are notified. No wasted notifications. No global broadcast. The dependency graph is explicit, built automatically as effects run and read state.
 
 The mental model solidified: **state** holds values and tracks who reads them. **Effect** declares "run this function, and re-run it whenever anything it reads changes." **Derive** is a computed value that stays in sync with its dependencies. **Batch** groups multiple writes so effects run once, not once per write.
 
