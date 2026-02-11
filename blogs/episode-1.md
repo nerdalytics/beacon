@@ -1,4 +1,4 @@
-# From Angular Signals to npm publish
+# Beacon my story from Angular Signals to npm publish
 
 You don't have to use a framework to be inspired by one.
 
@@ -10,7 +10,7 @@ It starts the way most side projects start: someone else's problem catches your 
 
 I orchestrate Angular developers. In late 2023, Angular shipped signals as a stable feature in version 17, a reactive primitive that tracks values and notifies consumers when they change. I watched colleagues adopt them. I watched the API surface shrink. Components that previously required elaborate lifecycle management became a handful of declarations: here's a value, here's what happens when it changes.
 
-I'm not an Angular developer. I don't build SPAs. My work is backend Node.js: servers, CLI tools, data pipelines. But the concept lodged in my head anyway.
+I'm not an Angular developer. I don't build SPAs. I build servers, CLI tools, and data pipelines in Node.js. But the concept lodged in my head anyway.
 
 What is a signal, really?
 
@@ -20,7 +20,7 @@ The more I thought about it, the less it seemed tied to any framework. It was a 
 
 The question formed slowly over weeks: what would signals look like if they weren't built for a framework?
 
-## Even TC39 has a proposal
+## Also TC39 has a signals proposal
 
 The question led me to the TC39 Signals proposal.
 
@@ -36,9 +36,9 @@ I needed something for Node.js. For backend services that manage configuration, 
 
 The TC39 proposal confirmed the primitives. But the context was wrong for my use case. I didn't need to support every framework's rendering model. I didn't need the effect API left deliberately unspecified so each framework could wire in its own scheduling.
 
-I needed four things: state, effect, derived, batch. Four primitives. Nothing else.
+I needed state, effect, derived, and batch. Four primitives. Nothing else.
 
-## Maybe derived values can't be lazy
+## I cannot get lazy evaluation to work
 
 Knowing what you want to build and knowing how to build it are different problems separated by weeks of bad code.
 
@@ -50,23 +50,23 @@ The problem was derived values inside effects. A derived value that lazily recom
 
 I needed a way to propagate change notifications through derived values to their dependent effects, but I didn't see it yet. A purely pull-based derived value is invisible to its consumers. The TC39 proposal solves this with a push-pull hybrid: derived values stay lazy but propagate dirty flags upward so effects know to re-execute, and only then does the derived value recompute.
 
-Solid takes a different path: its createMemo is eager by default, pushing recomputation immediately when dependencies change, with an option to pull a fresh value early if read before the scheduler reaches it. Different architectures, same insight: purely lazy and purely eager are both incomplete.
+Solid takes a different path: its `createMemo` is eager by default, pushing recomputation immediately when dependencies change, with an option to pull a fresh value early if read before the scheduler reaches it. Different architectures, same insight: purely lazy and purely eager are both incomplete.
 
 I didn't know enough to build the pull-based hybrid. Ryan Carniato's GitHub discussions on Solid's eager evaluation gave me the direction. Push-based was within reach due to experience with event-driven patterns, enough research, and good ideas and code snippets from Claude Sonnet and Opus.
 
 What eventually worked was a push-based system with property-level tracking. Each state property maintains its own set of subscribers. When a property changes, only effects that read that property are notified. No wasted notifications. No global broadcast. The dependency graph is explicit, built automatically as effects run and read state.
 
-The mental model solidified: **state** holds values and tracks who reads them. **Effect** declares "run this function, and re-run it whenever anything it reads changes." **Derive** is a computed value that stays in sync with its dependencies. **Batch** groups multiple writes so effects run once, not once per write.
+The mental model solidified. **State** holds values and tracks who reads them. **Effect** declares "run this function, and re-run it whenever anything it reads changes." **Derive** is a computed value that stays in sync with its dependencies. **Batch** groups multiple writes so effects run once, not once per write.
 
 Four primitives.
 
-## Someone should look at this code
+## I want feedback - someone should look at this code
 
 I showed the code to colleagues at work. They're mostly React developers, and React is a religion. A reactive state library with no roots in their ecosystem didn't register. If I wanted feedback, I'd have to publish it.
 
 March 30, 2025. A Sunday.
 
-The experimental code had been accumulating for weeks: scattered files, abandoned branches, notes-to-self in comments. Months of experimenting, discarding, restarting. By that Sunday, the code existed. It worked. What it lacked was a narrative.
+The experimental code had been accumulating for weeks across scattered files, abandoned branches, notes-to-self in comments. Months of experimenting, discarding, restarting. By that Sunday, the code existed. It worked. What it lacked was a narrative.
 
 I arranged the code into commits, not in writing order but in the order I'd come to understand signals. Six commits hit the repository that day:
 
@@ -74,7 +74,7 @@ The first was the foundation. `epoch(core): initial project structure and state 
 
 The `epoch` prefix was deliberate. Before writing the first commit, I'd already adopted [Epoch Semantic Versioning](https://antfu.me/posts/epoch-semver). Standard semver has a blind spot: it can't distinguish a routine breaking change from a security-critical one that demands immediate migration. Every breaking change gets the same signal: bump the major version. A rename of a rarely-used option and a fix for a critical vulnerability that reshapes the public API look identical in the version number.
 
-Epoch semver solves this with a simple encoding: `(EPOCH * 1000) + MAJOR.MINOR.PATCH`. Regular semver lives in epoch 0. Within any epoch, versioning works exactly as you'd expect: patch for fixes, minor for features, major for breaking changes. But when a change is so fundamental it represents a complete restart, you increment the epoch. The commit types reflected this: `epoch` for paradigm shifts, `breaking` for API changes, `feat` for features, `fix` for patches. At the time, `1.0.0` sat comfortably in epoch 0.
+Epoch semver solves this with a simple encoding: `(EPOCH * 1000) + MAJOR.MINOR.PATCH`. Regular semver lives in epoch 0. Within any epoch, patch bumps fix bugs, minor bumps add features, and major bumps break the API. But when a change is so fundamental it represents a complete restart, you increment the epoch. The commit types follow the same logic. `epoch` when the library restarts. `breaking` when the API changes. `feat` and `fix` for the rest. At the time, `1.0.0` sat comfortably in epoch 0.
 
 The second added effects. `feat(effect): add effect implementation.` The automatic dependency tracking, the re-execution on change, the subscription lifecycle.
 
@@ -136,7 +136,7 @@ unsubscribe();
 
 `state(0)` creates a reactive container. Call it to read. Call `.set()` to write. `derived()` computes values from state. `effect()` returns a cleanup function; call it and the subscriptions are gone. That's the entire contract. Functions, not classes or decorators.
 
-The design was deliberate. Functions compose well in JavaScript. They close over scope, pass as arguments, return from other functions. A signal that *is* a function goes anywhere functions go: across module boundaries, into data structures, through higher-order abstractions.
+The design was deliberate. Functions compose well in JavaScript. They close over scope, pass as arguments, return from other functions. A signal that *is* a function goes wherever functions go. Module boundaries, data structures, higher-order abstractions.
 
 Two days later, on April 1st, I formatted the code with Biome, fixed lint warnings, updated dependencies, configured npm publishing, and tagged `1.0.0`.
 
@@ -144,7 +144,7 @@ Three days. From scattered experiments to a published npm package.
 
 ## Brave enough to use it at work
 
-Using your own untested library in customer projects takes nerve. But that was the point: colleagues would touch the code, and they'd tell me what worked and what didn't. I put Beacon into internal tooling, CLI scripts, and customer-facing services. The API worked. The mental model was sound. `state`, `effect`, `derived`, `batch` composed the way I'd hoped.
+Using your own library in customer projects takes nerve. Colleagues would touch the code, and they'd tell me what worked and what didn't. I put Beacon into internal tooling, CLI scripts, and customer-facing services. The API worked. The mental model was sound. `state`, `effect`, `derived`, `batch` composed the way I'd hoped.
 
 But the internals had problems.
 
