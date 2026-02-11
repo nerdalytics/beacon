@@ -52,7 +52,7 @@ The third attempt found the shape. Property-level tracking. Each state property 
 
 The mental model solidified: **state** holds values and tracks who reads them. **Effect** declares "run this function, and re-run it whenever anything it reads changes." **Derive** is a computed value that stays in sync with its dependencies. **Batch** groups multiple writes so effects run once, not once per write.
 
-Four primitives. Each one simple enough to explain in a sentence. Powerful enough in combination to model any reactive system I could think of.
+Four primitives. Each one simple enough to explain in a sentence.
 
 ## March 30th
 
@@ -126,19 +126,15 @@ batch(() => {
 unsubscribe();
 ```
 
-`state(0)` creates a reactive container. Call it to read. Call `.set()` to write. `derived()` computes values from state. `effect()` returns a cleanup function — call it and the subscriptions are gone. That's the entire contract. No classes, no decorators, no configuration objects. Just functions.
+`state(0)` creates a reactive container. Call it to read. Call `.set()` to write. `derived()` computes values from state. `effect()` returns a cleanup function — call it and the subscriptions are gone. That's the entire contract. Just functions — no classes, no decorators, no ceremony.
 
-The design was deliberate. Functions are the most composable unit in JavaScript. They close over scope. They pass as arguments. They return from other functions. A signal that *is* a function can go anywhere a function can go — into arrays, into maps, into higher-order functions, across module boundaries. No wrapping, no unwrapping, no ceremony.
+The design was deliberate. Functions are the most composable unit in JavaScript. They close over scope. They pass as arguments. They return from other functions. A signal that *is* a function can go anywhere a function can go — into arrays, into maps, into higher-order functions, across module boundaries.
 
 Two days later, on April 1st, I formatted the code with Biome, fixed lint warnings, updated dependencies, configured npm publishing, and tagged `1.0.0`.
 
 Three days. From scattered experiments to a published npm package.
 
 ## First Contact with Reality
-
-Publishing a library is a statement. It says: this is ready. It says: someone else could use this.
-
-Both of those statements were premature.
 
 I started using Beacon immediately — in internal tooling, in CLI scripts, in small backend services. The API worked. The mental model was sound. `state`, `effect`, `derived`, `batch` composed the way I'd hoped.
 
@@ -152,7 +148,7 @@ On April 10th, eleven days after `1.0.0`, I did what needed to be done.
 
 `epoch(core): complete rewrite of the library (#6)`.
 
-Not a refactor. Not a major version bump. A complete rewrite. The same four primitives, the same mental model, but entirely new internals. The dependency tracking was rebuilt. The subscriber notification was rebuilt. The batch processing was rebuilt. Everything that existed on March 30th was replaced.
+I rewrote the whole thing. Same four primitives, same mental model, but every line of implementation was new. The dependency tracking was rebuilt. The subscriber notification was rebuilt. The batch processing was rebuilt. Everything that existed on March 30th was replaced.
 
 The PR was merged the same day it was opened. There was no deliberation. The old code wasn't salvageable in the way that mattered — structurally sound enough to extend. The new code was.
 
@@ -170,7 +166,7 @@ The scheme communicates something that standard semver can't: the *magnitude* of
 
 And the security blind spot that motivated the choice in the first place? Within epoch 1, it works exactly as designed. If `1000.1.0` is out and a security vulnerability requires changing the public API, that's a breaking change — `1001.0.0`. The major version bumps within the epoch. Consumers see the major version jump and know: this isn't a minor update, read the changelog, the API changed. But the epoch stays the same — it's still the same library, the same architecture, the same mental model. An epoch bump to `2000.0.0` would mean something far more drastic: throw away your assumptions entirely, this is a different library now.
 
-Some people find epoch versioning excessive. For a library with a handful of users and a single maintainer, `2.0.0` would have been fine. But versioning is a communication tool, and I wanted precision. `1000.0.0` was the precise message: epoch 1 starts here.
+A colleague told me I was overthinking version numbers. For a library with a handful of users and a single maintainer, `2.0.0` would have been fine. But versioning is a communication tool, and I wanted precision. `1000.0.0` was the precise message: epoch 1 starts here.
 
 ## What Came Next
 
@@ -178,28 +174,18 @@ With `1000.0.0` tagged, the real work began.
 
 Over the next four days, the library matured rapidly. Custom equality functions landed in `1000.2.0` — the ability to tell Beacon "these two values are the same" using your own comparison logic, preventing unnecessary effect re-runs when values change shape but not meaning. Minification and package configuration improvements followed in `1000.2.1`.
 
-Then silence.
+Then months of using it. Beacon managed state in CLI tools, a persistence layer, a customer project that processed Excel into Storybook stories via Salesforce. It worked.
 
-From April 14 to October 23, 2025 — six months — the git log shows nothing. No commits. No PRs. No issues.
+Until a debugging session changed my mind. The customer project had a strange bug — data processed, API calls succeeded, but stories couldn't be found. I added effects to log internals. The script went from one hour to sixteen and counting. Profiling pointed straight at Beacon: every added effect cost real memory and CPU. The library I'd built to manage state was now the bottleneck.
 
-This wasn't abandonment. It was the opposite. Beacon was in production. It was managing state in CLI tools and coordinating effects in a SQLite persistence layer. Doing what it was built to do, without requiring changes.
+Around the same time, I read blog posts about using Proxies for state management. The API was clean. Natural. `state = 5` instead of `state.set(5)`. The idea lodged itself the same way Angular's signals had.
 
-Six months of silence in a git log can mean two things: the project is dead, or the project is done. Beacon was neither — it was stable. Stable enough that the next change wouldn't come from a bug report or a missing feature. It would come from a question: what if the entire API paradigm was wrong?
-
-But that's a story for another episode.
-
-## Takeaway
-
-Angular's signals were designed for component rendering. The TC39 proposal was designed for cross-framework compatibility. Beacon was designed for backend Node.js — servers, scripts, and long-running processes with no DOM, no render loop, no frame budget.
-
-Reactive state management isn't a UI pattern. It's a state pattern that happened to grow up in UI frameworks.
-
-Beacon's API looks nothing like Angular's signals, and the TC39 proposal would barely recognize it. That's fine. The point was never to port someone else's library. It was to take an idea apart and put it back together for a different problem. The result doesn't have to resemble the inspiration.
+But that rewrite is a story for another episode.
 
 That's how Beacon started. A concept from a framework I don't use, rebuilt for a runtime where nobody expected it, published on a Sunday afternoon. Three days and one version number. Then eleven days, a complete rewrite, and a version number that jumps by a thousand.
 
-The library that exists today — two epochs, dozens of optimizations, a hooks system, property-based tests, a Proxy-based architecture — is unrecognizable from what shipped on March 30th. But March 30th is where it started. And it started because someone else's framework did something interesting, and I couldn't stop thinking about it.
+What exists today is unrecognizable from March 30th. It started because Angular shipped signals, and the idea wouldn't leave me alone.
 
 ---
 
-*Next episode: "Real Users Break Everything" — what happens when Beacon meets production, and how every feature in the v1000 era was a direct response to something that went wrong.*
+*Next: Beacon in production.*
