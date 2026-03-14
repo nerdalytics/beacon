@@ -1,0 +1,51 @@
+{
+    "$schema": "https://raw.githubusercontent.com/shikijs/shiki/main/packages/shiki/themes/dark-plus.json",
+    "name": "beacon",
+    "type": "dark",
+    "colors": {
+        "editor.background": "#0f1629",
+        "editor.foreground": "#e0e8f0"
+    },
+    "tokenColors": [
+        {
+            "scope": ["keyword", "storage.type", "storage.modifier"],
+            "settings": { "foreground": "#10bdbd" }
+        },
+        {
+            "scope": ["variable", "variable.other", "variable.parameter", "entity.name.variable"],
+            "settings": { "foreground": "#c2cf0e" }
+        },
+        {
+            "scope": ["entity.name.function", "support.function"],
+            "settings": { "foreground": "#0f7fcf" }
+        },
+        {
+            "scope": ["string", "string.quoted"],
+            "settings": { "foreground": "#78ddb6" }
+        },
+        {
+            "scope": ["comment", "punctuation.definition.comment"],
+            "settings": { "foreground": "#6b7a96" }
+        },
+        {
+            "scope": ["constant.numeric"],
+            "settings": { "foreground": "#c2cf0e" }
+        },
+        {
+            "scope": ["entity.name.type", "support.type"],
+            "settings": { "foreground": "#10bdbd" }
+        },
+        {
+            "scope": ["punctuation", "meta.brace"],
+            "settings": { "foreground": "#8b9cb7" }
+        },
+        {
+            "scope": ["entity.name.tag"],
+            "settings": { "foreground": "#10bdbd" }
+        },
+        {
+            "scope": ["entity.other.attribute-name"],
+            "settings": { "foreground": "#c2cf0e" }
+        }
+    ]
+}
