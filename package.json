@@ -14,23 +14,23 @@
 	},
 	"exports": {
 		".": {
+			"typescript": "./src/index.ts",
 			"import": {
-				"default": "./dist/src/index.min.js",
-				"types": "./dist/src/index.d.ts"
+				"types": "./dist/src/index.d.ts",
+				"default": "./dist/src/index.min.js"
 			},
 			"require": {
 				"default": "./dist/src/index.min.js"
 			},
-			"types": "./dist/src/index.d.ts",
-			"typescript": "./src/index.ts"
+			"types": "./dist/src/index.d.ts"
 		},
 		"./hooks": {
+			"typescript": "./src/hooks/index.ts",
 			"import": {
-				"default": "./dist/src/hooks/index.js",
-				"types": "./dist/src/hooks/index.d.ts"
+				"types": "./dist/src/hooks/index.d.ts",
+				"default": "./dist/src/hooks/index.js"
 			},
-			"types": "./dist/src/hooks/index.d.ts",
-			"typescript": "./src/hooks/index.ts"
+			"types": "./dist/src/hooks/index.d.ts"
 		}
 	},
 	"files": [
