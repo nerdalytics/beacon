@@ -41,7 +41,7 @@
 </script>
 
 {#if headings.length > 0}
-	<aside class="w-48 shrink-0 overflow-y-auto py-6 pl-4">
+	<aside class="hidden md:block w-48 shrink-0 overflow-y-auto py-6 pl-4">
 		<h4 class="text-xs font-semibold uppercase tracking-wider text-text-muted mb-3">
 			On this page
 		</h4>
