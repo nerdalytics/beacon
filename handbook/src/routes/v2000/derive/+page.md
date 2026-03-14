@@ -3,7 +3,6 @@ title: Derive
 description: Compute derived values that cache results and auto-update
 ---
 
-# Derive
 
 `derive()` creates computed values that update automatically when their dependencies change. It memoizes the result and only recalculates when necessary.
 

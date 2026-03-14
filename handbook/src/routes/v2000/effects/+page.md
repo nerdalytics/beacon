@@ -3,7 +3,6 @@ title: Effects
 description: Write side effects that auto-run when their dependencies change
 ---
 
-# Effects
 
 `effect()` creates reactive functions that re-run automatically when their dependencies change. Effects bridge reactive state to side effects — logging, network requests, DOM updates, and so on.
 

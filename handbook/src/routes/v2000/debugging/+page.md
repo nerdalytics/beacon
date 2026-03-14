@@ -3,7 +3,6 @@ title: Debugging
 description: Tools and patterns for debugging reactive state
 ---
 
-# Debugging
 
 Beacon's hook system provides zero-cost instrumentation for all four primitives. Pass hooks where you need observability. No global debug mode, no environment variables, no build flags. Hook errors are isolated and never break core reactivity.
 

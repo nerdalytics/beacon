@@ -3,7 +3,6 @@ title: Architecture
 description: How Beacon's reactive system works under the hood
 ---
 
-# Architecture
 
 Beacon is a single-file reactive system built on ES Proxies. No virtual DOM, no compiler, no framework runtime. State mutations flow through Proxy traps into a dependency graph that triggers effects with surgical precision.
 

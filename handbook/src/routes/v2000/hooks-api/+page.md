@@ -3,7 +3,6 @@ title: Hooks API Reference
 description: Complete hook interface definitions for StateHooks, EffectHooks, DeriveHooks, and BatchHooks
 ---
 
-# Hooks API Reference
 
 Complete interface definitions for all hook types. For an introduction to hooks, see the [Hooks Overview](/v2000/hooks-overview).
 

@@ -3,7 +3,6 @@ title: Performance
 description: Performance characteristics and optimization tips
 ---
 
-# Performance
 
 Beacon is a ~900-line reactive system with zero external dependencies. No virtual DOM diffing, no compiler pass, no framework overhead. Updates propagate through a dependency graph directly to the effects that need them.
 

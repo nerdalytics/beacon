@@ -3,7 +3,6 @@ title: Resources
 description: Blog posts, talks, and community resources about Beacon
 ---
 
-# Resources
 
 ## Package
 

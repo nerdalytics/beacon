@@ -3,7 +3,6 @@ title: Installation
 description: Install Beacon and set up your project
 ---
 
-# Installation
 
 ## Requirements
 

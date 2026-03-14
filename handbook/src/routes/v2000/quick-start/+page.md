@@ -3,7 +3,6 @@ title: Quick Start
 description: Get up and running with Beacon in five minutes
 ---
 
-# Quick Start
 
 This walkthrough builds a reactive system from scratch. By the end you'll have used all four Beacon primitives.
 

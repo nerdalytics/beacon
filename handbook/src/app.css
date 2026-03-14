@@ -97,6 +97,16 @@
     word-spacing: 0.05em;
 }
 
+.prose h1 {
+    font-family: var(--font-sans);
+    font-size: 1.875rem;
+    font-weight: 700;
+    margin-top: 3rem;
+    margin-bottom: 1rem;
+    color: #e8edf5;
+    letter-spacing: -0.02em;
+}
+
 .prose h2 {
     font-family: var(--font-sans);
     font-size: 1.5rem;

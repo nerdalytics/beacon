@@ -3,7 +3,6 @@ title: "Migration: v1000 → v2000"
 description: How to upgrade from Beacon v1000 to v2000
 ---
 
-# Migration: v1000 → v2000
 
 Version 2000.0.0 shifts from function-based to Proxy-based reactive state. The API is simpler but fundamentally different.
 

@@ -3,7 +3,6 @@ title: Hooks Overview
 description: Zero-cost instrumentation for all four Beacon primitives
 ---
 
-# Hooks Overview
 
 All four Beacon primitives — `state`, `effect`, `derive`, `batch` — accept an optional hooks parameter as their last argument. Hooks observe internal operations without affecting behavior.
 

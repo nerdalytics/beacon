@@ -3,7 +3,6 @@ title: State
 description: Create and manage reactive objects with automatic dependency tracking
 ---
 
-# State
 
 `state()` creates reactive objects. It wraps plain JavaScript objects in Proxies for automatic dependency tracking and change notification.
 

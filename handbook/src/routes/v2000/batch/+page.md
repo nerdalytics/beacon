@@ -3,7 +3,6 @@ title: Batch
 description: Group multiple state updates into a single notification cycle
 ---
 
-# Batch
 
 `batch()` collapses multiple state mutations into a single notification cycle. Without batch, each mutation triggers its own propagation — effects see intermediate states. With batch, all mutations apply first, then effects run once with the final state.
 

@@ -3,7 +3,6 @@ title: Introduction
 description: What Beacon is and why it exists
 ---
 
-# Introduction
 
 Beacon is a reactive state management library for Node.js backends. It tracks which properties each function reads and re-runs only when those properties change.
 

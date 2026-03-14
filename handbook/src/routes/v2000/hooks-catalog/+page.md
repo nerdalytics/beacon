@@ -3,7 +3,6 @@ title: Hooks Catalog
 description: Built-in hooks for debugging, performance, persistence, validation, and more
 ---
 
-# Hooks Catalog
 
 All built-in hooks provided by Beacon. Each hook is available as a separate import from `@nerdalytics/beacon/hooks`.
 
