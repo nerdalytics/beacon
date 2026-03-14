@@ -12,8 +12,20 @@
 
 <div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-20 min-h-[80vh] page-enter">
 	<img src="{base}/favicon.svg" alt="Beacon logo" class="w-28 h-28 mb-6" style="view-transition-name: beacon-logo" />
-	<div class="mb-8 text-7xl font-extrabold beacon-gradient-text">
+	<div class="mb-4 text-7xl font-extrabold beacon-gradient-text">
 		Beacon
+	</div>
+
+	<div class="mb-6 flex items-center gap-3 flex-wrap justify-center">
+		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
+			<img src="https://flat.badgen.net/static/license/MIT/blue" alt="MIT License" />
+		</a>
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon">
+			<img src="https://img.shields.io/npm/v/@nerdalytics/beacon.svg" alt="npm version" />
+		</a>
+		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/2000.0.0">
+			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0" alt="Socket Badge" />
+		</a>
 	</div>
 
 	<p class="text-lg text-text-muted max-w-lg mb-10 font-serif leading-relaxed">
@@ -25,14 +37,14 @@
 	>
 		<div class="text-lime mb-1">// reactive in three lines</div>
 		<div>
-			<span class="text-teal">const</span> app = <span class="text-blue-mid">state</span>({'{'}
+			<span class="text-teal">const</span> $app = <span class="text-blue-mid">state</span>({'{'}
 			count: <span class="text-[#e8a46e]">0</span> {'}'})
 		</div>
 		<div>
-			<span class="text-blue-mid">effect</span>(() =&gt; <span class="text-blue-mid">console</span>.<span class="text-blue-mid">log</span>(app.count))
+			<span class="text-blue-mid">effect</span>(() =&gt; <span class="text-blue-mid">console</span>.<span class="text-blue-mid">log</span>($app.count))
 		</div>
 		<div>
-			app.count++ <span class="text-lime">// logs: 1</span>
+			$app.count++ <span class="text-lime">// logs: 1</span>
 		</div>
 	</div>
 
@@ -42,10 +54,4 @@
 	>
 		Get Started
 	</a>
-
-	<div class="mt-6 flex items-center gap-6 text-sm text-text-muted font-sans">
-		<span>Zero dependencies</span>
-		<span class="text-navy-border">|</span>
-		<span>Proxy-based</span>
-	</div>
 </div>

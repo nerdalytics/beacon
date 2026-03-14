@@ -13,12 +13,12 @@ This walkthrough builds a reactive system from scratch. By the end you'll have u
 ```typescript
 import { state } from '@nerdalytics/beacon'
 
-const app = state({
+const $app = state({
   users: 0,
   errors: 0,
 })
 
-app.users = 5 // reactive — subscribers get notified
+$app.users = 5 // reactive — subscribers get notified
 ```
 
 ## 2. React to changes with effects
@@ -28,20 +28,20 @@ app.users = 5 // reactive — subscribers get notified
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
 
-const app = state({ users: 0, errors: 0 })
+const $app = state({ users: 0, errors: 0 })
 
 const dispose = effect(() => {
-  console.log(`Users: ${app.users}, Errors: ${app.errors}`)
+  console.log(`Users: ${$app.users}, Errors: ${$app.errors}`)
 })
 // => "Users: 0, Errors: 0"
 
-app.users = 3
+$app.users = 3
 // => "Users: 3, Errors: 0"
 
 dispose() // stop listening
 ```
 
-Beacon tracks that this effect reads `app.users` and `app.errors`. Changes to either property re-run it. Changes to other properties don't.
+Beacon tracks that this effect reads `$app.users` and `$app.errors`. Changes to either property re-run it. Changes to other properties don't.
 
 ## 3. Compute derived values
 
@@ -50,11 +50,11 @@ Beacon tracks that this effect reads `app.users` and `app.errors`. Changes to ei
 ```typescript
 import { state, derive, effect } from '@nerdalytics/beacon'
 
-const app = state({ users: 0, errors: 0 })
+const $app = state({ users: 0, errors: 0 })
 
 const errorRate = derive(() => {
-  if (app.users === 0) return 0
-  return app.errors / app.users
+  if ($app.users === 0) return 0
+  return $app.errors / $app.users
 })
 
 effect(() => {
@@ -62,10 +62,10 @@ effect(() => {
 })
 // => "Error rate: 0"
 
-app.users = 100
+$app.users = 100
 // => "Error rate: 0"
 
-app.errors = 5
+$app.errors = 5
 // => "Error rate: 0.05"
 
 // Clean up — derive creates an internal effect that must be disposed
@@ -81,21 +81,21 @@ Always set `reactive = false` when you're done with a derived value. It creates 
 ```typescript
 import { state, effect, batch } from '@nerdalytics/beacon'
 
-const app = state({ users: 0, errors: 0 })
+const $app = state({ users: 0, errors: 0 })
 
 effect(() => {
-  console.log(`Users: ${app.users}, Errors: ${app.errors}`)
+  console.log(`Users: ${$app.users}, Errors: ${$app.errors}`)
 })
 // => "Users: 0, Errors: 0"
 
 batch(() => {
-  app.users = 100
-  app.errors = 5
+  $app.users = 100
+  $app.errors = 5
 })
 // => "Users: 100, Errors: 5" (logged once, not twice)
 ```
 
-Without `batch`, the effect would fire after `app.users = 100` and again after `app.errors = 5`. With `batch`, it fires once with both values updated.
+Without `batch`, the effect would fire after `$app.users = 100` and again after `$app.errors = 5`. With `batch`, it fires once with both values updated.
 
 ## Putting it together
 
@@ -105,15 +105,15 @@ Here's a complete, runnable example:
 import { state, effect, derive, batch } from '@nerdalytics/beacon'
 
 // Reactive state
-const server = state({
+const $server = state({
   requests: 0,
   failures: 0,
 })
 
 // Derived computation
 const failureRate = derive(() => {
-  if (server.requests === 0) return 0
-  return server.failures / server.requests
+  if ($server.requests === 0) return 0
+  return $server.failures / $server.requests
 })
 
 // Side effect — log when failure rate changes
@@ -126,8 +126,8 @@ const stopLogging = effect(() => {
 
 // Simulate traffic
 batch(() => {
-  server.requests = 1000
-  server.failures = 150
+  $server.requests = 1000
+  $server.failures = 150
 })
 // => "Warning: failure rate at 15.0%"
 
@@ -135,12 +135,3 @@ batch(() => {
 stopLogging()
 failureRate.reactive = false
 ```
-
-## What's next
-
-Dig into each primitive:
-
-- [State](/v2000/state) — nested objects, arrays, frozen objects
-- [Effect](/v2000/effects) — dependency tracking, async pitfalls, disposal
-- [Derive](/v2000/derive) — chaining, disposal, batch optimization
-- [Batch](/v2000/batch) — nesting, error handling, performance

@@ -23,20 +23,20 @@ Returns a dispose function. Call it to stop the effect and clean up all subscrip
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
 
-const counter = state({ count: 0 })
+const $counter = state({ count: 0 })
 
 // Runs immediately to establish dependencies
 const dispose = effect(() => {
-  console.log(`Count is: ${counter.count}`)
+  console.log(`Count is: ${$counter.count}`)
 })
 // Logs: "Count is: 0"
 
-counter.count++ // Logs: "Count is: 1"
-counter.count++ // Logs: "Count is: 2"
+$counter.count++ // Logs: "Count is: 1"
+$counter.count++ // Logs: "Count is: 2"
 
 // Clean up when done
 dispose()
-counter.count++ // No log (effect disposed)
+$counter.count++ // No log (effect disposed)
 ```
 
 ## Automatic dependency tracking
@@ -44,16 +44,16 @@ counter.count++ // No log (effect disposed)
 Effects detect which reactive values they access during execution:
 
 ```typescript
-const user = state({ name: 'Alice', age: 30, role: 'admin' })
+const $user = state({ name: 'Alice', age: 30, role: 'admin' })
 
 effect(() => {
   // Only tracks 'name' and 'age', not 'role'
-  console.log(`${user.name} is ${user.age} years old`)
+  console.log(`${$user.name} is ${$user.age} years old`)
 })
 
-user.name = 'Bob' // Triggers effect
-user.age = 31 // Triggers effect
-user.role = 'user' // Does NOT trigger effect
+$user.name = 'Bob' // Triggers effect
+$user.age = 31 // Triggers effect
+$user.role = 'user' // Does NOT trigger effect
 ```
 
 ## How it works
@@ -75,15 +75,15 @@ Create Effect -> Set as Current -> Run Function -> Track Deps -> Wait for Change
 Effects can create other effects. They form a parent-child relationship:
 
 ```typescript
-const config = state({ enabled: true, value: 0 })
-const data = state({ multiplier: 2 })
+const $config = state({ enabled: true, value: 0 })
+const $data = state({ multiplier: 2 })
 
 effect(() => {
-  console.log('Outer: config.enabled =', config.enabled)
+  console.log('Outer: config.enabled =', $config.enabled)
 
-  if (config.enabled) {
+  if ($config.enabled) {
     effect(() => {
-      console.log('Inner: result =', config.value * data.multiplier)
+      console.log('Inner: result =', $config.value * $data.multiplier)
     })
   }
 })
@@ -92,14 +92,14 @@ effect(() => {
 // Outer: config.enabled = true
 // Inner: result = 0
 
-data.multiplier = 3
+$data.multiplier = 3
 // Inner: result = 0
 
-config.enabled = false
+$config.enabled = false
 // Outer: config.enabled = false
 // (inner effect is disposed when outer re-runs)
 
-data.multiplier = 10
+$data.multiplier = 10
 // No output (inner effect was disposed)
 ```
 
@@ -110,12 +110,12 @@ When a parent is disposed, all children are cleaned up automatically.
 Beacon prevents effects from writing to state they read:
 
 ```typescript
-const counter = state({ count: 0 })
+const $counter = state({ count: 0 })
 
 // Throws an error
 effect(() => {
-  const value = counter.count
-  counter.count = value + 1 // Error: Infinite loop detected!
+  const value = $counter.count
+  $counter.count = value + 1 // Error: Infinite loop detected!
 })
 ```
 
@@ -125,15 +125,15 @@ Beacon is not a compiler. It cannot statically analyze whether the effect would 
 
 ```typescript
 // Write to different state
-const source = state({ value: 0 })
-const target = state({ value: 0 })
+const $source = state({ value: 0 })
+const $target = state({ value: 0 })
 
 effect(() => {
-  target.value = source.value * 2 // Safe: different state objects
+  $target.value = $source.value * 2 // Safe: different state objects
 })
 
 // Use derive for computed values
-const doubled = derive(() => counter.count * 2)
+const doubled = derive(() => $counter.count * 2)
 ```
 
 ## Conditional dependencies
@@ -141,13 +141,13 @@ const doubled = derive(() => counter.count * 2)
 Effects only track what they actually access in a given run:
 
 ```typescript
-const s = state({ useA: true, a: 1, b: 2 })
+const $s = state({ useA: true, a: 1, b: 2 })
 
 effect(() => {
-  if (s.useA) {
-    console.log(`A: ${s.a}`) // Tracks 'useA' and 'a'
+  if ($s.useA) {
+    console.log(`A: ${$s.a}`) // Tracks 'useA' and 'a'
   } else {
-    console.log(`B: ${s.b}`) // Would track 'useA' and 'b'
+    console.log(`B: ${$s.b}`) // Would track 'useA' and 'b'
   }
 })
 ```
@@ -159,15 +159,15 @@ effect(() => {
 ```typescript
 // Avoid: one big effect
 effect(() => {
-  updateHeader(user.name)
-  updateSidebar(user.role)
-  updateContent(user.preferences)
+  updateHeader($user.name)
+  updateSidebar($user.role)
+  updateContent($user.preferences)
 })
 
 // Better: separate focused effects
-effect(() => updateHeader(user.name))
-effect(() => updateSidebar(user.role))
-effect(() => updateContent(user.preferences))
+effect(() => updateHeader($user.name))
+effect(() => updateSidebar($user.role))
+effect(() => updateContent($user.preferences))
 ```
 
 ### Debouncing
@@ -196,22 +196,22 @@ s.data = 'update3' // Only this one saves after 500ms
 Effects are automatically batched within `batch()`:
 
 ```typescript
-const stats = state({ a: 0, b: 0, c: 0 })
+const $stats = state({ a: 0, b: 0, c: 0 })
 
 effect(() => {
-  console.log(`Total: ${stats.a + stats.b + stats.c}`)
+  console.log(`Total: ${$stats.a + $stats.b + $stats.c}`)
 })
 
 // Without batch: logs 3 times
-stats.a = 1 // Log: "Total: 1"
-stats.b = 2 // Log: "Total: 3"
-stats.c = 3 // Log: "Total: 6"
+$stats.a = 1 // Log: "Total: 1"
+$stats.b = 2 // Log: "Total: 3"
+$stats.c = 3 // Log: "Total: 6"
 
 // With batch: logs once
 batch(() => {
-  stats.a = 1
-  stats.b = 2
-  stats.c = 3
+  $stats.a = 1
+  $stats.b = 2
+  $stats.c = 3
 }) // Log: "Total: 6"
 ```
 
@@ -250,10 +250,10 @@ Beacon uses WeakMaps internally, allowing garbage collection when state and effe
 
 ```typescript
 function createTempEffect() {
-  const temp = state({ value: 0 })
+  const $temp = state({ value: 0 })
 
   effect(() => {
-    console.log(temp.value)
+    console.log($temp.value)
   })
 
   // When function exits, both state and effect can be GC'd
@@ -310,21 +310,21 @@ This applies to Promise callbacks (`.then()`, `.catch()`, `async/await`) and eve
 Beacon tracks array indices with fine-grained precision:
 
 ```typescript
-const list = state({ items: [1, 2, 3] })
+const $list = state({ items: [1, 2, 3] })
 
 // Only tracks index 0
 effect(() => {
-  console.log(list.items[0])
+  console.log($list.items[0])
 })
 
 // Only tracks length
 effect(() => {
-  console.log(list.items.length)
+  console.log($list.items.length)
 })
 
-list.items[1] = 99 // Won't trigger either effect
-list.items[0] = 99 // Triggers first effect only
-list.items[5] = 99 // Triggers second effect (length changes)
+$list.items[1] = 99 // Won't trigger either effect
+$list.items[0] = 99 // Triggers first effect only
+$list.items[5] = 99 // Triggers second effect (length changes)
 ```
 
 Array mutating methods like `push()`, `pop()`, `splice()` notify all subscribers because they can affect multiple properties (indices, length).
@@ -334,12 +334,12 @@ Array mutating methods like `push()`, `pop()`, `splice()` notify all subscribers
 ### Network requests
 
 ```typescript
-const filters = state({ search: '', category: 'all' })
+const $filters = state({ search: '', category: 'all' })
 
 effect(() => {
   const params = new URLSearchParams({
-    search: filters.search,
-    category: filters.category,
+    search: $filters.search,
+    category: $filters.category,
   })
 
   fetch(`/api/products?${params}`)
@@ -353,14 +353,14 @@ effect(() => {
 ### Local storage
 
 ```typescript
-const settings = state({ theme: 'light', language: 'en' })
+const $settings = state({ theme: 'light', language: 'en' })
 
 effect(() => {
   localStorage.setItem(
     'settings',
     JSON.stringify({
-      theme: settings.theme,
-      language: settings.language,
+      theme: $settings.theme,
+      language: $settings.language,
     })
   )
 })
@@ -372,20 +372,20 @@ effect(() => {
 import { state, effect } from '@nerdalytics/beacon'
 
 test('effect tracks dependencies', () => {
-  const counter = state({ count: 0 })
+  const $counter = state({ count: 0 })
   const calls = []
 
   const dispose = effect(() => {
-    calls.push(counter.count)
+    calls.push($counter.count)
   })
 
   expect(calls).toEqual([0]) // Initial run
 
-  counter.count = 1
+  $counter.count = 1
   expect(calls).toEqual([0, 1]) // Triggered
 
   dispose()
-  counter.count = 2
+  $counter.count = 2
   expect(calls).toEqual([0, 1]) // Not triggered after disposal
 })
 ```

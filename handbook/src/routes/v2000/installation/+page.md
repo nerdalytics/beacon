@@ -49,6 +49,3 @@ All four primitives are named exports from the package root. There are no subpat
 
 Beacon ships source files and declaration maps. Type inference works out of the box — no `@types` package needed.
 
-## Next steps
-
-Head to [Quick Start](/v2000/quick-start) to build your first reactive system.

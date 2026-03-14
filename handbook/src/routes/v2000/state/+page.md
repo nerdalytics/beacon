@@ -20,16 +20,16 @@ Returns a Proxy-wrapped version of the input object. Passing a non-object return
 import { state } from '@nerdalytics/beacon'
 
 // Simple object
-const user = state({ name: 'Alice', age: 30 })
+const $user = state({ name: 'Alice', age: 30 })
 
 // Nested object
-const app = state({
+const $app = state({
   user: { name: 'Alice', role: 'admin' },
   settings: { theme: 'dark', notifications: true },
 })
 
 // Arrays
-const todos = state([
+const $todos = state([
   { id: 1, text: 'Learn Beacon', done: false },
   { id: 2, text: 'Build app', done: false },
 ])
@@ -40,24 +40,24 @@ const todos = state([
 The Proxy-based approach means standard JavaScript operations work as expected:
 
 ```typescript
-const counter = state({ count: 0 })
+const $counter = state({ count: 0 })
 
 // Write
-counter.count = 5
-counter.count++
+$counter.count = 5
+$counter.count++
 
 // Read
-console.log(counter.count) // 6
+console.log($counter.count) // 6
 
 // Object operations
-const user = state({ name: 'Alice' })
-user.email = 'alice@example.com' // Add property
-delete user.email // Delete property
+const $user = state({ name: 'Alice' })
+$user.email = 'alice@example.com' // Add property
+delete $user.email // Delete property
 
 // Array operations
-const items = state([1, 2, 3])
-items.push(4) // Mutating methods work
-items[0] = 10 // Index assignment works
+const $items = state([1, 2, 3])
+$items.push(4) // Mutating methods work
+$items[0] = 10 // Index assignment works
 ```
 
 ## How it works
@@ -76,10 +76,10 @@ When you call `state(obj)`, Beacon:
 The Proxy intercepts all operations:
 
 ```typescript
-const data = state({ value: 42 })
+const $data = state({ value: 42 })
 
 // This seemingly simple operation:
-data.value++
+$data.value++
 
 // Actually triggers:
 // 1. Proxy 'get' trap -> reads current value (42)
@@ -88,7 +88,7 @@ data.value++
 // 4. Since values differ -> updates and notifies subscribers
 
 // Setting to the same value skips notification
-data.value = 43 // No effect triggered if already 43
+$data.value = 43 // No effect triggered if already 43
 ```
 
 ### Nested reactivity
@@ -96,7 +96,7 @@ data.value = 43 // No effect triggered if already 43
 Objects are wrapped recursively:
 
 ```typescript
-const app = state({
+const $app = state({
   user: {
     profile: {
       name: 'Alice',
@@ -105,7 +105,7 @@ const app = state({
 })
 
 // All levels are reactive
-app.user.profile.name = 'Bob' // Triggers updates
+$app.user.profile.name = 'Bob' // Triggers updates
 ```
 
 ## Performance
@@ -124,13 +124,13 @@ Internally, Beacon optimizes by manipulating the raw target directly. The proxy 
 
 ```typescript
 function createCounter() {
-  const s = state({ count: 0 })
+  const $s = state({ count: 0 })
 
   return {
-    state: s,
-    increment: () => s.count++,
-    decrement: () => s.count--,
-    reset: () => (s.count = 0),
+    state: $s,
+    increment: () => $s.count++,
+    decrement: () => $s.count--,
+    reset: () => ($s.count = 0),
   }
 }
 ```
@@ -139,21 +139,21 @@ function createCounter() {
 
 ```typescript
 // store.ts
-export const appState = state({
+export const $appState = state({
   user: null,
   isLoading: false,
   errors: [],
 })
 
 // anywhere.ts
-import { appState } from './store'
-appState.user = { id: 1, name: 'Alice' }
+import { $appState } from './store'
+$appState.user = { id: 1, name: 'Alice' }
 ```
 
 ### Configuration objects
 
 ```typescript
-const config = state({
+const $config = state({
   api: {
     baseUrl: 'https://api.example.com',
     timeout: 5000,
@@ -167,7 +167,7 @@ const config = state({
 
 // React to config changes
 effect(() => {
-  console.log(`Dark mode: ${config.features.darkMode}`)
+  console.log(`Dark mode: ${$config.features.darkMode}`)
 })
 ```
 
@@ -179,10 +179,10 @@ effect(() => {
 
 ```typescript
 // Won't work - returns primitive as-is
-const count = state(0)
+const $count = state(0)
 
 // Wrap in an object instead
-const counter = state({ value: 0 })
+const $counter = state({ value: 0 })
 ```
 
 ### Object identity
@@ -191,10 +191,10 @@ The proxy is a different object than the original:
 
 ```typescript
 const original = { count: 0 }
-const reactive = state(original)
+const $reactive = state(original)
 
-console.log(original === reactive) // false
-console.log(original.count === reactive.count) // true (same value)
+console.log(original === $reactive) // false
+console.log(original.count === $reactive.count) // true (same value)
 ```
 
 ### Class instances
@@ -209,7 +209,7 @@ class Counter {
   }
 }
 
-const counter = state(new Counter())
+const $counter = state(new Counter())
 // May have issues with 'this' binding
 ```
 
@@ -219,11 +219,11 @@ Some built-in objects don't work well with Proxies:
 
 ```typescript
 // Problematic
-const date = state(new Date())
-const map = state(new Map())
+const $date = state(new Date())
+const $map = state(new Map())
 
 // Better: wrap in a plain object
-const s = state({
+const $s = state({
   date: new Date(),
   map: new Map(),
 })
@@ -237,7 +237,7 @@ Define the full shape upfront:
 
 ```typescript
 // Good - shape is clear
-const user = state({
+const $user = state({
   id: null,
   name: '',
   email: '',
@@ -248,9 +248,9 @@ const user = state({
 })
 
 // Avoid - dynamic shape
-const user = state({})
-user.preferences = {} // Added later
-user.preferences.theme = 'dark' // Nested addition
+const $user = state({})
+$user.preferences = {} // Added later
+$user.preferences.theme = 'dark' // Nested addition
 ```
 
 ### Batch multiple updates
@@ -276,13 +276,13 @@ batch(() => {
 While mutating methods work, immutable updates can be clearer:
 
 ```typescript
-const todos = state({ items: [] })
+const $todos = state({ items: [] })
 
 // Mutating (works)
-todos.items.push(newTodo)
+$todos.items.push(newTodo)
 
 // Immutable (also works, sometimes clearer)
-todos.items = [...todos.items, newTodo]
+$todos.items = [...$todos.items, newTodo]
 ```
 
 ## Integration with effects
@@ -290,15 +290,15 @@ todos.items = [...todos.items, newTodo]
 State changes trigger effects that depend on them:
 
 ```typescript
-const user = state({ name: 'Alice', age: 30 })
+const $user = state({ name: 'Alice', age: 30 })
 
-// Re-runs whenever user.age changes
+// Re-runs whenever $user.age changes
 effect(() => {
-  console.log(`Happy Birthday ${user.name} to your ${user.age}th year!`)
+  console.log(`Happy Birthday ${$user.name} to your ${$user.age}th year!`)
 })
 
-user.name = 'Bob' // Doesn't trigger (name not accessed during tracking)
-user.age = 31 // Triggers effect
+$user.name = 'Bob' // Doesn't trigger (name not accessed during tracking)
+$user.age = 31 // Triggers effect
 ```
 
 ## Memory management
@@ -307,13 +307,13 @@ State objects are garbage collected when no longer referenced. Beacon uses WeakM
 
 ```typescript
 function createTemporaryState() {
-  const temp = state({ data: 'temporary' })
+  const $temp = state({ data: 'temporary' })
 
   effect(() => {
-    console.log(temp.data)
+    console.log($temp.data)
   })
 
-  // When 'temp' goes out of scope, the state
+  // When '$temp' goes out of scope, the state
   // and its effects are eligible for GC
 }
 ```
@@ -324,7 +324,7 @@ Beacon handles non-extensible objects using WeakMap fallbacks:
 
 ```typescript
 const frozen = Object.freeze({ value: 42 })
-const reactive = state(frozen) // Still works
+const $reactive = state(frozen) // Still works
 
 // Beacon stores metadata in WeakMaps instead of on the object
 ```
@@ -340,11 +340,11 @@ interface User {
   email?: string
 }
 
-const user = state<User>({ name: 'Alice', age: 30 })
+const $user = state<User>({ name: 'Alice', age: 30 })
 
-user.name = 'Bob' // Type-safe
-user.age = 'thirty' // Type error
-user.email = 'alice@example.com' // Optional property
+$user.name = 'Bob' // Type-safe
+$user.age = 'thirty' // Type error
+$user.email = 'alice@example.com' // Optional property
 ```
 
 ## Performance tips

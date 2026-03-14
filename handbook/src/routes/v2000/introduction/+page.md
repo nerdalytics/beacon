@@ -23,7 +23,7 @@ That's the whole library.
 
 - Zero dependencies
 - ~10kb minified
-- Single-file core (~900 lines)
+- Single-file core
 - TypeScript-first with full type inference
 - Deep reactivity — nested objects are automatically wrapped
 - Automatic dependency tracking at the property level
@@ -41,9 +41,4 @@ Common use cases:
 
 ## Who this is not for
 
-Beacon is not a frontend framework. It has no DOM bindings, no virtual DOM, no component model. It runs on Node.js and manages plain JavaScript objects.
-
-## Next steps
-
-- [Installation](/v2000/installation) — get Beacon into your project
-- [Quick Start](/v2000/quick-start) — build something reactive in five minutes
+Beacon is not a frontend framework. It has no DOM bindings and no component model. It manages plain JavaScript objects.

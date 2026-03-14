@@ -52,7 +52,7 @@ function state<T extends object>(initial: T, hooks?: StateHooks<T>): T
 | `onOwnKeys` | `(keys, target)` | `Object.keys`, `for...in`, or spread |
 
 ```typescript
-const user = state(
+const $user = state(
   { name: 'Alice', age: 30 },
   {
     onRead: (prop, value) => {
@@ -64,7 +64,7 @@ const user = state(
   }
 )
 
-user.name = 'Bob'
+$user.name = 'Bob'
 // write name: Alice → Bob
 ```
 
@@ -106,11 +106,11 @@ function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Uns
 | `onSchedule` | `(effectName?)` | Effect queued for re-execution |
 
 ```typescript
-const counter = state({ count: 0 })
+const $counter = state({ count: 0 })
 
 const dispose = effect(
   () => {
-    console.log(counter.count)
+    console.log($counter.count)
   },
   'counter-watcher',
   {
@@ -120,7 +120,7 @@ const dispose = effect(
   }
 )
 
-counter.count++
+$counter.count++
 // [counter-watcher] running
 // 1
 
@@ -145,7 +145,7 @@ function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
 ```typescript
 let computeCount = 0
 
-const total = derive(() => items.list.reduce((a, b) => a + b, 0), {
+const total = derive(() => $items.list.reduce((a, b) => a + b, 0), {
   onCompute: () => {
     computeCount++
   },

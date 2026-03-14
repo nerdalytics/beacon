@@ -27,13 +27,13 @@ See [Hooks](/v2000/hooks-overview) for the optional hooks parameter.
 ```typescript
 import { state, derive } from '@nerdalytics/beacon'
 
-const items = state({ list: [1, 2, 3] })
+const $items = state({ list: [1, 2, 3] })
 
-const sum = derive(() => items.list.reduce((a, b) => a + b, 0))
+const sum = derive(() => $items.list.reduce((a, b) => a + b, 0))
 
 console.log(sum.value) // 6
 
-items.list.push(4)
+$items.list.push(4)
 console.log(sum.value) // 10 (automatically updated)
 ```
 
@@ -44,11 +44,11 @@ Derived values compute immediately on creation and again when dependencies chang
 ```typescript
 const expensive = derive(() => {
   console.log('Computing...')
-  return items.list.filter((x) => x > 10).length
+  return $items.list.filter((x) => x > 10).length
 })
 // Logs: "Computing..." immediately
 
-items.list.push(15)
+$items.list.push(15)
 // Logs: "Computing..." again
 
 console.log(expensive.value) // No recomputation, returns cached value
@@ -77,13 +77,13 @@ Create Derive -> Create Effect -> Run Compute -> Track Deps -> Cache Result
 Like effects, derive tracks only what it reads:
 
 ```typescript
-const user = state({ firstName: 'Jane', lastName: 'Doe', age: 30 })
+const $user = state({ firstName: 'Jane', lastName: 'Doe', age: 30 })
 
 // Only tracks firstName and lastName
-const fullName = derive(() => `${user.firstName} ${user.lastName}`)
+const fullName = derive(() => `${$user.firstName} ${$user.lastName}`)
 
-user.age = 31 // Doesn't invalidate fullName
-user.firstName = 'John' // Invalidates and recomputes
+$user.age = 31 // Doesn't invalidate fullName
+$user.firstName = 'John' // Invalidates and recomputes
 ```
 
 ## Patterns
@@ -93,9 +93,9 @@ user.firstName = 'John' // Invalidates and recomputes
 Derived values can depend on other derived values:
 
 ```typescript
-const prices = state({ items: [10, 20, 30] })
+const $prices = state({ items: [10, 20, 30] })
 
-const subtotal = derive(() => prices.items.reduce((a, b) => a + b, 0))
+const subtotal = derive(() => $prices.items.reduce((a, b) => a + b, 0))
 const tax = derive(() => subtotal.value * 0.08)
 const total = derive(() => subtotal.value + tax.value)
 
@@ -105,29 +105,29 @@ console.log(total.value) // 64.8
 ### Conditional computations
 
 ```typescript
-const config = state({ useCache: true, data: null })
-const cache = state({ data: 'cached' })
+const $config = state({ useCache: true, data: null })
+const $cache = state({ data: 'cached' })
 
 const result = derive(() => {
-  if (config.useCache && cache.data) {
-    return cache.data // Only depends on cache when useCache is true
+  if ($config.useCache && $cache.data) {
+    return $cache.data // Only depends on $cache when useCache is true
   }
-  return config.data
+  return $config.data
 })
 ```
 
 ### Collection transformations
 
 ```typescript
-const todos = state([
+const $todos = state([
   { id: 1, text: 'Learn Beacon', done: false },
   { id: 2, text: 'Build app', done: true },
 ])
 
-const activeTodos = derive(() => todos.filter((t) => !t.done))
-const completedCount = derive(() => todos.filter((t) => t.done).length)
+const activeTodos = derive(() => $todos.filter((t) => !t.done))
+const completedCount = derive(() => $todos.filter((t) => t.done).length)
 const progress = derive(() => {
-  const total = todos.length
+  const total = $todos.length
   return total ? (completedCount.value / total) * 100 : 0
 })
 ```
@@ -135,36 +135,36 @@ const progress = derive(() => {
 ### Search and filtering
 
 ```typescript
-const products = state([
+const $products = state([
   { id: 1, name: 'Laptop', price: 999, category: 'electronics' },
   { id: 2, name: 'Shirt', price: 29, category: 'clothing' },
 ])
 
-const filters = state({
+const $filters = state({
   search: '',
   category: 'all',
   maxPrice: 1000,
 })
 
 const filteredProducts = derive(() => {
-  let result = products
+  let result = $products
 
-  if (filters.search) {
-    result = result.filter((p) => p.name.toLowerCase().includes(filters.search.toLowerCase()))
+  if ($filters.search) {
+    result = result.filter((p) => p.name.toLowerCase().includes($filters.search.toLowerCase()))
   }
 
-  if (filters.category !== 'all') {
-    result = result.filter((p) => p.category === filters.category)
+  if ($filters.category !== 'all') {
+    result = result.filter((p) => p.category === $filters.category)
   }
 
-  return result.filter((p) => p.price <= filters.maxPrice)
+  return result.filter((p) => p.price <= $filters.maxPrice)
 })
 ```
 
 ### Form validation
 
 ```typescript
-const form = state({
+const $form = state({
   email: '',
   password: '',
   confirmPassword: '',
@@ -173,15 +173,15 @@ const form = state({
 const validation = derive(() => {
   const errors = []
 
-  if (!form.email.includes('@')) {
+  if (!$form.email.includes('@')) {
     errors.push('Invalid email')
   }
 
-  if (form.password.length < 8) {
+  if ($form.password.length < 8) {
     errors.push('Password too short')
   }
 
-  if (form.password !== form.confirmPassword) {
+  if ($form.password !== $form.confirmPassword) {
     errors.push('Passwords do not match')
   }
 
@@ -199,18 +199,18 @@ const validation = derive(() => {
 Derived values cache their results:
 
 ```typescript
-const data = state({ value: 100 })
+const $data = state({ value: 100 })
 let computeCount = 0
 
 const expensive = derive(() => {
   computeCount++
-  return data.value * Math.random()
+  return $data.value * Math.random()
 })
 
 const v1 = expensive.value // computeCount: 1
 const v2 = expensive.value // computeCount: 1 (cached)
 
-data.value = 200
+$data.value = 200
 const v3 = expensive.value // computeCount: 2 (recomputed)
 ```
 
@@ -221,26 +221,26 @@ When multiple mutations change different dependencies, `batch()` ensures the der
 A single mutation already propagates consistently through a derive chain without batch — effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
 
 ```typescript
-const a = state({ value: 1 })
-const b = state({ value: 2 })
-const c = state({ value: 3 })
+const $a = state({ value: 1 })
+const $b = state({ value: 2 })
+const $c = state({ value: 3 })
 
 let computeCount = 0
 const sum = derive(() => {
   computeCount++
-  return a.value + b.value + c.value
+  return $a.value + $b.value + $c.value
 })
 
 // Without batch: recomputes for each change
-a.value = 10 // Recomputes (count: 1)
-b.value = 20 // Recomputes (count: 2)
-c.value = 30 // Recomputes (count: 3)
+$a.value = 10 // Recomputes (count: 1)
+$b.value = 20 // Recomputes (count: 2)
+$c.value = 30 // Recomputes (count: 3)
 
 // With batch: recomputes once
 batch(() => {
-  a.value = 100
-  b.value = 200
-  c.value = 300
+  $a.value = 100
+  $b.value = 200
+  $c.value = 300
 })
 // Total: 1 computation
 ```
@@ -252,13 +252,13 @@ Both run eagerly, but serve different purposes:
 ```typescript
 // derive: computes and caches a value
 const computedSum = derive(() => {
-  return items.list.reduce((a, b) => a + b, 0)
+  return $items.list.reduce((a, b) => a + b, 0)
 })
 
 // effect: performs side effects
 let effectSum = 0
 const dispose = effect(() => {
-  effectSum = items.list.reduce((a, b) => a + b, 0)
+  effectSum = $items.list.reduce((a, b) => a + b, 0)
 })
 
 // Key difference: derive provides a cached value
@@ -276,8 +276,8 @@ dispose()
 Derived values create an internal `state()` + `effect()` pair. Set `reactive` to `false` to dispose the internal effect:
 
 ```typescript
-const local = state({ value: 10 })
-const computed = derive(() => local.value * 2)
+const $local = state({ value: 10 })
+const computed = derive(() => $local.value * 2)
 
 console.log(computed.value) // 20
 
@@ -322,7 +322,7 @@ function createManagedDerived() {
 This code fails at runtime because `c` is not yet defined when `b` is created — a JavaScript `ReferenceError`, not a Beacon-specific check:
 
 ```typescript
-const a = state({ value: 1 })
+const $a = state({ value: 1 })
 
 const b = derive(() => c.value + 1) // ReferenceError: c is not defined
 const c = derive(() => b.value + 1)
@@ -371,12 +371,12 @@ const good = derive(() => {
 
 ```typescript
 test('derive updates when dependencies change', () => {
-  const source = state({ value: 10 })
-  const doubled = derive(() => source.value * 2)
+  const $source = state({ value: 10 })
+  const doubled = derive(() => $source.value * 2)
 
   expect(doubled.value).toBe(20)
 
-  source.value = 15
+  $source.value = 15
   expect(doubled.value).toBe(30)
 
   doubled.reactive = false
@@ -384,26 +384,26 @@ test('derive updates when dependencies change', () => {
 
 test('derive computes eagerly', () => {
   let computeCount = 0
-  const source = state({ value: 10 })
+  const $source = state({ value: 10 })
 
   const computed = derive(() => {
     computeCount++
-    return source.value * 2
+    return $source.value * 2
   })
 
   expect(computeCount).toBe(1) // Computed immediately
   computed.value // No additional computation
   expect(computeCount).toBe(1)
 
-  source.value = 20
+  $source.value = 20
   expect(computeCount).toBe(2) // Recomputed
 
   computed.reactive = false
 })
 
 test('derive supports disposal via reactive toggle', () => {
-  const source = state({ value: 10 })
-  const computed = derive(() => source.value * 2)
+  const $source = state({ value: 10 })
+  const computed = derive(() => $source.value * 2)
 
   expect(computed.value).toBe(20)
 
@@ -413,7 +413,7 @@ test('derive supports disposal via reactive toggle', () => {
   expect(computed.value).toBe(20)
 
   // Changes no longer trigger recomputation
-  source.value = 30
+  $source.value = 30
   expect(computed.value).toBe(20)
 
   // Re-enable

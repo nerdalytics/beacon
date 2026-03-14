@@ -19,27 +19,27 @@ Returns the value returned by `fn`. See [Hooks](/v2000/hooks-overview) for the o
 ```typescript
 import { state, effect, batch } from '@nerdalytics/beacon'
 
-const user = state({ name: 'John', role: 'user' })
-const app = state({ theme: 'light', sidebarOpen: true })
+const $user = state({ name: 'John', role: 'user' })
+const $app = state({ theme: 'light', sidebarOpen: true })
 
 effect(() => {
-  console.log(`User ${user.name} changed`)
+  console.log(`User ${$user.name} changed`)
 })
 
 effect(() => {
-  console.log(`Theme is now ${app.theme}`)
+  console.log(`Theme is now ${$app.theme}`)
 })
 
 // Without batch: triggers effects separately
-user.name = 'Jane' // Log: "User Jane changed"
-app.theme = 'dark' // Log: "Theme is now dark"
+$user.name = 'Jane' // Log: "User Jane changed"
+$app.theme = 'dark' // Log: "Theme is now dark"
 
 // With batch: triggers effects after all updates
 batch(() => {
-  user.name = 'Bob'
-  user.role = 'admin'
-  app.theme = 'light'
-  app.sidebarOpen = false
+  $user.name = 'Bob'
+  $user.role = 'admin'
+  $app.theme = 'light'
+  $app.sidebarOpen = false
 })
 // Then logs:
 // "User Bob changed"
@@ -72,21 +72,21 @@ batch() -> batchDepth++ -> Execute fn -> fast path: track dirty targets
 Batches nest. Notifications fire only when the outermost batch completes:
 
 ```typescript
-const s = state({ a: 0, b: 0, c: 0 })
+const $s = state({ a: 0, b: 0, c: 0 })
 
-effect(() => console.log(`Sum: ${s.a + s.b + s.c}`))
+effect(() => console.log(`Sum: ${$s.a + $s.b + $s.c}`))
 
 batch(() => {
-  s.a = 1
+  $s.a = 1
 
   batch(() => {
-    s.b = 2
+    $s.b = 2
     batch(() => {
-      s.c = 3
+      $s.c = 3
     }) // Inner batch - no notification
   }) // Middle batch - no notification
 
-  s.a = 10
+  $s.a = 10
 }) // Outer batch completes - single notification
 // Logs once: "Sum: 15"
 ```
@@ -130,23 +130,23 @@ batch(() => {
 ### Coordinating multiple states
 
 ```typescript
-const account1 = state({ balance: 1000 })
-const account2 = state({ balance: 500 })
-const ledger = state({ entries: [] })
+const $account1 = state({ balance: 1000 })
+const $account2 = state({ balance: 500 })
+const $ledger = state({ entries: [] })
 
 // Without batch: observers see inconsistent state during transfer
 function transfer(amount) {
-  account1.balance -= amount // Effect fires: "Account 1: $900"
-  account2.balance += amount // Effect fires: "Account 2: $600"
-  ledger.entries.push({ from: 'account1', to: 'account2', amount })
+  $account1.balance -= amount // Effect fires: "Account 1: $900"
+  $account2.balance += amount // Effect fires: "Account 2: $600"
+  $ledger.entries.push({ from: 'account1', to: 'account2', amount })
 }
 
 // With batch: atomic update
 function transferBatched(amount) {
   batch(() => {
-    account1.balance -= amount
-    account2.balance += amount
-    ledger.entries.push({ from: 'account1', to: 'account2', amount })
+    $account1.balance -= amount
+    $account2.balance += amount
+    $ledger.entries.push({ from: 'account1', to: 'account2', amount })
   })
   // All effects run AFTER the complete transfer
 }
@@ -155,19 +155,19 @@ function transferBatched(amount) {
 ### Bulk updates with loops
 
 ```typescript
-const items = state([])
-const stats = state({ total: 0, average: 0 })
+const $items = state([])
+const $stats = state({ total: 0, average: 0 })
 
 effect(() => {
-  console.log(`Stats: total=${stats.total}, avg=${stats.average}`)
+  console.log(`Stats: total=${$stats.total}, avg=${$stats.average}`)
 })
 
 // Without batch: effects run on every iteration (~300 executions for 100 items)
 function addManyItems(newItems) {
   for (const item of newItems) {
-    items.push(item)
-    stats.total += item.value
-    stats.average = stats.total / items.length
+    $items.push(item)
+    $stats.total += item.value
+    $stats.average = $stats.total / $items.length
   }
 }
 
@@ -175,9 +175,9 @@ function addManyItems(newItems) {
 function addManyItemsBatched(newItems) {
   batch(() => {
     for (const item of newItems) {
-      items.push(item)
-      stats.total += item.value
-      stats.average = stats.total / items.length
+      $items.push(item)
+      $stats.total += item.value
+      $stats.average = $stats.total / $items.length
     }
   })
 }
@@ -207,18 +207,18 @@ function processItems(data, immediate = false) {
 ## Integration with derive
 
 ```typescript
-const list = state({ items: [], filter: '', sort: 'name' })
+const $list = state({ items: [], filter: '', sort: 'name' })
 
 const filtered = derive(() => {
-  return list.items
-    .filter((item) => item.name.includes(list.filter))
-    .sort((a, b) => a[list.sort].localeCompare(b[list.sort]))
+  return $list.items
+    .filter((item) => item.name.includes($list.filter))
+    .sort((a, b) => a[$list.sort].localeCompare(b[$list.sort]))
 })
 
 function updateFilters(newFilter, newSort) {
   batch(() => {
-    list.filter = newFilter
-    list.sort = newSort
+    $list.filter = newFilter
+    $list.sort = newSort
   }) // Single recomputation
 }
 ```
@@ -230,15 +230,15 @@ function updateFilters(newFilter, newSort) {
 ```typescript
 // Good: related updates together
 batch(() => {
-  user.firstName = 'Jane'
-  user.lastName = 'Doe'
-  user.fullName = 'Jane Doe'
+  $user.firstName = 'Jane'
+  $user.lastName = 'Doe'
+  $user.fullName = 'Jane Doe'
 })
 
 // Avoid: unrelated updates mixed with side effects
 batch(() => {
-  user.name = 'Jane'
-  app.theme = 'dark' // Unrelated
+  $user.name = 'Jane'
+  $app.theme = 'dark' // Unrelated
   socket.connect() // Side effect
 })
 ```
@@ -288,24 +288,24 @@ batch(() => {
 
 ```typescript
 test('batch groups notifications', () => {
-  const s = state({ a: 0, b: 0 })
+  const $s = state({ a: 0, b: 0 })
   let effectCount = 0
 
   effect(() => {
     effectCount++
-    const sum = s.a + s.b
+    const sum = $s.a + $s.b
   })
 
   expect(effectCount).toBe(1) // Initial run
 
   batch(() => {
-    s.a = 5
-    s.b = 10
+    $s.a = 5
+    $s.b = 10
   })
 
   expect(effectCount).toBe(2) // Only one additional run
-  expect(s.a).toBe(5)
-  expect(s.b).toBe(10)
+  expect($s.a).toBe(5)
+  expect($s.b).toBe(10)
 })
 ```
 

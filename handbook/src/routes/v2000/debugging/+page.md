@@ -11,10 +11,10 @@ Give effects a name as the second parameter:
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
 
-const counter = state({ count: 0 })
+const $counter = state({ count: 0 })
 
 const dispose = effect(() => {
-  console.log(`Count: ${counter.count}`)
+  console.log(`Count: ${$counter.count}`)
 }, 'CountLogger')
 ```
 
@@ -27,7 +27,7 @@ Use `StateHooks` to observe property reads and writes:
 ```typescript
 import { state } from '@nerdalytics/beacon'
 
-const user = state({ name: 'Alice', age: 30 }, {
+const $user = state({ name: 'Alice', age: 30 }, {
   onRead: (prop, value) => {
     console.log(`[read] ${String(prop)} →`, value)
   },
@@ -36,8 +36,8 @@ const user = state({ name: 'Alice', age: 30 }, {
   }
 })
 
-user.name = 'Bob'      // [write] name: Alice → Bob
-console.log(user.age)  // [read] age → 30
+$user.name = 'Bob'      // [write] name: Alice → Bob
+console.log($user.age)  // [read] age → 30
 ```
 
 Additional state hooks: `onDelete`, `onHas`, `onOwnKeys`.
@@ -49,10 +49,10 @@ Use `EffectHooks` to observe when effects run, what they depend on, and when the
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
 
-const counter = state({ count: 0 })
+const $counter = state({ count: 0 })
 
 const dispose = effect(() => {
-  console.log(counter.count)
+  console.log($counter.count)
 }, 'MyEffect', {
   onRun: (name) => console.log(`[${name}] running`),
   onDispose: (name) => console.log(`[${name}] disposed`),
@@ -62,7 +62,7 @@ const dispose = effect(() => {
   }
 })
 
-counter.count++
+$counter.count++
 dispose()
 ```
 
@@ -76,9 +76,9 @@ import { state, derive } from '@nerdalytics/beacon'
 let computes = 0
 let cacheHits = 0
 
-const items = state({ list: [1, 2, 3] })
+const $items = state({ list: [1, 2, 3] })
 
-const total = derive(() => items.list.reduce((a, b) => a + b, 0), {
+const total = derive(() => $items.list.reduce((a, b) => a + b, 0), {
   onCompute: () => { computes++ },
   onCacheHit: (_value, fromCache) => { if (fromCache) cacheHits++ }
 })
@@ -86,7 +86,7 @@ const total = derive(() => items.list.reduce((a, b) => a + b, 0), {
 console.log(total.value) // computes: 1, cacheHits: 0
 console.log(total.value) // computes: 1, cacheHits: 1
 
-items.list = [1, 2, 3, 4]
+$items.list = [1, 2, 3, 4]
 console.log(total.value) // computes: 2, cacheHits: 1
 ```
 
@@ -99,12 +99,12 @@ Use `BatchHooks` to time batch execution and catch errors:
 ```typescript
 import { state, batch } from '@nerdalytics/beacon'
 
-const s1 = state({ value: 0 })
-const s2 = state({ value: 0 })
+const $s1 = state({ value: 0 })
+const $s2 = state({ value: 0 })
 
 batch(() => {
-  s1.value = 10
-  s2.value = 20
+  $s1.value = 10
+  $s2.value = 20
 }, {
   onBatchStart: (depth) => console.time(`batch-${depth}`),
   onBatchEnd: (depth) => console.timeEnd(`batch-${depth}`),

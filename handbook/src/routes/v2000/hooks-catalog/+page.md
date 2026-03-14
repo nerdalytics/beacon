@@ -105,7 +105,7 @@ Hook functions match the signature of the relevant hook field. They receive argu
 import { state } from '@nerdalytics/beacon'
 import type { StateHooks } from '@nerdalytics/beacon/hooks'
 
-const user = state(
+const $user = state(
   { name: 'Alice', age: 30 },
   {
     onRead: (prop, value) => {
@@ -147,9 +147,9 @@ import { state, derive } from '@nerdalytics/beacon'
 let computes = 0
 let cacheHits = 0
 
-const items = state({ list: [1, 2, 3] })
+const $items = state({ list: [1, 2, 3] })
 
-const total = derive(() => items.list.reduce((a, b) => a + b, 0), {
+const total = derive(() => $items.list.reduce((a, b) => a + b, 0), {
   onCompute: () => { computes++ },
   onCacheHit: (_value, fromCache) => { if (fromCache) cacheHits++ },
 })
@@ -235,6 +235,3 @@ const $state = state(initial, {
 })
 ```
 
-## Roadmap
-
-Planned built-in hooks — logging helpers, persistence adapters, validation utilities, DevTools integration — are tracked in [`HOOKS_CATALOG.md`](https://github.com/nerdalytics/beacon/blob/trunk/HOOKS_CATALOG.md). None of these are shipped yet.

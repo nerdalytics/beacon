@@ -4,7 +4,7 @@ description: Performance characteristics and optimization tips
 ---
 
 
-Beacon is a ~900-line reactive system with zero external dependencies. No virtual DOM diffing, no compiler pass, no framework overhead. Updates propagate through a dependency graph directly to the effects that need them.
+Beacon is a reactive system with zero external dependencies. Updates propagate through a dependency graph directly to the effects that need them.
 
 ## Benchmark results
 
@@ -50,7 +50,7 @@ The regressions are real and you should know about them:
 - **State creation** is 4.5× slower in v2000. If you create thousands of state objects in a hot path, that will show.
 - **State reads outside effects** are 8× slower. Bare property reads on reactive objects cost more. If you read millions of reactive values in a tight loop with no subscribers, consider reading into a local variable first.
 - **State with no subscribers** is 4.5× slower. v2000 pays a baseline proxy cost even when there is nothing to notify.
-- **Batch + derive** is 2–3× slower in the median. This is a current tradeoff; the batch fast path has not been fully ported.
+- **Batch + derive** is 2–3× slower in the median.
 
 ## What makes Beacon fast
 

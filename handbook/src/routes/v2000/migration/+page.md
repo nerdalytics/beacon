@@ -18,10 +18,10 @@ Version 2000.0.0 shifts from function-based to Proxy-based reactive state. The A
 
 | v1000.x | v2000.0.0 |
 |---------|-----------|
-| `const count = state(0)` | `const signal = state({ count: 0 })` |
-| `count()` | `signal.count` |
-| `count.set(5)` | `signal.count = 5` |
-| `derive(() => count() * 2)` | `derive(() => signal.count * 2)` |
+| `const count = state(0)` | `const $signal = state({ count: 0 })` |
+| `count()` | `$signal.count` |
+| `count.set(5)` | `$signal.count = 5` |
+| `derive(() => count() * 2)` | `derive(() => $signal.count * 2)` |
 | Returns function | Returns `{ value: T }` |
 
 ## Step-by-step
@@ -36,8 +36,8 @@ const count = state(0)
 const name = state('Alice')
 
 // After
-const counter = state({ count: 0 })
-const user = state({ name: 'Alice' })
+const $counter = state({ count: 0 })
+const $user = state({ name: 'Alice' })
 ```
 
 ### 2. Replace getter calls with property access
@@ -48,8 +48,8 @@ console.log(count())
 console.log(name())
 
 // After
-console.log(counter.count)
-console.log(user.name)
+console.log($counter.count)
+console.log($user.name)
 ```
 
 ### 3. Replace setter calls with assignment
@@ -60,8 +60,8 @@ count.set(5)
 name.set('Bob')
 
 // After
-counter.count = 5
-user.name = 'Bob'
+$counter.count = 5
+$user.name = 'Bob'
 ```
 
 ### 4. Update derive usage
@@ -74,7 +74,7 @@ const doubled = derive(() => count() * 2)
 console.log(doubled())
 
 // After
-const doubled = derive(() => counter.count * 2)
+const doubled = derive(() => $counter.count * 2)
 console.log(doubled.value)
 ```
 
@@ -92,7 +92,7 @@ These APIs no longer exist in v2000:
 v2000 derives create an internal effect. They must be disposed to prevent memory leaks:
 
 ```typescript
-const doubled = derive(() => counter.count * 2)
+const doubled = derive(() => $counter.count * 2)
 
 // When no longer needed:
 doubled[Symbol.dispose]()
