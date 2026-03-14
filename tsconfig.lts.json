@@ -39,6 +39,7 @@
 	"exclude": [
 		"biome.json",
 		"dist",
+		"handbook",
 		"node_modules",
 		"package-lock.json",
 		"package.json",
