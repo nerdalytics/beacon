@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../app.css'
 	import Sidebar from '$lib/components/Sidebar.svelte'
+	import VersionSelector from '$lib/components/VersionSelector.svelte'
 	import { base } from '$app/paths'
 	import { page } from '$app/stores'
 	import { onNavigate } from '$app/navigation'
@@ -58,7 +59,7 @@
 				</a>
 			</div>
 			<div class="flex items-center gap-3 lg:gap-4 text-sm text-text-muted">
-				<span class="px-2 py-0.5 rounded text-xs bg-teal/10 text-teal">v2000</span>
+				<VersionSelector />
 				<a
 					href="https://github.com/nerdalytics/beacon"
 					class="hover:text-text transition-colors">GitHub</a
