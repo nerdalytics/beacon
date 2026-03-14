@@ -368,7 +368,7 @@ const updateArrayPath = <V>(array: unknown[], pathSegments: (string | number)[],
 
 	let nextValue = array[index]
 	if (nextValue === undefined || nextValue === null) {
-		nextValue = nextKey !== undefined ? createContainer(nextKey) : {}
+		nextValue = nextKey === undefined ? {} : createContainer(nextKey)
 	}
 
 	copy[index] = setValueAtPath(nextValue, nextPathSegments, value)
@@ -395,7 +395,7 @@ const updateObjectPath = <V>(
 
 	let currentValue = obj[currentKey]
 	if (currentValue === undefined || currentValue === null) {
-		currentValue = nextKey !== undefined ? createContainer(nextKey) : {}
+		currentValue = nextKey === undefined ? {} : createContainer(nextKey)
 	}
 
 	const result = {
@@ -530,6 +530,7 @@ const createProtectedState = <T>(
 	]
 }
 
+export type { ReadOnlyState, State, Unsubscribe, WriteableState }
 export {
 	createDerive as derive,
 	createEffect as effect,
@@ -540,5 +541,3 @@ export {
 	createState as state,
 	executeBatch as batch,
 }
-
-export type { ReadOnlyState, State, Unsubscribe, WriteableState }
