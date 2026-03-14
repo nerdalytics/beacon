@@ -27,6 +27,17 @@
 !tests/
 !tests/*.md
 !tests/*.ts
+!handbook/
+!handbook/**/
+!handbook/**/*.svelte
+!handbook/**/*.ts
+!handbook/**/*.js
+!handbook/**/*.json
+!handbook/**/*.html
+!handbook/**/*.css
+!handbook/**/*.svg
+!handbook/**/*.md
+!handbook/**/*.woff2
 
 # Files in root
 !.gitattributes
