@@ -40,8 +40,8 @@ doubled.reactive = false;
 
 ## Documentation
 
-Documentation and API reference:
-**[github.com/nerdalytics/beacon](https://github.com/nerdalytics/beacon)**
+Full documentation:
+**[nerdalytics.github.io/beacon](https://nerdalytics.github.io/beacon/)**
 
 ## License
 

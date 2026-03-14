@@ -13,6 +13,8 @@
 
 Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
 
+**[Documentation](https://nerdalytics.github.io/beacon/)** | **[npm](https://www.npmjs.com/package/@nerdalytics/beacon)**
+
 <details>
 <summary><Strong>Table of Contents</Strong></summary>
 
