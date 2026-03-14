@@ -21,16 +21,19 @@
 </nav>
 
 {#if open}
-	<!-- svelte-ignore a11y_no_static_element_interactions -->
 	<div
 		class="fixed inset-0 z-50 lg:hidden"
+		role="dialog"
+		aria-modal="true"
+		aria-label="Navigation"
 		onkeydown={(e) => e.key === 'Escape' && onclose?.()}
 	>
-		<!-- svelte-ignore a11y_click_events_have_key_events -->
-		<div
-			class="absolute inset-0 bg-black/60 backdrop-blur-sm"
+		<button
+			class="absolute inset-0 w-full h-full bg-black/60 backdrop-blur-sm cursor-default"
 			onclick={onclose}
-		></div>
+			aria-label="Close navigation"
+			tabindex="-1"
+		></button>
 
 		<nav class="absolute left-0 top-0 bottom-0 w-72 bg-navy border-r border-navy-border overflow-y-auto py-6 px-4 sidebar-slide-in">
 			{#each navigation as group}
