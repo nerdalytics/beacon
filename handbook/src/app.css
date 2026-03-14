@@ -1,0 +1,18 @@
+@import "tailwindcss";
+
+@theme {
+    --color-navy: #0a0e1a;
+    --color-navy-light: #0f1629;
+    --color-navy-border: #1a2744;
+    --color-teal: #10bdbd;
+    --color-blue: #0f3fcf;
+    --color-blue-mid: #0f7fcf;
+    --color-lime: #c2cf0e;
+    --color-green: #78ddb6;
+    --color-text: #e0e8f0;
+    --color-text-muted: #6b7a96;
+
+    --font-sans: 'Merriweather Sans', system-ui, sans-serif;
+    --font-serif: 'Merriweather', Georgia, serif;
+    --font-mono: 'Commit Mono', ui-monospace, monospace;
+}
