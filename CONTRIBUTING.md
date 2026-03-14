@@ -4,6 +4,39 @@
 
 Follow the [Code of Conduct][1].
 
+## Development Setup
+
+### Prerequisites
+
+- Node.js v20.0.0 or later (v22+ recommended)
+
+### Getting Started
+
+1. Clone the repository:
+```bash
+git clone https://github.com/nerdalytics/beacon.git
+cd beacon
+```
+
+2. Install dependencies:
+```bash
+npm install
+```
+
+3. Build the project:
+```bash
+npm run build:lts
+```
+
+4. Run tests to verify setup:
+```bash
+npm test
+```
+
+## Architecture
+
+Single-file core (`src/index.ts`) with four primitives: `state`, `derive`, `effect`, `batch`. Zero external dependencies. See [TECHNICAL_DETAILS.md][3] for internals.
+
 ## Reporting Issues
 
 Open an issue on GitHub. Include:
@@ -112,10 +145,24 @@ will need to be updated.
 
 Run `npm run format` before committing. Biome handles formatting and linting.
 
-## Additional Resources
+## Release Process
 
-- [Developer Guide][3] for setup, workflow, and release process
-- Open an issue for questions
+### Versioning
+
+Beacon follows [Epoch Semantic Versioning][2]:
+
+- **PATCH** (1.0.x): Bug fixes
+- **MINOR** (1.x.0): New features
+- **MAJOR** (1000.0.0): Incompatible API changes
+- **EPOCH** (2000.0.0, 3000.0.0, etc.): Architectural shifts
+
+Format: `{EPOCH * 1000 + MAJOR}.MINOR.PATCH` — compatible with SemVer tooling.
+
+### Release Steps
+
+1. Merge all changes to trunk
+2. Release via GitHub web interface or manually trigger the release workflow with a version number
+3. CI runs tests, builds the package, and publishes to npm
 
 ## License
 
@@ -129,5 +176,5 @@ By contributing, you agree that your contributions will be licensed under the [M
 
 [1]: ./CODE_OF_CONDUCT.md
 [2]: https://antfu.me/posts/epoch-semver
-[3]: ./DEVELOPER_GUIDE.md
+[3]: ./TECHNICAL_DETAILS.md
 [4]: ./LICENSE
