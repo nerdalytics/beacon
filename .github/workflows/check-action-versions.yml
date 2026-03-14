@@ -17,202 +17,34 @@ jobs:
         with:
           token: ${{ secrets.ACTION_UPDATER_PAT }}
 
-      - name: Check for outdated actions
-        id: check
+      - name: Scan workflow files for actions
+        id: scan
+        run: bash .github/scripts/scan-actions.sh
+
+      - name: Resolve latest versions
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
+        run: bash .github/scripts/resolve-latest.sh
 
-          declare -A ACTIONS_CURRENT
-          declare -A ACTIONS_LATEST
-          declare -A ACTIONS_SHA
-          OUTDATED_COUNT=0
+      - name: Compare current vs latest
+        id: compare
+        run: bash .github/scripts/compare-actions.sh
 
-          echo "Scanning workflow files for GitHub Actions..."
-
-          for workflow in .github/workflows/*.yml; do
-            while IFS= read -r line; do
-              if [[ "$line" =~ uses:[[:space:]]*([^@]+)@([^[:space:]#]+) ]]; then
-                action="${BASH_REMATCH[1]}"
-                version="${BASH_REMATCH[2]}"
-
-                # Skip local actions and reusable workflows
-                if [[ "$action" == ./* ]] || [[ "$action" == .github/* ]]; then
-                  continue
-                fi
-
-                # Validate action format: must be owner/repo (exactly one slash, no special chars)
-                if [[ ! "$action" =~ ^[a-zA-Z0-9_-]+/[a-zA-Z0-9_.-]+$ ]]; then
-                  continue
-                fi
-
-                # Store current version (first occurrence wins)
-                if [[ -z "${ACTIONS_CURRENT[$action]:-}" ]]; then
-                  ACTIONS_CURRENT[$action]="$version"
-                fi
-              fi
-            done < "$workflow"
-          done
-
-          echo "Found ${#ACTIONS_CURRENT[@]} unique actions"
-
-          # Check each action for updates
-          for action in "${!ACTIONS_CURRENT[@]}"; do
-            current="${ACTIONS_CURRENT[$action]}"
-            echo "Checking $action (current: $current)..."
-
-            # Get latest release
-            latest=$(gh api "repos/$action/releases/latest" --jq '.tag_name' 2>/dev/null || echo "")
-
-            if [[ -z "$latest" ]]; then
-              # Try getting latest tag if no releases
-              latest=$(gh api "repos/$action/tags" --jq '.[0].name' 2>/dev/null || echo "")
-            fi
-
-            if [[ -z "$latest" ]]; then
-              echo "  Warning: Could not fetch latest version for $action"
-              continue
-            fi
-
-            ACTIONS_LATEST[$action]="$latest"
-
-            # Normalize versions for comparison (strip leading 'v' and SHA)
-            current_normalized="${current#v}"
-            latest_normalized="${latest#v}"
-
-            # Check if current is a SHA (40 hex chars)
-            if [[ "$current" =~ ^[a-f0-9]{40}$ ]]; then
-              # Already pinned to SHA, check comment for version
-              echo "  Already SHA-pinned, skipping comparison"
-              continue
-            fi
-
-            if [[ "$current_normalized" != "$latest_normalized" ]]; then
-              echo "  Outdated: $current -> $latest"
-
-              # Get commit SHA for latest tag
-              sha=$(gh api "repos/$action/git/ref/tags/$latest" --jq '.object.sha' 2>/dev/null || echo "")
-
-              # Handle annotated tags (need to dereference)
-              if [[ -n "$sha" ]]; then
-                obj_type=$(gh api "repos/$action/git/tags/$sha" --jq '.object.type' 2>/dev/null || echo "")
-                if [[ "$obj_type" == "commit" ]]; then
-                  sha=$(gh api "repos/$action/git/tags/$sha" --jq '.object.sha' 2>/dev/null || echo "$sha")
-                fi
-              fi
-
-              if [[ -n "$sha" ]]; then
-                ACTIONS_SHA[$action]="$sha"
-                ((OUTDATED_COUNT++)) || true
-              else
-                echo "  Warning: Could not fetch SHA for $action@$latest"
-              fi
-            else
-              echo "  Up to date"
-            fi
-
-            # Rate limit protection
-            sleep 0.5
-          done
-
-          echo "has_outdated=$( [[ $OUTDATED_COUNT -gt 0 ]] && echo 'true' || echo 'false' )" >> "$GITHUB_OUTPUT"
-
-          if [[ $OUTDATED_COUNT -gt 0 ]]; then
-            echo "Generating report for $OUTDATED_COUNT outdated actions..."
-
-            cat > outdated-actions-report.md << 'HEADER'
-          ## Outdated GitHub Actions Detected
-
-          The following actions have newer versions available:
-
-          | Action | Current | Latest | Recommended Update |
-          |--------|---------|--------|-------------------|
-          HEADER
-
-            for action in "${!ACTIONS_SHA[@]}"; do
-              current="${ACTIONS_CURRENT[$action]}"
-              latest="${ACTIONS_LATEST[$action]}"
-              sha="${ACTIONS_SHA[$action]}"
-              echo "| \`$action\` | $current | $latest | \`$action@$sha # $latest\` |" >> outdated-actions-report.md
-            done
-
-            cat >> outdated-actions-report.md << 'FOOTER'
-
-          ### How to Update
-
-          Replace each action reference in your workflow files with the SHA-pinned version shown in the "Recommended Update" column.
-
-          ### Why SHA Pinning?
-
-          Pinning to a commit SHA prevents supply chain attacks where a malicious actor could move a tag to point to compromised code. This is the most secure way to reference GitHub Actions.
-
-          ---
-          *This issue was automatically generated by the [Check Action Versions](.github/workflows/check-action-versions.yml) workflow.*
-          FOOTER
-
-            echo "Report generated:"
-            cat outdated-actions-report.md
-
-            # Export action data for file modification step
-            for action in "${!ACTIONS_SHA[@]}"; do
-              echo "${action}|${ACTIONS_CURRENT[$action]}|${ACTIONS_LATEST[$action]}|${ACTIONS_SHA[$action]}"
-            done > outdated-actions-data.txt
-          else
-            echo "All actions are up to date!"
-          fi
+      - name: Generate report
+        if: steps.compare.outputs.has_outdated == 'true'
+        run: bash .github/scripts/generate-report.sh
 
       - name: Create or update security issue
-        if: steps.check.outputs.has_outdated == 'true'
+        if: steps.compare.outputs.has_outdated == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          ISSUE_TITLE="Security: Outdated GitHub Actions detected"
+        run: bash .github/scripts/manage-issue.sh
 
-          # Ensure required labels exist
-          gh label create "security" --description "Security-related issues" --color "D93F0B" --force 2>/dev/null || true
-          gh label create "dependencies" --description "Dependency updates" --color "0366D6" --force 2>/dev/null || true
-
-          EXISTING_ISSUE=$(gh issue list --state open --search "in:title $ISSUE_TITLE" --json number --jq '.[0].number' 2>/dev/null || echo "")
-
-          if [[ -n "$EXISTING_ISSUE" ]]; then
-            gh issue edit "$EXISTING_ISSUE" --body-file outdated-actions-report.md
-            echo "Updated issue #$EXISTING_ISSUE"
-          else
-            gh issue create \
-              --title "$ISSUE_TITLE" \
-              --label "security,dependencies" \
-              --body-file outdated-actions-report.md
-            echo "Created new issue"
-          fi
-
-      - name: Apply action updates
-        if: steps.check.outputs.has_outdated == 'true'
+      - name: Apply updates to workflow files
+        if: steps.compare.outputs.has_outdated == 'true'
         id: apply
-        run: |
-          set -euo pipefail
-
-          CHANGES_MADE=0
-
-          while IFS='|' read -r action current latest sha; do
-            echo "Updating $action: $current -> $sha # $latest"
-
-            for workflow in .github/workflows/*.yml; do
-              # Escape special characters for sed
-              action_escaped=$(echo "$action" | sed 's/[\/&]/\\&/g')
-              sha_escaped=$(echo "$sha" | sed 's/[\/&]/\\&/g')
-              latest_escaped=$(echo "$latest" | sed 's/[\/&]/\\&/g')
-
-              # Replace: uses: owner/repo@anything -> uses: owner/repo@sha # version
-              if grep -q "uses:[[:space:]]*${action}@" "$workflow"; then
-                sed -i "s|\(uses:[[:space:]]*${action_escaped}@\)[^[:space:]#]*\(.*\)|\1${sha_escaped} # ${latest_escaped}|" "$workflow"
-                CHANGES_MADE=1
-              fi
-            done
-          done < outdated-actions-data.txt
-
-          echo "changes_made=$CHANGES_MADE" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/apply-updates.sh
 
       - name: Configure SSH signing
         if: steps.apply.outputs.changes_made == '1'
@@ -233,103 +65,18 @@ jobs:
       - name: Create branch and commit
         if: steps.apply.outputs.changes_made == '1'
         id: commit
-        run: |
-          set -euo pipefail
-
-          BRANCH_NAME="automation/update-github-actions"
-
-          git checkout -B "$BRANCH_NAME"
-          git add .github/workflows/*.yml
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            echo "has_changes=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          OUTDATED_COUNT=$(wc -l < outdated-actions-data.txt)
-          git commit -m "chore(deps): update $OUTDATED_COUNT GitHub Action(s) to latest versions
-
-          Updates actions to SHA-pinned versions for security.
-          See workflow file changes for details."
-
-          echo "has_changes=true" >> "$GITHUB_OUTPUT"
-          echo "branch_name=$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+        run: bash .github/scripts/commit-changes.sh
 
       - name: Push and create PR
         if: steps.commit.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
+        run: bash .github/scripts/manage-pr.sh
 
-          BRANCH_NAME="${{ steps.commit.outputs.branch_name }}"
-          ISSUE_TITLE="Security: Outdated GitHub Actions detected"
-          PR_TITLE="chore(deps): Update GitHub Actions to latest versions"
-
-          # Find issue number for linking
-          ISSUE_NUMBER=$(gh issue list --state open --search "in:title $ISSUE_TITLE" --json number --jq '.[0].number' 2>/dev/null || echo "")
-
-          # Generate PR body
-          PR_BODY="## Summary
-
-          Automatically updates GitHub Actions to their latest SHA-pinned versions.
-
-          $(cat outdated-actions-report.md)
-
-          ---
-          ${ISSUE_NUMBER:+Fixes #$ISSUE_NUMBER}
-
-          *This PR was automatically generated by the [Check Action Versions](.github/workflows/check-action-versions.yml) workflow.*"
-
-          # Close existing PR and delete branch if they exist (avoids force-push)
-          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
-          if [[ -n "$EXISTING_PR" ]]; then
-            echo "Closing existing PR #$EXISTING_PR to replace with updated version"
-            gh pr close "$EXISTING_PR" --comment "Superseded by a new PR with updated changes." --delete-branch || true
-          fi
-
-          # Delete remote branch if it still exists (e.g., PR was already closed/merged)
-          if git ls-remote --exit-code --heads origin "$BRANCH_NAME" > /dev/null 2>&1; then
-            echo "Deleting existing remote branch"
-            git push origin --delete "$BRANCH_NAME" || true
-          fi
-
-          # Push branch and create new PR
-          git push -u origin "$BRANCH_NAME"
-
-          echo "Creating new PR"
-          gh pr create \
-            --title "$PR_TITLE" \
-            --body "$PR_BODY" \
-            --label "security,dependencies" \
-            --base main \
-            --head "$BRANCH_NAME"
-
-      - name: Close issue and PR if all actions up to date
-        if: steps.check.outputs.has_outdated == 'false'
+      - name: Close issue and PR if all up to date
+        if: steps.compare.outputs.has_outdated == 'false'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          ISSUE_TITLE="Security: Outdated GitHub Actions detected"
-          BRANCH_NAME="automation/update-github-actions"
-
-          # Close existing issue
-          EXISTING_ISSUE=$(gh issue list --state open --search "in:title $ISSUE_TITLE" --json number --jq '.[0].number' 2>/dev/null || echo "")
-          if [[ -n "$EXISTING_ISSUE" ]]; then
-            gh issue close "$EXISTING_ISSUE" --comment "All GitHub Actions are now up to date."
-            echo "Closed issue #$EXISTING_ISSUE"
-          else
-            echo "No existing issue to close"
-          fi
-
-          # Close existing PR
-          EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
-          if [[ -n "$EXISTING_PR" ]]; then
-            gh pr close "$EXISTING_PR" --comment "All GitHub Actions are now up to date. Closing this automated PR."
-            echo "Closed PR #$EXISTING_PR"
-          else
-            echo "No existing PR to close"
-          fi
+        run: bash .github/scripts/close-if-current.sh

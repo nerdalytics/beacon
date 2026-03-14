@@ -7,6 +7,7 @@
 # Folders
 !.github/
 !.github/**/
+!.github/**/*.sh
 !.github/**/*.yml
 !.github/**/*.yaml
 !assets/
