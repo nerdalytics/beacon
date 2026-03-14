@@ -2,15 +2,15 @@
 	"author": "Denny Trebbin (nerdalytics)",
 	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
 	"devDependencies": {
-		"@biomejs/biome": "2.3.14",
-		"@types/node": "25.2.3",
-		"esbuild": "0.27.3",
+		"@biomejs/biome": "2.4.7",
+		"@types/node": "25.4.0",
+		"esbuild": "0.27.4",
 		"fast-check": "4.5.3",
-		"npm-check-updates": "19.3.2",
-		"typescript": "5.9.3"
+		"npm-check-updates": "19.6.3",
+		"typescript": "6.0.1-rc"
 	},
 	"engines": {
-		"node": ">=20.0.0"
+		"node": ">=22.0.0"
 	},
 	"exports": {
 		".": {
@@ -82,14 +82,12 @@
 		"postbuild:lts": "npx esbuild dist/src/index.js --minify --sourcemap --sources-content=false --outfile=dist/src/index.min.js --format=esm --platform=node",
 		"prebuild:lts": "rm -rf dist/",
 		"prepublishOnly": "npm run build:lts",
-		"pretest:lts:20": "node scripts/run-lts-tests.js",
 		"pretest:lts:22": "node scripts/run-lts-tests.js",
 		"test": "node --test --test-skip-pattern=\"COMPONENT NAME\" tests/**/*.ts",
 		"test:behavior": "node --test tests/infinite-loop.test.ts tests/cyclic-dependency.test.ts tests/cleanup.test.ts",
 		"test:core": "node --test tests/*-core.test.ts",
 		"test:coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.test.ts",
 		"test:integration": "node --test tests/state-*.test.ts tests/batch-integration.test.ts",
-		"test:lts:20": "node --test dist/tests/**.js",
 		"test:lts:22": "node --test --test-skip-pattern=\"COMPONENT NAME\" dist/tests/**/*.js",
 		"test:unit:batch": "node --test tests/batch.test.ts",
 		"test:unit:cleanup": "node --test tests/cleanup.test.ts",
