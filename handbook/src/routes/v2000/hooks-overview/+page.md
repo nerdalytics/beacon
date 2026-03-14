@@ -14,25 +14,9 @@ Three properties define the system:
 
 ## Why hooks
 
-The early Epoch 2 implementation used `__DEV__` checks for debug logging:
+Hooks give you a controlled place to attach instrumentation: logging, timing, validation, analytics. Because hooks are opt-in per call site, you attach them only where you need them. There is no global debug mode, no environment variables, no build flags.
 
-```typescript
-if (__DEV__) {
-  console.debug('[beacon][read]', prop, target)
-}
-```
-
-Hooks replace this with user-controlled instrumentation:
-
-```typescript
-import { logRead } from '@nerdalytics/beacon/hooks'
-
-const $state = state(initial, {
-  onRead: logRead(),
-})
-```
-
-Benefits: no debug code in production, extensible beyond logging, better tree-shaking.
+Benefits: no debug code in production, no monkey-patching, extensible beyond logging, compatible with tree-shaking.
 
 ## Zero-cost abstraction
 
@@ -49,7 +33,7 @@ Without hooks:
 - **Memory**: no additional allocations
 - **Bundle size**: 0 bytes (hooks not imported)
 
-With hooks, cost depends entirely on the hook implementation. Only imported hooks end up in the bundle.
+With hooks, cost depends entirely on the hook implementation.
 
 ## The four hook types
 
@@ -223,8 +207,11 @@ Mix single and array hooks on the same object:
 
 ```typescript
 const $user = state(userData, {
-  onRead: logRead(), // single hook
-  onWrite: [validate(rules), persist('user'), notifyChange()], // multiple hooks
+  onRead: (prop, value) => console.log(`read ${String(prop)}`),
+  onWrite: [
+    (prop, old, val) => console.log(`write ${String(prop)}: ${old} → ${val}`),
+    (prop, _old, val) => validate(prop, val),
+  ],
 })
 ```
 
@@ -248,83 +235,57 @@ state(
 // State updates proceed normally. The error is caught and discarded.
 ```
 
-## Tree-shaking
-
-Hooks are distributed as separate modules. If you don't import them, they don't exist in your bundle:
-
-```typescript
-// Development: import hooks for debugging
-import { logRead, logWrite } from '@nerdalytics/beacon/hooks'
-
-// Production: no imports = no code in bundle
-```
-
 ## Module structure
 
+What actually ships in `@nerdalytics/beacon`:
+
 ```
-@nerdalytics/beacon/
-├── src/
-│   ├── index.ts              # Core library (state, effect, derive, batch)
-│   ├── types.ts              # Hook interfaces
-│   └── hooks/
-│       ├── index.ts          # Re-exports all hooks
-│       ├── compose.ts        # Hook composition (internal)
-│       └── [hook].ts         # Individual hook implementations
-└── dist/
-    ├── index.js              # Core bundle
-    └── hooks/
-        └── *.js              # Separate hook bundles
+src/
+├── index.ts          # Core library (state, effect, derive, batch)
+├── types.ts          # Hook type definitions (StateHooks, EffectHooks, DeriveHooks, BatchHooks, HookFunction, SingleOrArray)
+└── hooks/
+    ├── index.ts      # Re-exports types and composeHook
+    └── compose.ts    # composeHook() utility
 ```
+
+There are no built-in hook implementations. You write inline functions or extract your own factories.
 
 ## Best practices
 
-**Import only what you need.**
+**Keep hooks simple.** Avoid async work or heavy computation inside hooks. If you need to defer work, use `queueMicrotask`.
+
+**Name your effects.** The effect name flows into `onRun`, `onError`, `onDispose`, and `onSchedule` callbacks, and appears in infinite-loop error messages.
 
 ```typescript
-// Good — specific imports
-import { logWrite } from '@nerdalytics/beacon/hooks'
-
-// Avoid — importing everything
-import * as hooks from '@nerdalytics/beacon/hooks'
+effect(() => { /* body */ }, 'sync-to-db', {
+  onError: (err, name) => console.error(`[${name}] failed:`, err),
+})
 ```
 
 **Use arrays for multiple hooks.**
 
 ```typescript
-// Good — array for related hooks
+// Good — array for independent concerns
 const $state = state(initial, {
-  onRead: [logRead(), trace(), profile()],
-})
-
-// Wrong — invented property names
-const $state = state(initial, {
-  onRead: logRead(),
-  onReadTrace: trace(), // not a real API
+  onWrite: [
+    (prop, old, val) => console.log(`${String(prop)}: ${old} → ${val}`),
+    (prop, _old, val) => validate(prop, val),
+  ],
 })
 ```
 
-**Keep hooks simple.** Avoid async work or heavy computation. Defer expensive operations with `queueMicrotask`.
-
-**Load conditionally in production.**
+**Load conditionally for development.**
 
 ```typescript
-const hooks = process.env.NODE_ENV === 'development' ? { onWrite: (await import('@nerdalytics/beacon/hooks')).logWrite() } : undefined
+const hooks = process.env.NODE_ENV === 'development'
+  ? {
+      onWrite: (prop: PropertyKey, old: unknown, val: unknown) => {
+        console.debug(`[dev] ${String(prop)}: ${old} → ${val}`)
+      },
+    }
+  : undefined
 
 const $state = state(initial, hooks)
 ```
 
-## Available hooks
-
-Beacon ships built-in hooks across several categories:
-
-| Category | Hooks |
-| --- | --- |
-| Debugging | `logRead`, `logWrite`, `logEffect`, `logDerive`, `trace` |
-| Performance | `profile`, `throttle`, `debounce` |
-| Persistence | `persist`, `hydrate` |
-| Validation | `validate`, `freeze` |
-| Analytics | `trackMutation`, `trackAccess` |
-| DevTools | `devtools` |
-| Utility | `once`, `filter` |
-
-See the [Hooks Catalog](/v2000/hooks-catalog) for full documentation of each hook, and the [Hooks API Reference](/v2000/hooks-api) for complete interface definitions.
+See the [Hooks Catalog](/v2000/hooks-catalog) for hook interface reference, `composeHook` documentation, and practical examples.
