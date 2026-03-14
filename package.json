@@ -21,16 +21,14 @@
 			},
 			"require": {
 				"default": "./dist/src/index.min.js"
-			},
-			"types": "./dist/src/index.d.ts"
+			}
 		},
 		"./hooks": {
 			"typescript": "./src/hooks/index.ts",
 			"import": {
 				"types": "./dist/src/hooks/index.d.ts",
 				"default": "./dist/src/hooks/index.js"
-			},
-			"types": "./dist/src/hooks/index.d.ts"
+			}
 		}
 	},
 	"files": [
