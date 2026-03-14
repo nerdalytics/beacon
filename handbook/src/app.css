@@ -242,6 +242,11 @@ article pre code .line::before {
     font-size: 0.75rem;
 }
 
+/* ——— Scrollbar stability ——— */
+.overflow-y-auto {
+    scrollbar-gutter: stable;
+}
+
 /* ——— Document grid layout ——— */
 .doc-grid {
     display: grid;
