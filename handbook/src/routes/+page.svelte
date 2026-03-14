@@ -47,7 +47,5 @@
 		<span>Zero dependencies</span>
 		<span class="text-navy-border">|</span>
 		<span>Proxy-based</span>
-		<span class="text-navy-border">|</span>
-		<span>~900 lines</span>
 	</div>
 </div>
