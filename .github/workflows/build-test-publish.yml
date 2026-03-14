@@ -42,46 +42,6 @@ jobs:
         with:
           name: dist
           path: dist/
-  test-lts-20:
-    needs: build
-    strategy:
-      matrix:
-        node-version:
-          - 20.x
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
-      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
-        with:
-          node-version: '${{ matrix.node-version }}'
-      - id: cache-dependencies
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7 # v5.0.2
-        with:
-          path: node_modules
-          key: >-
-            ${{ runner.os }}-node-${{ matrix.node-version }}-${{
-            hashFiles('**/package-lock.json') }}
-      - name: Ensure cache exists
-        if: steps.cache-dependencies.outputs.cache-hit != 'true'
-        run: |
-          echo "Cache miss! Update cached dependencies required.
-          exit 1
-      - name: Download dist directory
-        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
-        with:
-          name: dist
-          path: dist/
-      - name: Diagnostic checks
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Directory structure:"
-          ls -la
-          echo "Dist directory content:"
-          ls -la dist/ || echo "dist directory not found!"
-          echo "Find test files:"
-          find . -name "*.js" | grep -i test || echo "No test files found!"
-      - name: Test project
-        run: 'npm run test:lts:20'
   test-lts-22:
     needs: build
     strategy:
@@ -124,7 +84,6 @@ jobs:
         run: 'npm run test:lts:22'
   publish-npm:
     needs:
-      - test-lts-20
       - test-lts-22
     if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
     runs-on: ubuntu-latest
