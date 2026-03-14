@@ -11,7 +11,7 @@ export function addCopyButtons(container: HTMLElement): void {
 		const btn = document.createElement('button')
 		btn.className =
 			'copy-btn absolute right-2 top-2 px-2 py-1 text-xs rounded opacity-0 group-hover:opacity-100 ' +
-			'transition-opacity bg-navy-light text-text-muted hover:text-teal border border-navy-border'
+			'transition-opacity bg-navy-light text-text-muted hover:text-teal border border-navy-border font-sans'
 		btn.textContent = 'Copy'
 		btn.addEventListener('click', () => {
 			const code = pre.querySelector('code')?.textContent ?? ''

@@ -22,7 +22,6 @@
 		if (articleEl) addCopyButtons(articleEl)
 	})
 
-	// Build flat list of all nav items for prev/next
 	const allPages: NavItem[] = navigation.flatMap((g) => g.items)
 
 	let currentIndex = $derived(
@@ -41,8 +40,8 @@
 	{/if}
 </svelte:head>
 
-<div class="flex-1 flex min-w-0">
-	<article bind:this={articleEl} class="flex-1 min-w-0 py-8 px-4 lg:px-8 max-w-3xl">
+<div class="contents">
+	<article bind:this={articleEl} class="min-w-0 py-8 px-4 lg:px-8 page-enter">
 		{#if title}
 			<h1 class="text-3xl font-bold text-text mb-2 font-sans">{title}</h1>
 		{/if}
@@ -53,7 +52,6 @@
 			{@render children()}
 		</div>
 
-		<!-- Prev / Next navigation -->
 		{#if prevPage || nextPage}
 			<nav class="flex justify-between items-center mt-16 pt-6 border-t border-navy-border font-sans text-sm">
 				{#if prevPage}

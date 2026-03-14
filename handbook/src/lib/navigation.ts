@@ -48,7 +48,7 @@ export const navigation: NavGroup[] = [
 	},
 	{
 		title: 'Recipes',
-		items: [], // future content
+		items: [],
 	},
 	{
 		title: 'Links',

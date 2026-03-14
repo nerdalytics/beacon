@@ -10,13 +10,11 @@
 	let isLanding = $derived($page.url.pathname === `${base}/` || $page.url.pathname === base)
 	let sidebarOpen = $state(false)
 
-	// Close sidebar on navigation
 	$effect(() => {
 		$page.url.pathname
 		sidebarOpen = false
 	})
 
-	// View Transitions API for logo animation
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return
 		return new Promise((resolve) => {
@@ -29,8 +27,7 @@
 </script>
 
 <div class="h-screen flex flex-col overflow-hidden bg-navy text-text font-sans">
-	<!-- Fixed header -->
-	<header class="shrink-0 z-40 border-b border-navy-border bg-navy/95 backdrop-blur">
+	<header class="shrink-0 z-40 bg-navy/95 backdrop-blur header-gradient-border">
 		<div class="flex items-center justify-between px-4 lg:px-6 h-14">
 			<div class="flex items-center gap-2">
 				{#if !isLanding}
@@ -74,15 +71,16 @@
 		</div>
 	</header>
 
-	<!-- Content area fills remaining height, scrolls independently -->
-	<div class="flex flex-1 min-h-0">
-		{#if !isLanding}
-			<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />
-		{/if}
-		{#key $page.url.pathname}
-			<div class="flex-1 min-w-0 overflow-y-auto page-enter">
-				{@render children()}
-			</div>
-		{/key}
+	<div class="flex-1 min-h-0 overflow-y-auto">
+		<div class="doc-grid mx-auto" class:landing={isLanding}>
+			{#if !isLanding}
+				<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />
+			{/if}
+			{#key $page.url.pathname}
+				<div class="contents">
+					{@render children()}
+				</div>
+			{/key}
+		</div>
 	</div>
 </div>

@@ -242,6 +242,55 @@ article pre code .line::before {
     font-size: 0.75rem;
 }
 
+/* ——— Document grid layout ——— */
+.doc-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 90rem;
+    min-height: 100%;
+}
+
+.doc-grid.landing {
+    grid-template-columns: 1fr;
+}
+
+/* md: show TOC column */
+@media (min-width: 768px) {
+    .doc-grid:not(.landing) {
+        grid-template-columns: minmax(0, 1fr) 12rem;
+    }
+}
+
+/* lg: show sidebar + content + TOC */
+@media (min-width: 1024px) {
+    .doc-grid:not(.landing) {
+        grid-template-columns: 14rem minmax(0, 1fr) 12rem;
+    }
+}
+
+/* ——— Header gradient border ——— */
+.header-gradient-border {
+    position: relative;
+}
+
+.header-gradient-border::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+        90deg,
+        var(--color-teal),
+        var(--color-blue-mid),
+        var(--color-teal),
+        #78ddb6
+    );
+    background-size: 300% 100%;
+    animation: gradient-shift 8s ease infinite;
+}
+
 /* ——— Hero gradient animation ——— */
 @keyframes gradient-shift {
     0% { background-position: 0% 50%; }
