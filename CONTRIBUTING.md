@@ -35,7 +35,7 @@ npm test
 
 ## Architecture
 
-Single-file core (`src/index.ts`) with four primitives: `state`, `derive`, `effect`, `batch`. Zero external dependencies. See [TECHNICAL_DETAILS.md][3] for internals.
+Single-file core (`src/index.ts`) with four primitives: `state`, `derive`, `effect`, `batch`. Zero external dependencies. See the [handbook architecture page][3] for internals.
 
 ## Reporting Issues
 
@@ -176,5 +176,5 @@ By contributing, you agree that your contributions will be licensed under the [M
 
 [1]: ./CODE_OF_CONDUCT.md
 [2]: https://antfu.me/posts/epoch-semver
-[3]: ./TECHNICAL_DETAILS.md
+[3]: https://nerdalytics.github.io/beacon/v2000/architecture
 [4]: ./LICENSE
