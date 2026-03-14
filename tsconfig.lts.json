@@ -2,16 +2,13 @@
 	"$schema": "https://json.schemastore.org/tsconfig",
 	"compilerOptions": {
 		"allowJs": false,
-		"allowSyntheticDefaultImports": true,
 		"allowUnreachableCode": false,
 		"declaration": true,
-		"esModuleInterop": true,
 		"exactOptionalPropertyTypes": true,
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
 		"lib": [
-			"ES2022",
-			"ESNext.AsyncIterable"
+			"ES2023"
 		],
 		"module": "NodeNext",
 		"moduleDetection": "force",
@@ -32,9 +29,8 @@
 		"rootDir": "./",
 		"skipLibCheck": true,
 		"sourceMap": true,
-		"strict": true,
 		"strictFunctionTypes": true,
-		"target": "ES2022",
+		"target": "ES2023",
 		"types": [
 			"node"
 		],
