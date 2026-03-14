@@ -8,7 +8,10 @@ declare let self: ServiceWorkerGlobalScope
 import { build, files, version } from '$service-worker'
 
 const CACHE = `cache-${version}`
-const ASSETS = [...build, ...files]
+const ASSETS: string[] = [
+	...build,
+	...files,
+]
 
 self.addEventListener('install', (event) => {
 	event.waitUntil(

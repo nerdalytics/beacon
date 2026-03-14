@@ -10,48 +10,97 @@ export interface NavGroup {
 
 export const navigation: NavGroup[] = [
 	{
+		items: [
+			{
+				href: '/introduction',
+				title: 'Introduction',
+			},
+			{
+				href: '/installation',
+				title: 'Installation',
+			},
+			{
+				href: '/quick-start',
+				title: 'Quick Start',
+			},
+		],
 		title: 'Getting Started',
-		items: [
-			{ title: 'Introduction', href: '/introduction' },
-			{ title: 'Installation', href: '/installation' },
-			{ title: 'Quick Start', href: '/quick-start' },
-		],
 	},
 	{
+		items: [
+			{
+				href: '/state',
+				title: 'State',
+			},
+			{
+				href: '/effects',
+				title: 'Effects',
+			},
+			{
+				href: '/derive',
+				title: 'Derive',
+			},
+			{
+				href: '/batch',
+				title: 'Batch',
+			},
+		],
 		title: 'Guides',
-		items: [
-			{ title: 'State', href: '/state' },
-			{ title: 'Effects', href: '/effects' },
-			{ title: 'Derive', href: '/derive' },
-			{ title: 'Batch', href: '/batch' },
-		],
 	},
 	{
+		items: [
+			{
+				href: '/hooks-overview',
+				title: 'Overview',
+			},
+			{
+				href: '/hooks-api',
+				title: 'API Reference',
+			},
+			{
+				href: '/hooks-catalog',
+				title: 'Catalog',
+			},
+		],
 		title: 'Hooks',
-		items: [
-			{ title: 'Overview', href: '/hooks-overview' },
-			{ title: 'API Reference', href: '/hooks-api' },
-			{ title: 'Catalog', href: '/hooks-catalog' },
-		],
 	},
 	{
+		items: [
+			{
+				href: '/architecture',
+				title: 'Architecture',
+			},
+			{
+				href: '/debugging',
+				title: 'Debugging',
+			},
+			{
+				href: '/performance',
+				title: 'Performance',
+			},
+		],
 		title: 'Advanced',
+	},
+	{
 		items: [
-			{ title: 'Architecture', href: '/architecture' },
-			{ title: 'Debugging', href: '/debugging' },
-			{ title: 'Performance', href: '/performance' },
+			{
+				href: '/migration',
+				title: 'v1000 \u2192 v2000',
+			},
 		],
-	},
-	{
 		title: 'Migration',
-		items: [{ title: 'v1000 \u2192 v2000', href: '/migration' }],
 	},
 	{
-		title: 'Recipes',
 		items: [],
+		title: 'Recipes',
 	},
 	{
+		items: [
+			{
+				href: '/links',
+				title: 'Resources',
+			},
+		],
 		title: 'Links',
-		items: [{ title: 'Resources', href: '/links' }],
 	},
 ]

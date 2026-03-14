@@ -20,7 +20,9 @@
 			"!**/dist/**/*",
 			"!**/temp/**/*",
 			"!**/node_modules/**/*",
-			"!.claude/**/*"
+			"!.claude/**/*",
+			"!**/.svelte-kit/**/*",
+			"!**/handbook/build/**/*"
 		]
 	},
 	"formatter": {
