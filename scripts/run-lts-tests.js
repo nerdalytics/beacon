@@ -48,11 +48,11 @@ function prepareCompiledTests() {
 		content = content.replace(/from ['"]([^'"]+)\.ts['"]\s*;?/g, 'from "$1.js";')
 
 		// Only write if the content changed
-		if (content !== originalContent) {
+		if (content === originalContent) {
+			console.debug(`No imports to fix in ${file}`)
+		} else {
 			writeFileSync(filePath, content)
 			console.debug(`Fixed imports in ${file}`)
-		} else {
-			console.debug(`No imports to fix in ${file}`)
 		}
 	}
 

@@ -43,182 +43,178 @@ const intArb: fc.Arbitrary<number> = fc.integer({
 
 // --- Tests ---
 
-describe(
-	'Property-Based: Infinite Loop Detection',
-	{
-		concurrency: true,
-		timeout: 30000,
-	},
-	(): void => {
-		it('reading and writing the same property always throws', (): void => {
-			fc.assert(
-				fc.property(propKeyArb, intArb, intArb, (prop: string, initial: number, updated: number): void => {
-					fc.pre(!Object.is(initial, updated))
+describe('Property-Based: Infinite Loop Detection', {
+	concurrency: true,
+	timeout: 30000,
+}, (): void => {
+	it('reading and writing the same property always throws', (): void => {
+		fc.assert(
+			fc.property(propKeyArb, intArb, intArb, (prop: string, initial: number, updated: number): void => {
+				fc.pre(!Object.is(initial, updated))
+
+				const obj: Record<string, number> = {
+					[prop]: initial,
+				}
+				const $s = state(obj)
+				let errorThrown = false
+
+				try {
+					effect((): void => {
+						const current = $s[prop]
+						$s[prop] = (current as number) + 1
+					})
+				} catch (error: unknown) {
+					errorThrown = true
+					assert.ok(
+						error instanceof Error && error.message.includes('Infinite loop detected'),
+						`Expected infinite loop error for prop "${prop}"`
+					)
+				}
+
+				assert.strictEqual(errorThrown, true, `Should throw for read+write of same prop "${prop}"`)
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
+
+	it('reading one property and writing a different property never throws', (): void => {
+		fc.assert(
+			fc.property(
+				propKeyArb,
+				propKeyArb,
+				intArb,
+				intArb,
+				(readProp: string, writeProp: string, readVal: number, writeVal: number): void => {
+					fc.pre(readProp !== writeProp)
 
 					const obj: Record<string, number> = {
-						[prop]: initial,
+						[readProp]: readVal,
+						[writeProp]: 0,
 					}
 					const $s = state(obj)
-					let errorThrown = false
-
-					try {
-						effect((): void => {
-							const current = $s[prop]
-							$s[prop] = (current as number) + 1
-						})
-					} catch (error: unknown) {
-						errorThrown = true
-						assert.ok(
-							error instanceof Error && error.message.includes('Infinite loop detected'),
-							`Expected infinite loop error for prop "${prop}"`
-						)
-					}
-
-					assert.strictEqual(errorThrown, true, `Should throw for read+write of same prop "${prop}"`)
-				}),
-				{
-					numRuns: 300,
-				}
-			)
-		})
-
-		it('reading one property and writing a different property never throws', (): void => {
-			fc.assert(
-				fc.property(
-					propKeyArb,
-					propKeyArb,
-					intArb,
-					intArb,
-					(readProp: string, writeProp: string, readVal: number, writeVal: number): void => {
-						fc.pre(readProp !== writeProp)
-
-						const obj: Record<string, number> = {
-							[readProp]: readVal,
-							[writeProp]: 0,
-						}
-						const $s = state(obj)
-						let effectRan = false
-
-						const dispose = effect((): void => {
-							effectRan = true
-							void $s[readProp]
-							$s[writeProp] = writeVal
-						})
-
-						assert.strictEqual(effectRan, true, `Effect should run for read="${readProp}" write="${writeProp}"`)
-
-						dispose()
-					}
-				),
-				{
-					numRuns: 300,
-				}
-			)
-		})
-
-		it('reading property p and writing p on a different state never throws', (): void => {
-			fc.assert(
-				fc.property(propKeyArb, intArb, intArb, (prop: string, val1: number, val2: number): void => {
-					const $source = state({
-						[prop]: val1,
-					} as Record<string, number>)
-					const $target = state({
-						[prop]: 0,
-					} as Record<string, number>)
 					let effectRan = false
 
 					const dispose = effect((): void => {
 						effectRan = true
-						const v = $source[prop]
-						$target[prop] = v as number
+						void $s[readProp]
+						$s[writeProp] = writeVal
 					})
 
-					assert.strictEqual(effectRan, true)
-
-					// Updating source triggers effect which writes to target — safe
-					assert.doesNotThrow((): void => {
-						$source[prop] = val2
-					})
-
-					assert.strictEqual($target[prop], val2)
+					assert.strictEqual(effectRan, true, `Effect should run for read="${readProp}" write="${writeProp}"`)
 
 					dispose()
-				}),
-				{
-					numRuns: 300,
 				}
-			)
-		})
+			),
+			{
+				numRuns: 300,
+			}
+		)
+	})
 
-		it('same-value write-back to a read property still throws', (): void => {
-			fc.assert(
-				fc.property(propKeyArb, intArb, (prop: string, value: number): void => {
-					const $s = state({
-						[prop]: value,
-					} as Record<string, number>)
-					let errorThrown = false
+	it('reading property p and writing p on a different state never throws', (): void => {
+		fc.assert(
+			fc.property(propKeyArb, intArb, intArb, (prop: string, val1: number, val2: number): void => {
+				const $source = state({
+					[prop]: val1,
+				} as Record<string, number>)
+				const $target = state({
+					[prop]: 0,
+				} as Record<string, number>)
+				let effectRan = false
 
-					// checkInfiniteLoop fires before the Object.is check in the set handler,
-					// so writing the same value back still triggers detection
-					try {
-						effect((): void => {
-							const current = $s[prop]
-							$s[prop] = current as number
-						})
-					} catch (error: unknown) {
-						errorThrown = true
-						assert.ok(
-							error instanceof Error && error.message.includes('Infinite loop detected'),
-							`Expected infinite loop error for same-value write-back on prop "${prop}"`
-						)
-					}
+				const dispose = effect((): void => {
+					effectRan = true
+					const v = $source[prop]
+					$target[prop] = v as number
+				})
 
-					assert.strictEqual(errorThrown, true, `Should throw for same-value write-back on prop "${prop}"`)
-				}),
-				{
-					numRuns: 300,
-				}
-			)
-		})
+				assert.strictEqual(effectRan, true)
 
-		it('system recovers after catching infinite loop error', (): void => {
-			fc.assert(
-				fc.property(propKeyArb, intArb, intArb, (prop: string, initial: number, newValue: number): void => {
-					fc.pre(!Object.is(initial, newValue))
+				// Updating source triggers effect which writes to target — safe
+				assert.doesNotThrow((): void => {
+					$source[prop] = val2
+				})
 
-					const $s = state({
-						[prop]: initial,
-					} as Record<string, number>)
+				assert.strictEqual($target[prop], val2)
 
-					// Trigger infinite loop error
-					try {
-						effect((): void => {
-							const current = $s[prop]
-							$s[prop] = (current as number) + 1
-						})
-					} catch {
-						// Expected
-					}
+				dispose()
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
 
-					// System should still work: create a safe effect
-					let safeRuns = 0
-					const dispose = effect((): void => {
-						safeRuns++
-						void $s[prop]
+	it('same-value write-back to a read property still throws', (): void => {
+		fc.assert(
+			fc.property(propKeyArb, intArb, (prop: string, value: number): void => {
+				const $s = state({
+					[prop]: value,
+				} as Record<string, number>)
+				let errorThrown = false
+
+				// checkInfiniteLoop fires before the Object.is check in the set handler,
+				// so writing the same value back still triggers detection
+				try {
+					effect((): void => {
+						const current = $s[prop]
+						$s[prop] = current as number
 					})
-
-					safeRuns = 0
-					$s[prop] = newValue
-
-					assert.strictEqual(safeRuns, 1, `Safe effect should run after recovery for prop "${prop}"`)
-					assert.strictEqual($s[prop], newValue)
-
-					dispose()
-				}),
-				{
-					numRuns: 300,
+				} catch (error: unknown) {
+					errorThrown = true
+					assert.ok(
+						error instanceof Error && error.message.includes('Infinite loop detected'),
+						`Expected infinite loop error for same-value write-back on prop "${prop}"`
+					)
 				}
-			)
-		})
-	}
-)
+
+				assert.strictEqual(errorThrown, true, `Should throw for same-value write-back on prop "${prop}"`)
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
+
+	it('system recovers after catching infinite loop error', (): void => {
+		fc.assert(
+			fc.property(propKeyArb, intArb, intArb, (prop: string, initial: number, newValue: number): void => {
+				fc.pre(!Object.is(initial, newValue))
+
+				const $s = state({
+					[prop]: initial,
+				} as Record<string, number>)
+
+				// Trigger infinite loop error
+				try {
+					effect((): void => {
+						const current = $s[prop]
+						$s[prop] = (current as number) + 1
+					})
+				} catch {
+					// Expected
+				}
+
+				// System should still work: create a safe effect
+				let safeRuns = 0
+				const dispose = effect((): void => {
+					safeRuns++
+					void $s[prop]
+				})
+
+				safeRuns = 0
+				$s[prop] = newValue
+
+				assert.strictEqual(safeRuns, 1, `Safe effect should run after recovery for prop "${prop}"`)
+				assert.strictEqual($s[prop], newValue)
+
+				dispose()
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
+})
