@@ -1,19 +1,8 @@
-# docs/ — Beacon API Reference
+# docs/ — Beacon Documentation
 
-IMPORTANT: Read the relevant doc file before writing any code that uses Beacon APIs. These docs were created specifically because AI agents were applying the APIs incorrectly.
+API documentation has moved to the handbook: https://nerdalytics.github.io/beacon/
 
-## When to Read What
-
-| File | Read when... |
-|------|-------------|
-| `README.md` | You need a quick overview or getting-started example |
-| `README.state.md` | Creating reactive state, nested objects, arrays, frozen objects, or understanding Proxy behavior |
-| `README.effect.md` | Writing side effects, understanding dependency tracking, nested effects, infinite loop prevention, or async pitfalls |
-| `README.derive.md` | Computing derived values, chaining derivations, understanding disposal requirements, or batch optimization |
-| `README.batch.md` | Grouping multiple state updates, understanding nested batches, or optimizing performance |
-| `README.core.md` | Understanding the reactive system architecture, dependency tracking internals, or performance trade-offs |
-| `README.debugging.md` | Debugging reactive state, using named effects, tracing with hooks, or troubleshooting |
-| `README.hooks.md` | Using hooks for instrumentation, understanding hook composition, error isolation, or observing primitive operations |
+The handbook source lives in `handbook/` and is built with SvelteKit.
 
 ## Critical Gotchas
 
@@ -27,6 +16,5 @@ IMPORTANT: Read the relevant doc file before writing any code that uses Beacon A
 
 <!--— BEACON-START —>[Docs Index]
 |root: ./docs
-|IMPORTANT: Read the relevant doc file before writing code that uses Beacon APIs
-|.:{README.md,README.state.md,README.effect.md,README.derive.md,README.batch.md,README.core.md,README.debugging.md,README.hooks.md}
+|.:{AGENTS.md}
 <!--— BEACON-END —>

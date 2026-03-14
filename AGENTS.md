@@ -67,28 +67,24 @@ Whitelist approach: ignores everything by default (`*`), explicitly allows speci
 
 ## Hooks System
 
-Zero-cost instrumentation. All four primitives accept an optional hooks parameter as their last argument. Types in `src/types.ts`, composition utility in `src/hooks/`. See `docs/README.hooks.md` for the full API reference.
+Zero-cost instrumentation. All four primitives accept an optional hooks parameter as their last argument. Types in `src/types.ts`, composition utility in `src/hooks/`. See the [handbook](https://nerdalytics.github.io/beacon/) for the full API reference.
 
 ## Key Root Files
 
 | File | Purpose |
 |------|---------|
-| `TECHNICAL_DETAILS.md` | Internal implementation details, migration guide v1000→v2000 |
-| `CONTRIBUTING.md` | Contribution guidelines, commit message format |
-| `DEVELOPER_GUIDE.md` | Setup, architecture overview, release process |
-| `HOOKS.md` | Hooks architecture overview |
-| `HOOKS_API.md` | Hook interface definitions |
-| `HOOKS_CATALOG.md` | Built-in hook catalog |
+| `CONTRIBUTING.md` | Contribution guidelines, development setup, release process |
+| `HOOKS_CATALOG.md` | Planned hook implementations (roadmap) |
 | `HOOKS_TODO.md` | Hooks implementation roadmap |
 
 <!--— BEACON-START —>[Beacon Index]
 |root: .
 |IMPORTANT: Read docs/AGENTS.md before writing code that uses Beacon APIs. Read folder AGENTS.md before working in that domain.
-|docs/:{AGENTS.md,README.md,README.state.md,README.effect.md,README.derive.md,README.batch.md,README.core.md,README.debugging.md,README.hooks.md}
+|docs/:{AGENTS.md}
 |src/:{AGENTS.md,index.ts,types.ts}
 |src/hooks/:{AGENTS.md,index.ts,compose.ts}
 |tests/:{AGENTS.md}
 |scripts/:{naiv-benchmark.ts,run-lts-tests.js}
-|.github/workflows/:{build-test-publish.yml,update-dependencies-cache.yml}
+|.github/workflows/:{build-test-publish.yml,deploy-handbook.yml,update-dependencies-cache.yml}
 |assets/:{beacon-logo-v2.svg,beacon-logo.svg}
 <!--— BEACON-END —>
