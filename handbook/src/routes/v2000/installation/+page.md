@@ -52,4 +52,4 @@ Beacon ships source files and declaration maps. Type inference works out of the 
 
 ## Next steps
 
-Head to [Quick Start](/quick-start) to build your first reactive system.
+Head to [Quick Start](/v2000/quick-start) to build your first reactive system.

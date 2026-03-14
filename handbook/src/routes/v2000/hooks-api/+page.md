@@ -5,7 +5,7 @@ description: Complete hook interface definitions for StateHooks, EffectHooks, De
 
 # Hooks API Reference
 
-Complete interface definitions for all hook types. For an introduction to hooks, see the [Hooks Overview](/hooks-overview).
+Complete interface definitions for all hook types. For an introduction to hooks, see the [Hooks Overview](/v2000/hooks-overview).
 
 ## Base types
 

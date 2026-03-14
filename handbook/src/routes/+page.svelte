@@ -37,7 +37,7 @@
 	</div>
 
 	<a
-		href="{base}/introduction"
+		href="{base}/v2000/introduction"
 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
 	>
 		Get Started

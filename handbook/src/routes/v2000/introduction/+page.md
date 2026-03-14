@@ -46,5 +46,5 @@ Beacon is not a frontend framework. It has no DOM bindings, no virtual DOM, no c
 
 ## Next steps
 
-- [Installation](/installation) — get Beacon into your project
-- [Quick Start](/quick-start) — build something reactive in five minutes
+- [Installation](/v2000/installation) — get Beacon into your project
+- [Quick Start](/v2000/quick-start) — build something reactive in five minutes

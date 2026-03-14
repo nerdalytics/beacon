@@ -7,7 +7,7 @@ description: Built-in hooks for debugging, performance, persistence, validation,
 
 All built-in hooks provided by Beacon. Each hook is available as a separate import from `@nerdalytics/beacon/hooks`.
 
-For hook interfaces and type definitions, see the [Hooks API Reference](/hooks-api).
+For hook interfaces and type definitions, see the [Hooks API Reference](/v2000/hooks-api).
 
 ## Debugging hooks
 

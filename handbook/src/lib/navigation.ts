@@ -12,15 +12,15 @@ export const navigation: NavGroup[] = [
 	{
 		items: [
 			{
-				href: '/introduction',
+				href: '/v2000/introduction',
 				title: 'Introduction',
 			},
 			{
-				href: '/installation',
+				href: '/v2000/installation',
 				title: 'Installation',
 			},
 			{
-				href: '/quick-start',
+				href: '/v2000/quick-start',
 				title: 'Quick Start',
 			},
 		],
@@ -29,19 +29,19 @@ export const navigation: NavGroup[] = [
 	{
 		items: [
 			{
-				href: '/state',
+				href: '/v2000/state',
 				title: 'State',
 			},
 			{
-				href: '/effects',
+				href: '/v2000/effects',
 				title: 'Effects',
 			},
 			{
-				href: '/derive',
+				href: '/v2000/derive',
 				title: 'Derive',
 			},
 			{
-				href: '/batch',
+				href: '/v2000/batch',
 				title: 'Batch',
 			},
 		],
@@ -50,15 +50,15 @@ export const navigation: NavGroup[] = [
 	{
 		items: [
 			{
-				href: '/hooks-overview',
+				href: '/v2000/hooks-overview',
 				title: 'Overview',
 			},
 			{
-				href: '/hooks-api',
+				href: '/v2000/hooks-api',
 				title: 'API Reference',
 			},
 			{
-				href: '/hooks-catalog',
+				href: '/v2000/hooks-catalog',
 				title: 'Catalog',
 			},
 		],
@@ -67,15 +67,15 @@ export const navigation: NavGroup[] = [
 	{
 		items: [
 			{
-				href: '/architecture',
+				href: '/v2000/architecture',
 				title: 'Architecture',
 			},
 			{
-				href: '/debugging',
+				href: '/v2000/debugging',
 				title: 'Debugging',
 			},
 			{
-				href: '/performance',
+				href: '/v2000/performance',
 				title: 'Performance',
 			},
 		],
@@ -84,8 +84,8 @@ export const navigation: NavGroup[] = [
 	{
 		items: [
 			{
-				href: '/migration',
-				title: 'v1000 \u2192 v2000',
+				href: '/v2000/migration',
+				title: 'v1000 → v2000',
 			},
 		],
 		title: 'Migration',
@@ -97,7 +97,7 @@ export const navigation: NavGroup[] = [
 	{
 		items: [
 			{
-				href: '/links',
+				href: '/v2000/links',
 				title: 'Resources',
 			},
 		],

@@ -328,4 +328,4 @@ Beacon ships built-in hooks across several categories:
 | DevTools | `devtools` |
 | Utility | `once`, `filter` |
 
-See the [Hooks Catalog](/hooks-catalog) for full documentation of each hook, and the [Hooks API Reference](/hooks-api) for complete interface definitions.
+See the [Hooks Catalog](/v2000/hooks-catalog) for full documentation of each hook, and the [Hooks API Reference](/v2000/hooks-api) for complete interface definitions.

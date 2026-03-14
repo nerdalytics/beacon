@@ -141,7 +141,7 @@ failureRate.reactive = false
 
 Dig into each primitive:
 
-- [State](/api/state) — nested objects, arrays, frozen objects
-- [Effect](/api/effect) — dependency tracking, async pitfalls, disposal
-- [Derive](/api/derive) — chaining, disposal, batch optimization
-- [Batch](/api/batch) — nesting, error handling, performance
+- [State](/v2000/state) — nested objects, arrays, frozen objects
+- [Effect](/v2000/effects) — dependency tracking, async pitfalls, disposal
+- [Derive](/v2000/derive) — chaining, disposal, batch optimization
+- [Batch](/v2000/batch) — nesting, error handling, performance

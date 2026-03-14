@@ -17,7 +17,7 @@ type EffectName = string
 type Unsubscribe = () => void
 ```
 
-Returns a dispose function. Call it to stop the effect and clean up all subscriptions. See [Hooks](/hooks) for the optional hooks parameter.
+Returns a dispose function. Call it to stop the effect and clean up all subscriptions. See [Hooks](/v2000/hooks-overview) for the optional hooks parameter.
 
 ## Basic usage
 
