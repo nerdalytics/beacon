@@ -4,10 +4,8 @@
 		"allowImportingTsExtensions": true,
 
 		"allowJs": false,
-		"allowSyntheticDefaultImports": true,
 		"allowUnreachableCode": false,
 
-		"esModuleInterop": true,
 		"exactOptionalPropertyTypes": true,
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
@@ -30,8 +28,6 @@
 		"resolveJsonModule": true,
 		"rewriteRelativeImportExtensions": true,
 		"skipLibCheck": true,
-
-		"strict": true,
 		"strictFunctionTypes": true,
 		"target": "ESNext",
 		"types": [
