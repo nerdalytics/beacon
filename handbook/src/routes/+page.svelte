@@ -10,13 +10,13 @@
 	/>
 </svelte:head>
 
-<div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-20 min-h-[80vh] page-enter">
-	<img src="{base}/favicon.svg" alt="Beacon logo" class="w-28 h-28 mb-6" style="view-transition-name: beacon-logo" />
-	<div class="mb-4 text-7xl font-extrabold beacon-gradient-text">
+<div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-10 lg:py-20 min-h-0 lg:min-h-[80vh] page-enter">
+	<img src="{base}/favicon.svg" alt="Beacon logo" class="w-28 h-28 mb-3" style="view-transition-name: beacon-logo" />
+	<div class="mb-3 text-7xl font-extrabold beacon-gradient-text">
 		Beacon
 	</div>
 
-	<div class="mb-4 flex items-center gap-3 flex-wrap justify-center">
+	<div class="mb-3 flex items-center gap-3 flex-wrap justify-center">
 		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
 			<img src="https://flat.badgen.net/static/license/MIT/blue" alt="MIT License" />
 		</a>
@@ -30,47 +30,47 @@
 			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0" alt="Socket Badge" />
 		</a>
 	</div>
-	<div class="mb-6 flex items-center gap-2 flex-wrap justify-center">
+	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
 		<a href="https://nodejs.org/">
-			<img src="https://img.shields.io/badge/Node%20js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+			<img src="https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
 		</a>
 		<a href="https://bun.sh/">
-			<img src="https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white" alt="Bun" />
+			<img src="https://img.shields.io/badge/Bun-000000?style=flat-square&logo=bun&logoColor=white" alt="Bun" />
 		</a>
 		<a href="https://deno.com/">
-			<img src="https://img.shields.io/badge/Deno-464647?style=for-the-badge&logo=deno&logoColor=white" alt="Deno" />
+			<img src="https://img.shields.io/badge/Deno-464647?style=flat-square&logo=deno&logoColor=white" alt="Deno" />
 		</a>
 		<a href="https://typescriptlang.org/">
-			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
 		</a>
 		<a href="https://biomejs.dev/">
-			<img src="https://img.shields.io/badge/biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white" alt="Biome" />
+			<img src="https://img.shields.io/badge/Biome-60a5fa?style=flat-square&logo=biome&logoColor=white" alt="Biome" />
 		</a>
 	</div>
-	<div class="mb-6 flex items-center gap-2 flex-wrap justify-center">
+	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
 		<a href="https://www.npmjs.com/package/@nerdalytics/beacon">
-			<img src="https://img.shields.io/badge/npm-CB3837?style=for-the-badge&logo=npm&logoColor=white" alt="npm" />
+			<img src="https://img.shields.io/badge/npm-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" />
 		</a>
 		<a href="https://yarnpkg.com/">
-			<img src="https://img.shields.io/badge/yarn-2C8EBB?style=for-the-badge&logo=yarn&logoColor=white" alt="yarn" />
+			<img src="https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white" alt="yarn" />
 		</a>
 		<a href="https://pnpm.io/">
-			<img src="https://img.shields.io/badge/pnpm-F69220?style=for-the-badge&logo=pnpm&logoColor=white" alt="pnpm" />
+			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
 		</a>
 		<a href="https://jsr.io/@nerdalytics/beacon">
-			<img src="https://img.shields.io/badge/jsr-F7DF1E?style=for-the-badge&logo=jsr&logoColor=black" alt="JSR" />
+			<img src="https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black" alt="JSR" />
 		</a>
 		<a href="https://vlt.sh/">
-			<img src="https://img.shields.io/badge/vlt-1A1A2E?style=for-the-badge&logoColor=white" alt="vlt" />
+			<img src="https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white" alt="vlt" />
 		</a>
 	</div>
 
-	<p class="text-lg text-text-muted max-w-lg mb-10 font-serif leading-relaxed">
+	<p class="text-lg text-text-muted max-w-lg mb-8 font-serif leading-relaxed">
 		Lightweight reactive state for Node.js backends
 	</p>
 
 	<div
-		class="mb-12 w-full max-w-md text-left rounded-lg border border-navy-border bg-navy-light p-5 text-sm font-mono leading-relaxed"
+		class="mb-8 w-full max-w-md text-left rounded-lg border border-navy-border bg-navy-light p-5 text-sm font-mono leading-relaxed"
 	>
 		<div class="text-lime mb-1">// reactive in three lines</div>
 		<div>
