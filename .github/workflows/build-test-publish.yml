@@ -97,6 +97,7 @@ jobs:
           mise_toml: |
             [tools]
             bun = "latest"
+      - run: bun install
       - run: bun test tests/
   test-deno:
     needs: build
