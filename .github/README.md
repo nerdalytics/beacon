@@ -5,6 +5,7 @@
 
 [![license:mit](https://flat.badgen.net/static/license/MIT/blue)](https://github.com/nerdalytics/beacon/blob/trunk/LICENSE)
 [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
+[![registry:jsr](https://jsr.io/badges/@nerdalytics/beacon)](https://jsr.io/@nerdalytics/beacon)
 [![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2000.0.0)
 
 [![tech:nodejs](https://img.shields.io/badge/Node%20js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
@@ -13,7 +14,7 @@
 
 Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
 
-**[Documentation](https://nerdalytics.github.io/beacon/)** | **[npm](https://www.npmjs.com/package/@nerdalytics/beacon)**
+**[Documentation](https://nerdalytics.github.io/beacon/)** | **[npm](https://www.npmjs.com/package/@nerdalytics/beacon)** | **[jsr](https://jsr.io/@nerdalytics/beacon)**
 
 <details>
 <summary><Strong>Table of Contents</Strong></summary>
@@ -63,6 +64,12 @@ Tracks which properties each effect reads and re-runs only when those properties
 
 ```other
 npm install @nerdalytics/beacon --save-exact
+```
+
+or via [JSR](https://jsr.io/@nerdalytics/beacon):
+
+```other
+npx jsr add @nerdalytics/beacon
 ```
 
 ```typescript

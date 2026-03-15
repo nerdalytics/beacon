@@ -1,8 +1,10 @@
 {
+	"$schema": "https://jsr.io/schema/config-file.v1.json",
 	"exports": {
 		".": "./src/index.ts",
 		"./hooks": "./src/hooks/index.ts"
 	},
+	"license": "MIT",
 	"name": "@nerdalytics/beacon",
 	"publish": {
 		"include": [

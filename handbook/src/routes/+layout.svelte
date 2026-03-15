@@ -68,6 +68,10 @@
 					href="https://www.npmjs.com/package/@nerdalytics/beacon"
 					class="hidden sm:inline hover:text-text transition-colors">npm</a
 				>
+				<a
+					href="https://jsr.io/@nerdalytics/beacon"
+					class="hidden sm:inline hover:text-text transition-colors">jsr</a
+				>
 			</div>
 		</div>
 	</header>

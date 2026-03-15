@@ -11,8 +11,16 @@ description: Install Beacon and set up your project
 
 ## Install
 
+### npm
+
 ```bash
 npm install @nerdalytics/beacon
+```
+
+### JSR
+
+```bash
+npx jsr add @nerdalytics/beacon
 ```
 
 ## Project setup
