@@ -25,10 +25,40 @@ description: Install Beacon and set up your project
 npm install @nerdalytics/beacon
 ```
 
+### yarn
+
+```bash
+yarn add @nerdalytics/beacon
+```
+
+### pnpm
+
+```bash
+pnpm add @nerdalytics/beacon
+```
+
+### Bun
+
+```bash
+bun add @nerdalytics/beacon
+```
+
+### Deno
+
+```bash
+deno install npm:@nerdalytics/beacon
+```
+
 ### JSR
 
 ```bash
 npx jsr add @nerdalytics/beacon
+```
+
+### vlt
+
+```bash
+vlt install @nerdalytics/beacon
 ```
 
 ## Project setup
