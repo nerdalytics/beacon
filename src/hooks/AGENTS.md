@@ -21,7 +21,7 @@ All hooks are optional. Each accepts `SingleOrArray<HookFunction<Args>>` — a s
 | Interface | Hooks | Fired during |
 |-----------|-------|-------------|
 | `StateHooks<T>` | `onDelete`, `onHas`, `onOwnKeys`, `onRead`, `onWrite` | Proxy trap execution |
-| `EffectHooks` | `onDependencyAdd`, `onDispose`, `onError`, `onRun`, `onSchedule` | Effect lifecycle |
+| `EffectHooks` | `onDependencyAdd`, `onDependencyChange`, `onDispose`, `onError`, `onRun`, `onSchedule` | Effect lifecycle |
 | `DeriveHooks<T>` | `onCacheHit`, `onCompute`, `onDependencyChange`, `onDispose`, `onError` | Derived value computation |
 | `BatchHooks` | `onBatchEnd`, `onBatchError`, `onBatchStart` | Batch boundary lifecycle |
 

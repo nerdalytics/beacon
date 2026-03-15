@@ -73,9 +73,9 @@ Handler helpers:
 
 | Function | Purpose |
 |----------|---------|
-| `trackDependency` | Routes to `registerEffectRead` (first run) or `trackReadSilently` (re-runs via `isTrackingOnly`) |
-| `registerEffectRead` | Records read + fires `onDependencyAdd` hook |
-| `trackReadSilently` | Records read without hooks or subscriber registration |
+| `trackDependency` | Routes to `recordEffectRead` (first run) or `recordSilentRead` (re-runs via `isTrackingOnly`) |
+| `recordEffectRead` | Records read + fires `onDependencyAdd` hook |
+| `recordSilentRead` | Records read without hooks or subscriber registration |
 | `resolveValue` | Wraps nested objects via `wrapNestedObject` → `state()` |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
 | `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
@@ -177,8 +177,6 @@ scheduleSubscribersForTarget(target, prop)
 |----------|---------|
 | `callHookSafe` | Invokes hook in try-catch — hook errors never propagate to core |
 | `didEffectReadProp` | Checks if effect read a specific property (for infinite loop detection) |
-| `unwrapIfObject` | Passes objects through `tryUnwrap`, returns primitives as-is |
-| `tryUnwrap` | Returns value unchanged if already proxied (checks `[PROXY]` symbol) |
 | `depsMatch` | Compares two dep sets by size + per-target property sets |
 
 ## Critical Invariants

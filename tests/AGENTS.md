@@ -102,5 +102,5 @@ Test hooks instrumentation for each primitive. Each file verifies backward compa
 <!--— BEACON-START —>[Tests Index]
 |root: ./tests
 |IMPORTANT: Follow naming conventions and always dispose effects/derives in tests
-|.:{state-core.test.ts,effect-core.test.ts,derive-core.test.ts,batch-core.test.ts,state-derive.test.ts,state-effect.test.ts,batch-integration.test.ts,cleanup.test.ts,cyclic-dependency.test.ts,infinite-loop.test.ts,state-hooks.test.ts,effect-hooks.test.ts,derive-hooks.test.ts,batch-hooks.test.ts,hooks-compose.test.ts,STYLE_GUIDE.md,TEST_ORGANIZATION.md}
+|.:{state-core.test.ts,effect-core.test.ts,derive-core.test.ts,batch-core.test.ts,state-derive.test.ts,state-effect.test.ts,batch-integration.test.ts,cleanup.test.ts,cyclic-dependency.test.ts,infinite-loop.test.ts,state-hooks.test.ts,effect-hooks.test.ts,derive-hooks.test.ts,batch-hooks.test.ts,hooks-compose.test.ts,property-*.test.ts,STYLE_GUIDE.md,TEST_ORGANIZATION.md,PROPERTY_BASED_TESTING.md}
 <!--— BEACON-END —>

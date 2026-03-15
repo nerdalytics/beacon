@@ -19,7 +19,7 @@
 
 ## Architecture
 
-Single-file core: `src/index.ts` (900 lines). Zero external dependencies. Proxy-based reactive system.
+Single-file core: `src/index.ts` (~1400 lines). Zero external dependencies. Proxy-based reactive system.
 
 **Exports:**
 - `state<T extends object>(initial: T, hooks?: StateHooks<T>): T` — Proxy-wrapped reactive objects with per-property tracking
@@ -39,7 +39,7 @@ Single-file core: `src/index.ts` (900 lines). Zero external dependencies. Proxy-
 ## Versioning
 
 Epoch Semantic Versioning: `{EPOCH * 1000 + MAJOR}.MINOR.PATCH`
-- Current: v1000.2.3
+- Current: v2000.0.0
 
 Commit format: `<type>(<scope>): <summary>` — imperative, present tense, no period, under 72 chars.
 Types: `epoch`, `breaking`, `feat`, `fix`, `perf`, `refactor`, `style`, `test`, `docs`, `chore`
@@ -52,14 +52,14 @@ Scopes: `state`, `derive`, `effect`, `batch`, `core`, `api`, `assets`
 
 ## Tooling
 
-- **Runtime**: Node.js >= 20.0.0 (mise-managed)
+- **Runtime**: Node.js >= 22.0.0 (mise-managed)
 - **TypeScript**: strict mode, ESNext target, NodeNext modules
 - **Linter/Formatter**: Biome — tabs, 120 line width, LF, single quotes, semicolons asNeeded, trailing commas es5, bracket spacing on, arrow parens always
 - **Key lint rules**: `noExplicitAny: error`, `useExplicitType: error`, `noConsole: error` (allow: error/warn/dir/info/debug/table/time/timeEnd/timeLog/trace), `noAccumulatingSpread: error`, `useSortedKeys: on`, `useSortedProperties: on`, `useConsistentArrayType: shorthand`
 - **Tests**: Native Node.js test runner (`node --test`), no external framework
 - **Coverage**: 100% branches, 100% functions, 90% lines (configured in `node.config.json`)
-- **Build**: `tsc -p tsconfig.lts.json` → `uglify-js` → `dist/src/index.min.js`
-- **CI**: GitHub Actions — build on Node 24, test LTS on Node 20 + 22, publish to npm on trunk push
+- **Build**: `tsc -p tsconfig.lts.json` → `esbuild` → `dist/src/index.min.js`
+- **CI**: GitHub Actions — build on Node 24, test LTS on Node 22, publish to npm + JSR on trunk push (gated by version change)
 
 ## .gitignore
 
@@ -84,7 +84,8 @@ Zero-cost instrumentation. All four primitives accept an optional hooks paramete
 |src/:{AGENTS.md,index.ts,types.ts}
 |src/hooks/:{AGENTS.md,index.ts,compose.ts}
 |tests/:{AGENTS.md}
-|scripts/:{naiv-benchmark.ts,run-lts-tests.js}
+|scripts/:{benchmark.ts,naiv-benchmark.ts,run-lts-tests.js}
 |.github/workflows/:{build-test-publish.yml,deploy-handbook.yml,update-dependencies-cache.yml}
+|.github/scripts/:{check-version.sh,check-version-sync.sh}
 |assets/:{beacon-logo-v2.svg,beacon-logo.svg}
 <!--— BEACON-END —>
