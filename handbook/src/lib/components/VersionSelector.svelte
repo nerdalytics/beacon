@@ -1,11 +1,11 @@
 <script lang="ts">
-	import { page } from '$app/stores'
+	import { page } from '$app/state'
 	import { base } from '$app/paths'
 	import { goto } from '$app/navigation'
 	import { versions, currentVersion } from '$lib/versions'
 
 	function switchVersion(newPrefix: string): void {
-		const currentPath = $page.url.pathname
+		const currentPath = page.url.pathname
 		const currentPrefix = currentVersion.prefix
 		const pagePath = currentPath.replace(`${base}${currentPrefix}`, '')
 		goto(`${base}${newPrefix}${pagePath || '/introduction'}`)

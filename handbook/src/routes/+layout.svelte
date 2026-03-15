@@ -3,16 +3,16 @@
 	import Sidebar from '$lib/components/Sidebar.svelte'
 	import VersionSelector from '$lib/components/VersionSelector.svelte'
 	import { base } from '$app/paths'
-	import { page } from '$app/stores'
+	import { page } from '$app/state'
 	import { onNavigate } from '$app/navigation'
 
 	let { children } = $props()
 
-	let isLanding = $derived($page.url.pathname === `${base}/` || $page.url.pathname === base)
+	let isLanding = $derived(page.url.pathname === `${base}/` || page.url.pathname === base)
 	let sidebarOpen = $state(false)
 
 	$effect(() => {
-		$page.url.pathname
+		page.url.pathname
 		sidebarOpen = false
 	})
 
@@ -81,7 +81,7 @@
 			{#if !isLanding}
 				<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />
 			{/if}
-			{#key $page.url.pathname}
+			{#key page.url.pathname}
 				<div class="contents">
 					{@render children()}
 				</div>

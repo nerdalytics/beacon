@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
-	import { page } from '$app/stores'
+	import { page } from '$app/state'
 	import { base } from '$app/paths'
 	import { addCopyButtons } from '$lib/copy-code'
 	import { navigation, type NavItem } from '$lib/navigation'
@@ -25,7 +25,7 @@
 	const allPages: NavItem[] = navigation.flatMap((g) => g.items)
 
 	let currentIndex = $derived(
-		allPages.findIndex((item) => `${base}${item.href}` === $page.url.pathname)
+		allPages.findIndex((item) => `${base}${item.href}` === page.url.pathname)
 	)
 	let prevPage = $derived(currentIndex > 0 ? allPages[currentIndex - 1] : null)
 	let nextPage = $derived(currentIndex < allPages.length - 1 ? allPages[currentIndex + 1] : null)
