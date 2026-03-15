@@ -37,6 +37,10 @@ jobs:
         run: biome check
       - name: Build project
         run: 'npm run build:lts'
+      - name: Check version sync (package.json ↔ jsr.json)
+        run: .github/scripts/check-version-sync.sh
+      - name: Validate JSR package
+        run: npx jsr publish --dry-run
       - name: Upload dist directory
         uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
@@ -82,10 +86,24 @@ jobs:
           find . -name "*.js" | grep -i test || echo "No test files found!"
       - name: Test project
         run: 'npm run test:lts:22'
+  check-version:
+    needs: test-lts-22
+    if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 2
+      - id: check
+        run: .github/scripts/check-version.sh
   publish-npm:
     needs:
+      - check-version
       - test-lts-22
-    if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
+    if: needs.check-version.outputs.changed == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -112,3 +130,15 @@ jobs:
           name: dist
           path: dist/
       - run: npm publish --access public
+  publish-jsr:
+    needs:
+      - check-version
+      - test-lts-22
+    if: needs.check-version.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - run: npx jsr publish
