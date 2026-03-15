@@ -47,6 +47,23 @@
 			<img src="https://img.shields.io/badge/biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white" alt="Biome" />
 		</a>
 	</div>
+	<div class="mb-6 flex items-center gap-2 flex-wrap justify-center">
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon">
+			<img src="https://img.shields.io/badge/npm-CB3837?style=for-the-badge&logo=npm&logoColor=white" alt="npm" />
+		</a>
+		<a href="https://yarnpkg.com/">
+			<img src="https://img.shields.io/badge/yarn-2C8EBB?style=for-the-badge&logo=yarn&logoColor=white" alt="yarn" />
+		</a>
+		<a href="https://pnpm.io/">
+			<img src="https://img.shields.io/badge/pnpm-F69220?style=for-the-badge&logo=pnpm&logoColor=white" alt="pnpm" />
+		</a>
+		<a href="https://jsr.io/@nerdalytics/beacon">
+			<img src="https://img.shields.io/badge/jsr-F7DF1E?style=for-the-badge&logo=jsr&logoColor=black" alt="JSR" />
+		</a>
+		<a href="https://vlt.sh/">
+			<img src="https://img.shields.io/badge/vlt-1A1A2E?style=for-the-badge&logoColor=white" alt="vlt" />
+		</a>
+	</div>
 
 	<p class="text-lg text-text-muted max-w-lg mb-10 font-serif leading-relaxed">
 		Lightweight reactive state for Node.js backends
