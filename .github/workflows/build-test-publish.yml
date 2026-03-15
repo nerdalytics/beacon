@@ -97,7 +97,7 @@ jobs:
           mise_toml: |
             [tools]
             bun = "latest"
-      - run: bun test tests/**/*.ts
+      - run: bun test ./tests/**/*.ts
   test-deno:
     needs: build
     runs-on: ubuntu-latest
@@ -109,6 +109,7 @@ jobs:
           mise_toml: |
             [tools]
             deno = "latest"
+      - run: deno install
       - run: deno test --no-check --allow-read tests/**/*.ts
   check-version:
     needs: test-lts-22
