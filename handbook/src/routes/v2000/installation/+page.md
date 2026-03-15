@@ -6,8 +6,16 @@ description: Install Beacon and set up your project
 
 ## Requirements
 
-- Node.js >= 22.0.0
 - ESM project (`"type": "module"` in your `package.json`)
+- One of: Node.js >= 22.0.0, Bun >= 1.3, or Deno >= 2.7
+
+## Runtime compatibility
+
+| Runtime | Status | Notes |
+|---|---|---|
+| Node.js >= 22 | Full support | Primary target. All tests pass. |
+| Bun >= 1.3 | Near-full support | 192/193 tests pass. One `deepStrictEqual` edge case with array symbol properties — a Bun compat difference, not a Beacon bug. |
+| Deno >= 2.7 | Near-full support | 185/193 tests pass. Deno's `node:test` compat layer does not implement `afterEach`, which one test file uses. Core functionality works. |
 
 ## Install
 

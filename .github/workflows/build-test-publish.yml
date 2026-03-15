@@ -86,6 +86,30 @@ jobs:
           find . -name "*.js" | grep -i test || echo "No test files found!"
       - name: Test project
         run: 'npm run test:lts:22'
+  test-bun:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          mise_toml: |
+            [tools]
+            bun = "latest"
+      - run: bun test tests/**/*.ts
+  test-deno:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: jdx/mise-action@5228313ee0372e111a38da051671ca30fc5a96db # v3
+        with:
+          mise_toml: |
+            [tools]
+            deno = "latest"
+      - run: deno test --no-check --allow-read tests/**/*.ts
   check-version:
     needs: test-lts-22
     if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
