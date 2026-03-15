@@ -34,6 +34,12 @@
 		<a href="https://nodejs.org/">
 			<img src="https://img.shields.io/badge/Node%20js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
 		</a>
+		<a href="https://bun.sh/">
+			<img src="https://img.shields.io/badge/Bun-000000?style=for-the-badge&logo=bun&logoColor=white" alt="Bun" />
+		</a>
+		<a href="https://deno.com/">
+			<img src="https://img.shields.io/badge/Deno-464647?style=for-the-badge&logo=deno&logoColor=white" alt="Deno" />
+		</a>
 		<a href="https://typescriptlang.org/">
 			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
 		</a>
