@@ -64,14 +64,20 @@ Tracks which properties each effect reads and re-runs only when those properties
 
 ## Quick Start
 
-```other
-npm install @nerdalytics/beacon --save-exact
-```
-
-or via [JSR](https://jsr.io/@nerdalytics/beacon):
-
-```other
+```bash
+npm install @nerdalytics/beacon
+# or
+yarn add @nerdalytics/beacon
+# or
+pnpm add @nerdalytics/beacon
+# or
+bun add @nerdalytics/beacon
+# or
+deno install npm:@nerdalytics/beacon
+# or
 npx jsr add @nerdalytics/beacon
+# or
+vlt install @nerdalytics/beacon
 ```
 
 ```typescript

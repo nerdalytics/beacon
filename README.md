@@ -16,8 +16,20 @@ Tracks which properties each effect reads and re-runs only when those properties
 
 ## Installation
 
-```
-npm install @nerdalytics/beacon@2000.0.0 --save-exact
+```bash
+npm install @nerdalytics/beacon
+# or
+yarn add @nerdalytics/beacon
+# or
+pnpm add @nerdalytics/beacon
+# or
+bun add @nerdalytics/beacon
+# or
+deno install npm:@nerdalytics/beacon
+# or
+npx jsr add @nerdalytics/beacon
+# or
+vlt install @nerdalytics/beacon
 ```
 
 ## Quick Start
