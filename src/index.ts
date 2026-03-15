@@ -551,7 +551,7 @@ function createGetHandler<T>(
 
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
 		if (isInternalSymbol(prop)) return rawTarget[prop]
-		trackDependency(rawTarget, prop)
+		if (currentEffect) trackDependency(rawTarget, prop)
 		const value = rawTarget[prop]
 
 		callHookSafe(onRead, prop, value, rawTarget as T)
