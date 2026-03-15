@@ -26,6 +26,7 @@
 		role="dialog"
 		aria-modal="true"
 		aria-label="Navigation"
+		tabindex="-1"
 		onkeydown={(e) => e.key === 'Escape' && onclose?.()}
 	>
 		<button
