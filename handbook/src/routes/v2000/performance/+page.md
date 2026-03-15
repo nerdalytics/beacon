@@ -14,28 +14,28 @@ All numbers below are real: 1,000,000 iterations, 3 warm-up cycles × 7 measurem
 
 | Scenario | v1000 med | v2000 med | Δ |
 |---|---|---|---|
-| classic loop | 4.09ms | 4.07ms | ~0% (baseline noise) |
-| state no subs | 16.22ms | 68.69ms | +323% — v2000 slower |
-| state + derive | 654.22ms | 461.37ms | −29% — v2000 faster |
-| state + derive + 2 effects | 1639.16ms | 893.65ms | −45% — v2000 faster |
-| batch + derive | 34.63ms | 98.20ms | +184% — v2000 slower |
-| batch + derive + 2 effects | 40.62ms | 97.52ms | +140% — v2000 slower |
+| classic loop | 4.09ms | 3.70ms | −10% (baseline noise) |
+| state no subs | 16.22ms | 63.49ms | +291% — v2000 slower |
+| state + derive | 654.22ms | 424.32ms | −35% — v2000 faster |
+| state + derive + 2 effects | 1639.16ms | 819.77ms | −50% — v2000 faster |
+| batch + derive | 34.63ms | 92.38ms | +167% — v2000 slower |
+| batch + derive + 2 effects | 40.62ms | 91.43ms | +125% — v2000 slower |
 
 ### Targeted operations
 
 | Operation | v1000 med | v2000 med | Δ |
 |---|---|---|---|
-| state creation | 11.41ms | 50.71ms | +344% — v2000 slower |
-| state read (no effect) | 4.71ms | 35.42ms | +652% — v2000 slower |
-| state write 1 sub | 64.26ms | 40.40ms | −37% — v2000 faster |
-| state write 100 subs | 525.42ms | 201.53ms | −62% — v2000 faster |
-| effect triggers | 32.23ms | 22.00ms | −32% — v2000 faster |
-| many dependencies | 3.41ms | 3.96ms | +16% (within noise) |
-| derive chain depth 10 | 9.52ms | 7.03ms | −26% — v2000 faster |
-| 100 states individual | 160.22ms | 55.18ms | −66% — v2000 faster |
-| 100 states batched | 3.36ms | 3.67ms | +9% (within noise) |
+| state creation | 11.41ms | 42.47ms | +272% — v2000 slower |
+| state read (no effect) | 4.71ms | 30.16ms | +540% — v2000 slower |
+| state write 1 sub | 64.26ms | 36.02ms | −44% — v2000 faster |
+| state write 100 subs | 525.42ms | 178.60ms | −66% — v2000 faster |
+| effect triggers | 32.23ms | 19.66ms | −39% — v2000 faster |
+| many dependencies | 3.41ms | 3.42ms | ~0% (within noise) |
+| derive chain depth 10 | 9.52ms | 6.12ms | −36% — v2000 faster |
+| 100 states individual | 160.22ms | 49.46ms | −69% — v2000 faster |
+| 100 states batched | 3.36ms | 3.35ms | ~0% (within noise) |
 
-**Total benchmark suite time: v1000 = 67.7s, v2000 = 42.3s**
+**Total benchmark suite time: v1000 = 67.7s, v2000 = 38.9s**
 
 ### Memory
 
@@ -43,14 +43,14 @@ v2000 batch memory usage is dramatically lower. Where v1000 holds 13,780–15,59
 
 ## What this means in practice
 
-v2000 is faster where it matters most for reactive workloads: write propagation, effect scheduling, and bulk state updates. The `state write 100 subs` result (525ms → 202ms) and `100 states individual` (160ms → 55ms) show the architecture pays off under real fan-out pressure.
+v2000 is faster where it matters most for reactive workloads: write propagation, effect scheduling, and bulk state updates. The `state write 100 subs` result (525ms → 179ms) and `100 states individual` (160ms → 49ms) show the architecture pays off under real fan-out pressure.
 
 The regressions are real and you should know about them:
 
-- **State creation** is 4.5× slower in v2000. If you create thousands of state objects in a hot path, that will show.
-- **State reads outside effects** are 7.5× slower. Bare property reads on reactive objects cost more. If you read millions of reactive values in a tight loop with no subscribers, consider reading into a local variable first.
-- **State with no subscribers** is 4× slower. v2000 pays a baseline proxy cost even when there is nothing to notify.
-- **Batch + derive** is ~3× slower in the median.
+- **State creation** is 3.7× slower in v2000. If you create thousands of state objects in a hot path, that will show.
+- **State reads outside effects** are 6.4× slower. Bare property reads on reactive objects cost more. If you read millions of reactive values in a tight loop with no subscribers, consider reading into a local variable first.
+- **State with no subscribers** is 3.9× slower. v2000 pays a baseline proxy cost even when there is nothing to notify.
+- **Batch + derive** is ~2.7× slower in the median.
 
 ## What makes Beacon fast
 
@@ -87,7 +87,7 @@ batch(() => {
 // effects run once with final state
 ```
 
-The benchmark confirms this. `100 states individual` vs `100 states batched` in v1000: 160ms vs 3.36ms. In v2000: 55ms vs 3.67ms. Batching is not an optimization — it is the correct usage pattern for bulk writes.
+The benchmark confirms this. `100 states individual` vs `100 states batched` in v1000: 160ms vs 3.36ms. In v2000: 49ms vs 3.35ms. Batching is not an optimization — it is the correct usage pattern for bulk writes.
 
 ### Batch fast path
 
