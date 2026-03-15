@@ -19,6 +19,8 @@ const STATE_READ_COUNT = 1_000_000
 const SINGLE_SUB_WRITES = 100_000
 const MANY_SUB_COUNT = 100
 const MANY_SUB_WRITES = 10_000
+const DISJOINT_PROP_COUNT = 100
+const DISJOINT_WRITES = 10_000
 
 const {
 	values,
@@ -400,6 +402,28 @@ function update100StatesBatched(): number {
 	return end - start
 }
 
+function disjointSubscribers(): number {
+	const obj: Record<string, number> = {}
+	for (let i = 0; i < DISJOINT_PROP_COUNT; i++) obj[`p${i}`] = 0
+	const s = state(obj)
+	const cleanups: Unsubscribe[] = []
+	for (let i = 0; i < DISJOINT_PROP_COUNT; i++) {
+		const key = `p${i}`
+		cleanups.push(
+			effect((): void => {
+				void s[key]
+			})
+		)
+	}
+	const start = performance.now()
+	for (let i = 0; i < DISJOINT_WRITES; i++) {
+		s.p0 = i
+	}
+	const end = performance.now()
+	for (const c of cleanups) c()
+	return end - start
+}
+
 type SuiteEntry =
 	| {
 			fn: BenchmarkFn
@@ -472,6 +496,10 @@ const suite: SuiteEntry[] = [
 	{
 		fn: update100StatesBatched,
 		name: '100 states batched        ',
+	},
+	{
+		fn: disjointSubscribers,
+		name: '100 subs disjoint props   ',
 	},
 ]
 
