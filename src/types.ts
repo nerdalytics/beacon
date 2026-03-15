@@ -70,6 +70,14 @@ export interface EffectHooks {
 			]
 		>
 	>
+	onDependencyChange?: SingleOrArray<
+		HookFunction<
+			[
+				target: object,
+				prop: PropertyKey,
+			]
+		>
+	>
 	onDispose?: SingleOrArray<
 		HookFunction<
 			[

@@ -1,6 +1,6 @@
 // Beacon - reactive state management system
 import { composeHook } from './hooks/compose.ts'
-import type { BatchHooks, DeriveHooks, EffectHooks, HookFunction, SingleOrArray, StateHooks } from './types.ts'
+import type { BatchHooks, DeriveHooks, EffectHooks, HookFunction, StateHooks } from './types.ts'
 
 // Type definitions
 export type Unsubscribe = () => void
@@ -13,19 +13,6 @@ export type ComputedValue<T> = {
 }
 
 type ProxyTarget = Record<PropertyKey, unknown>
-
-// Configuration constants
-const CONFIG = {
-	MUTATING_ARRAY_METHODS: [
-		'push',
-		'pop',
-		'shift',
-		'unshift',
-		'splice',
-		'sort',
-		'reverse',
-	] as const,
-} as const
 
 // Symbol definitions for internal tracking
 const OWN_KEYS_SYMBOL: unique symbol = Symbol('[[ownKeysRead]]')
@@ -53,7 +40,15 @@ const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<Property
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
 
-const MUTATING_ARRAY_METHODS: Set<string> = new Set(CONFIG.MUTATING_ARRAY_METHODS)
+const MUTATING_ARRAY_METHODS: Set<string> = new Set([
+	'push',
+	'pop',
+	'shift',
+	'unshift',
+	'splice',
+	'sort',
+	'reverse',
+])
 
 // Symbol for cached methods
 const CACHED_METHODS: unique symbol = Symbol('[[cachedMethods]]')
@@ -223,11 +218,6 @@ function recordEffectRead(eff: EffectFunction, target: object, prop: PropertyKey
 		map.set(target, set)
 	}
 
-	if (silent) {
-		set.add(prop)
-		return
-	}
-
 	const isNew = !set.has(prop)
 	set.add(prop)
 	if (isNew) {
@@ -268,12 +258,7 @@ function addPendingEffect(subscriber: EffectFunction): void {
 	const prevSize = pendingEffects.size
 	pendingEffects.add(subscriber)
 	if (pendingEffects.size === prevSize) return
-	const onSchedule = subscriber.__hooks?.onSchedule
-	if (onSchedule) {
-		try {
-			onSchedule(subscriber.effectName)
-		} catch {}
-	}
+	callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
 }
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
@@ -348,15 +333,8 @@ function flushEffects(): void {
 
 function cleanupEffect(effect: EffectFunction): void {
 	pendingEffects.delete(effect)
-	const deps = effect.__deps
-	if (deps) {
-		for (const dep of deps) {
-			const depWithSubs = dep as SubscribersObject
-			const subs = depWithSubs[SUBSCRIBERS] ?? proxyCacheSubs.get(dep)
-			subs?.delete(effect)
-		}
-		effect.__deps = undefined
-	}
+	removeEffectFromSubscribers(effect, effect.__deps)
+	effect.__deps = undefined
 	effect.__readList = undefined
 	effect.__reads = undefined
 	effect.__prevDeps = undefined
@@ -565,14 +543,8 @@ function createGetHandler<T>(
 			trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
 			if (value === null || typeof value !== 'object') return value
-			if (
-				Array.isArray(rawTarget) &&
-				typeof prop === 'string' &&
-				MUTATING_ARRAY_METHODS.has(prop) &&
-				typeof value === 'function'
-			) {
-				return getWrappedArrayMethod(rawTarget, prop, value)
-			}
+			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
+			if (wrapped) return wrapped
 			return wrapNestedObject(value as object, undefined)
 		}
 	}
@@ -824,11 +796,14 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 
 function disposeChildEffects(eff: EffectFunction): void {
 	const existing = eff.__children
-	if (existing?.size) {
-		for (const c of existing) {
-			cleanupEffectCompletely(c)
-			existing.delete(c)
-		}
+	if (!existing?.size) return
+	const children = [
+		...existing,
+	]
+	existing.clear()
+	eff.__children = undefined
+	for (const c of children) {
+		cleanupEffectCompletely(c)
 	}
 }
 
@@ -975,25 +950,6 @@ function buildEffectHooksMap(
 	return map
 }
 
-function tempDepsMatchPrev(
-	tempDeps: Set<object>,
-	tempReads: Map<object, Set<PropertyKey>>,
-	prevDeps: Set<object>,
-	prevReads: Map<object, Set<PropertyKey>>
-): boolean {
-	if (tempDeps.size !== prevDeps.size) return false
-	for (const target of tempDeps) {
-		if (!prevDeps.has(target)) return false
-		const tempProps = tempReads.get(target)
-		const prevProps = prevReads.get(target)
-		if (!tempProps || !prevProps || tempProps.size !== prevProps.size) return false
-		for (const prop of tempProps) {
-			if (!prevProps.has(prop)) return false
-		}
-	}
-	return true
-}
-
 function promoteTempToGlobal(
 	eff: EffectFunction,
 	tempDeps: Set<object>,
@@ -1037,7 +993,7 @@ function handleRerunResult(
 	handleReadListMismatch(eff)
 
 	if (rerunTempDeps && rerunTempReads) {
-		if (tempDepsMatchPrev(rerunTempDeps, rerunTempReads, prevDeps, prevReads)) {
+		if (depsMatch(prevDeps, rerunTempDeps, prevReads, rerunTempReads)) {
 			if (buildingReadList) {
 				eff.__readList = buildingReadList
 			}
@@ -1155,22 +1111,7 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 	const onDispose = composeHook(hooks?.onDispose)
 	const onError = composeHook(hooks?.onError)
 	const onDependencyAdd = composeHook(hooks?.onDependencyAdd)
-	const onDependencyChange = composeHook(
-		(
-			hooks as
-				| (EffectHooks & {
-						onDependencyChange?: SingleOrArray<
-							HookFunction<
-								[
-									object,
-									PropertyKey,
-								]
-							>
-						>
-				  })
-				| undefined
-		)?.onDependencyChange
-	)
+	const onDependencyChange = composeHook(hooks?.onDependencyChange)
 	const onSchedule = composeHook(hooks?.onSchedule)
 
 	const runEffect: EffectFunction = () => {
@@ -1410,9 +1351,9 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 		reactiveInternal = state(internalState)
 
 		const internalEffectHooks: EffectHooks | undefined = onDependencyChange
-			? ({
+			? {
 					onDependencyChange,
-				} as EffectHooks)
+				}
 			: undefined
 
 		dispose = effect(
