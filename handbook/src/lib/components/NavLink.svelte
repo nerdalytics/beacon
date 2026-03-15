@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state'
-	import { base } from '$app/paths'
+	import { resolve } from '$app/paths'
 
 	let { href, title, onclick }: { href: string; title: string; onclick?: () => void } = $props()
 
-	let fullHref = $derived(`${base}${href}`)
+	let fullHref = $derived(resolve(href))
 	let active = $derived(page.url.pathname === fullHref)
 </script>
 

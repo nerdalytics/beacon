@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { base } from '$app/paths'
+	import { asset, resolve } from '$app/paths'
 </script>
 
 <svelte:head>
@@ -11,7 +11,7 @@
 </svelte:head>
 
 <div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-10 lg:py-20 min-h-0 lg:min-h-[80vh] page-enter">
-	<img src="{base}/favicon.svg" alt="Beacon logo" class="w-28 h-28 mb-3" style="view-transition-name: beacon-logo" />
+	<img src={asset('/favicon.svg')} alt="Beacon logo" class="w-28 h-28 mb-3" style="view-transition-name: beacon-logo" />
 	<div class="mb-3 text-7xl font-extrabold beacon-gradient-text">
 		Beacon
 	</div>
@@ -86,7 +86,7 @@
 	</div>
 
 	<a
-		href="{base}/v2000/introduction"
+		href={resolve('/v2000/introduction')}
 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
 	>
 		Get Started

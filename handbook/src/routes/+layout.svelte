@@ -2,13 +2,13 @@
 	import '../app.css'
 	import Sidebar from '$lib/components/Sidebar.svelte'
 	import VersionSelector from '$lib/components/VersionSelector.svelte'
-	import { base } from '$app/paths'
+	import { asset, resolve } from '$app/paths'
 	import { page } from '$app/state'
 	import { onNavigate } from '$app/navigation'
 
 	let { children } = $props()
 
-	let isLanding = $derived(page.url.pathname === `${base}/` || page.url.pathname === base)
+	let isLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolve(''))
 	let sidebarOpen = $state(false)
 
 	$effect(() => {
@@ -18,9 +18,9 @@
 
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return
-		return new Promise((resolve) => {
+		return new Promise((r) => {
 			document.startViewTransition(async () => {
-				resolve()
+				r()
 				await navigation.complete
 			})
 		})
@@ -44,12 +44,12 @@
 				{/if}
 
 				<a
-					href="{base}/"
+					href={resolve('/')}
 					class="flex items-center gap-2 text-lg font-bold text-text hover:text-teal transition-colors"
 				>
 					{#if !isLanding}
 						<img
-							src="{base}/favicon.svg"
+							src={asset('/favicon.svg')}
 							alt=""
 							class="w-7 h-7"
 							style="view-transition-name: beacon-logo"
