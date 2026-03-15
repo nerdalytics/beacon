@@ -14,8 +14,8 @@ description: Install Beacon and set up your project
 | Runtime | Status | Notes |
 |---|---|---|
 | Node.js >= 22 | Full support | Primary target. All tests pass. |
-| Bun >= 1.3 | Near-full support | 192/193 tests pass. One `deepStrictEqual` edge case with array symbol properties — a Bun compat difference, not a Beacon bug. |
-| Deno >= 2.7 | Near-full support | 185/193 tests pass. Deno's `node:test` compat layer does not implement `afterEach`, which one test file uses. Core functionality works. |
+| Bun >= 1.3 | Compatible | Core reactivity works. Caveat: Bun's `deepStrictEqual` includes non-enumerable symbol properties on objects, unlike Node. If you compare a Beacon-wrapped array with `deepStrictEqual` on Bun, you will see internal symbols (`[[beacon_proxy]]`, `[[beacon_subscribers]]`) in the diff. This is a Bun deviation from Node's `assert` behavior, not a Beacon bug. |
+| Deno >= 2.7 | Compatible | Core reactivity works. Caveat: Deno's `node:test` compat layer does not implement `afterEach`, so one test file fails to load. The reactive system itself runs correctly — the gap is in the test harness, not in Beacon. |
 
 ## Install
 
