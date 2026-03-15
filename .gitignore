@@ -50,6 +50,7 @@
 !package-lock.json
 !package.json
 !tsconfig.json
+!jsr.json
 !tsconfig.lts.json
 
 # Allow markdown anywhere

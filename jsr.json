@@ -1,0 +1,15 @@
+{
+	"name": "@nerdalytics/beacon",
+	"version": "2000.0.0",
+	"exports": {
+		".": "./src/index.ts",
+		"./hooks": "./src/hooks/index.ts"
+	},
+	"publish": {
+		"include": [
+			"LICENSE",
+			"README.md",
+			"src/**/*.ts"
+		]
+	}
+}
