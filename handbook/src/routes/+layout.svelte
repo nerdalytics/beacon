@@ -5,15 +5,16 @@
 	import { asset, resolve } from '$app/paths'
 	import { page } from '$app/state'
 	import { onNavigate } from '$app/navigation'
+	import { resolveHref } from '$lib/resolve-href'
 
 	let { children } = $props()
 
-	let isLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolve(''))
+	let isLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolveHref(''))
 	let sidebarOpen = $state(false)
 
 	$effect(() => {
 		page.url.pathname
-		sidebarOpen = false
+		if (sidebarOpen) sidebarOpen = false
 	})
 
 	onNavigate((navigation) => {

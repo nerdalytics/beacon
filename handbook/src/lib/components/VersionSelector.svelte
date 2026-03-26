@@ -1,14 +1,14 @@
 <script lang="ts">
 	import { page } from '$app/state'
-	import { resolve } from '$app/paths'
 	import { goto } from '$app/navigation'
 	import { versions, currentVersion } from '$lib/versions'
+	import { resolveHref } from '$lib/resolve-href'
 
 	function switchVersion(newPrefix: string): void {
 		const currentPath = page.url.pathname
 		const currentPrefix = currentVersion.prefix
-		const pagePath = currentPath.replace(resolve(currentPrefix), '')
-		goto(resolve(`${newPrefix}${pagePath || '/introduction'}`))
+		const pagePath = currentPath.replace(resolveHref(currentPrefix), '')
+		goto(resolveHref(`${newPrefix}${pagePath || '/introduction'}`))
 	}
 </script>
 

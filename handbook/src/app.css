@@ -257,7 +257,50 @@ article pre code .line::before {
     font-size: 0.75rem;
 }
 
-/* ——— Scrollbar stability ——— */
+/* ——— Scrollbar styling ——— */
+
+/* Standard: Firefox 64+, Chrome 121+, Safari 18+ */
+@supports (scrollbar-color: auto) {
+    * {
+        scrollbar-color: var(--color-text-muted) transparent;
+        scrollbar-width: thin;
+    }
+}
+
+/* Webkit fallback: older Chrome, Safari <18 */
+@supports selector(::-webkit-scrollbar) {
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+        background: transparent;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: var(--color-text-muted);
+        border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: var(--color-text);
+    }
+    ::-webkit-scrollbar-corner {
+        background: transparent;
+    }
+}
+
+/* Hide TOC scrollbar (still scrollable via trackpad/wheel/touch) */
+@supports (scrollbar-color: auto) {
+    .toc-scroll {
+        scrollbar-width: none;
+    }
+}
+@supports selector(::-webkit-scrollbar) {
+    .toc-scroll::-webkit-scrollbar {
+        display: none;
+    }
+}
+
 .overflow-y-auto {
     scrollbar-gutter: stable;
 }

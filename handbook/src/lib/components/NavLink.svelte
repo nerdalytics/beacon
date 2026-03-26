@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { page } from '$app/state'
-	import { resolve } from '$app/paths'
+	import { resolveHref } from '$lib/resolve-href'
 
 	let { href, title, onclick }: { href: string; title: string; onclick?: () => void } = $props()
 
-	let fullHref = $derived(resolve(href))
+	let fullHref = $derived(resolveHref(href))
 	let active = $derived(page.url.pathname === fullHref)
 </script>
 

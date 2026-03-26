@@ -104,3 +104,5 @@ export const navigation: NavGroup[] = [
 		title: 'Links',
 	},
 ]
+
+export const allPages: NavItem[] = navigation.flatMap((g) => g.items)

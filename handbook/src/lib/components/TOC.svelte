@@ -41,7 +41,7 @@
 </script>
 
 {#if headings.length > 0}
-	<aside class="hidden md:block overflow-y-auto py-6 pl-4 sticky top-0 self-start max-h-screen">
+	<aside class="hidden md:block overflow-y-auto py-6 pl-4 sticky top-0 self-start max-h-screen toc-scroll">
 		<h4 class="text-xs font-semibold uppercase tracking-wider text-text-muted mb-3">
 			On this page
 		</h4>

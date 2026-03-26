@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { onMount } from 'svelte'
 	import { page } from '$app/state'
-	import { resolve } from '$app/paths'
 	import { addCopyButtons } from '$lib/copy-code'
-	import { navigation, type NavItem } from '$lib/navigation'
+	import { allPages } from '$lib/navigation'
+	import { resolveHref } from '$lib/resolve-href'
 	import TOC from './TOC.svelte'
 
 	let {
@@ -22,10 +22,8 @@
 		if (articleEl) addCopyButtons(articleEl)
 	})
 
-	const allPages: NavItem[] = navigation.flatMap((g) => g.items)
-
 	let currentIndex = $derived(
-		allPages.findIndex((item) => resolve(item.href) === page.url.pathname)
+		allPages.findIndex((item) => resolveHref(item.href) === page.url.pathname)
 	)
 	let prevPage = $derived(currentIndex > 0 ? allPages[currentIndex - 1] : null)
 	let nextPage = $derived(currentIndex < allPages.length - 1 ? allPages[currentIndex + 1] : null)
@@ -56,7 +54,7 @@
 			<nav class="flex justify-between items-center mt-16 pt-6 border-t border-navy-border font-sans text-sm">
 				{#if prevPage}
 					<a
-						href={resolve(prevPage.href)}
+						href={resolveHref(prevPage.href)}
 						class="flex flex-col gap-1 text-text-muted hover:text-teal transition-colors"
 					>
 						<span class="text-xs uppercase tracking-wider">Previous</span>
@@ -67,7 +65,7 @@
 				{/if}
 				{#if nextPage}
 					<a
-						href={resolve(nextPage.href)}
+						href={resolveHref(nextPage.href)}
 						class="flex flex-col gap-1 items-end text-text-muted hover:text-teal transition-colors"
 					>
 						<span class="text-xs uppercase tracking-wider">Next</span>
