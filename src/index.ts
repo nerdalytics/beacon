@@ -331,14 +331,18 @@ function flushEffects(): void {
 	}
 }
 
+function resetEffectTracking(eff: EffectFunction): void {
+	pendingEffects.delete(eff)
+	eff.__deps = undefined
+	eff.__readList = undefined
+	eff.__reads = undefined
+	eff.__prevDeps = undefined
+	eff.__prevReads = undefined
+}
+
 function cleanupEffect(effect: EffectFunction): void {
-	pendingEffects.delete(effect)
 	removeEffectFromSubscribers(effect, effect.__deps)
-	effect.__deps = undefined
-	effect.__readList = undefined
-	effect.__reads = undefined
-	effect.__prevDeps = undefined
-	effect.__prevReads = undefined
+	resetEffectTracking(effect)
 }
 
 function cleanupChildEffect(child: EffectFunction, toCleanup: EffectFunction[]): void {
@@ -540,7 +544,7 @@ function createGetHandler<T>(
 	if (!onRead && !hooks) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
 			if (isInternalSymbol(prop)) return rawTarget[prop]
-			trackDependency(rawTarget, prop)
+			if (currentEffect) trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
 			if (value === null || typeof value !== 'object') return value
 			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
@@ -797,14 +801,11 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 function disposeChildEffects(eff: EffectFunction): void {
 	const existing = eff.__children
 	if (!existing?.size) return
-	const children = [
-		...existing,
-	]
-	existing.clear()
 	eff.__children = undefined
-	for (const c of children) {
+	for (const c of existing) {
 		cleanupEffectCompletely(c)
 	}
+	existing.clear()
 }
 
 function removeStaleSubscribers(eff: EffectFunction, prevDeps: Set<object>, newDeps: Set<object>): void {
@@ -878,12 +879,7 @@ function removeEffectFromSubscribers(eff: EffectFunction, deps: Set<object> | un
 function cleanupEffectOnError(eff: EffectFunction): void {
 	removeEffectFromSubscribers(eff, eff.__prevDeps)
 	removeEffectFromSubscribers(eff, eff.__deps)
-	eff.__deps = undefined
-	eff.__readList = undefined
-	eff.__reads = undefined
-	pendingEffects.delete(eff)
-	eff.__prevDeps = undefined
-	eff.__prevReads = undefined
+	resetEffectTracking(eff)
 }
 
 function attachEffectHooks(
@@ -1085,6 +1081,7 @@ function runEffectSafely(
 	try {
 		executeEffectBody(eff, fn, eff.__prevDeps, eff.__prevReads, onRun, name)
 	} catch (err) {
+		clearRerunState()
 		cleanupEffectOnError(eff)
 		callHookSafe(onError, err as Error, name)
 		throw err
@@ -1156,10 +1153,13 @@ function clearBatchState(): void {
 }
 
 function runDeferredEffects(): void {
-	if (deferredEffectCreations.length > 0) {
-		const effectsToRun = Array.from(deferredEffectCreations)
+	const len = deferredEffectCreations.length
+	if (len > 0) {
+		for (let i = 0; i < len; i++) {
+			const eff = deferredEffectCreations[i]
+			if (eff) eff()
+		}
 		deferredEffectCreations.length = 0
-		for (const eff of effectsToRun) eff()
 	}
 }
 

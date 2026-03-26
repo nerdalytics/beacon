@@ -8,49 +8,50 @@ Beacon is a reactive system with zero external dependencies. Updates propagate t
 
 ## Benchmark results
 
-All numbers below are real: 1,000,000 iterations, 3 warm-up cycles × 7 measurement samples, median reported. Run on the same machine, back-to-back.
+All numbers below are real: 1,000,000 iterations, 10 cycles × 7 measurement samples, median reported. Run on the same machine, back-to-back.
 
 ### End-to-end scenarios
 
 | Scenario | v1000 med | v2000 med | Δ |
 |---|---|---|---|
-| classic loop | 4.09ms | 3.70ms | −10% (baseline noise) |
-| state no subs | 16.22ms | 63.49ms | +291% — v2000 slower |
-| state + derive | 654.22ms | 424.32ms | −35% — v2000 faster |
-| state + derive + 2 effects | 1639.16ms | 819.77ms | −50% — v2000 faster |
-| batch + derive | 34.63ms | 92.38ms | +167% — v2000 slower |
-| batch + derive + 2 effects | 40.62ms | 91.43ms | +125% — v2000 slower |
+| classic loop | 3.82ms | 4.41ms | +15% (baseline noise) |
+| state no subs | 14.08ms | 93.43ms | +563% — v2000 slower |
+| state + derive | 820.78ms | 572.24ms | −30% — v2000 faster |
+| state + derive + 2 effects | 1864.10ms | 1088.68ms | −42% — v2000 faster |
+| batch + derive | 28.06ms | 117.50ms | +319% — v2000 slower |
+| batch + derive + 2 effects | 35.45ms | 116.51ms | +229% — v2000 slower |
 
 ### Targeted operations
 
 | Operation | v1000 med | v2000 med | Δ |
 |---|---|---|---|
-| state creation | 11.41ms | 42.47ms | +272% — v2000 slower |
-| state read (no effect) | 4.71ms | 30.16ms | +540% — v2000 slower |
-| state write 1 sub | 64.26ms | 36.02ms | −44% — v2000 faster |
-| state write 100 subs | 525.42ms | 178.60ms | −66% — v2000 faster |
-| effect triggers | 32.23ms | 19.66ms | −39% — v2000 faster |
-| many dependencies | 3.41ms | 3.42ms | ~0% (within noise) |
-| derive chain depth 10 | 9.52ms | 6.12ms | −36% — v2000 faster |
-| 100 states individual | 160.22ms | 49.46ms | −69% — v2000 faster |
-| 100 states batched | 3.36ms | 3.35ms | ~0% (within noise) |
+| state creation | 10.10ms | 55.65ms | +451% — v2000 slower |
+| state read (no effect) | 4.40ms | 36.91ms | +739% — v2000 slower |
+| state write 1 sub | 81.44ms | 45.82ms | −44% — v2000 faster |
+| state write 100 subs | 482.55ms | 233.25ms | −52% — v2000 faster |
+| effect triggers | 29.09ms | 28.25ms | −3% (within noise) |
+| many dependencies | 3.49ms | 4.84ms | +39% — v2000 slower |
+| derive chain depth 10 | 8.27ms | 9.71ms | +17% — v2000 slower |
+| 100 states individual | 151.20ms | 63.17ms | −58% — v2000 faster |
+| 100 states batched | 3.38ms | 4.40ms | +30% — v2000 slower |
+| 100 subs disjoint props | 656.61ms | 48.78ms | −93% — v2000 faster |
 
-**Total benchmark suite time: v1000 = 67.7s, v2000 = 38.9s**
+**Total benchmark time: v1000 = 290.8s, v2000 = 174.6s (−40%)**
 
 ### Memory
 
-v2000 batch memory usage is dramatically lower. Where v1000 holds 13,780–15,596kb on the heap during batch + derive scenarios, v2000 holds 19–23kb. That is not a rounding error.
+v2000 batch memory usage is dramatically lower. Where v1000 holds 14,444–14,525kb on the heap during batch + derive scenarios, v2000 holds 18–22kb. That is not a rounding error.
 
 ## What this means in practice
 
-v2000 is faster where it matters most for reactive workloads: write propagation, effect scheduling, and bulk state updates. The `state write 100 subs` result (525ms → 179ms) and `100 states individual` (160ms → 49ms) show the architecture pays off under real fan-out pressure.
+v2000 is faster where it matters most for reactive workloads: write propagation, effect scheduling, and bulk state updates. The `state write 100 subs` result (483ms → 233ms) and `100 states individual` (151ms → 63ms) show the architecture pays off under real fan-out pressure. The `100 subs disjoint props` result (657ms → 49ms, −93%) is the clearest win — fine-grained per-property tracking means effects that read different properties on the same object no longer interfere.
 
 The regressions are real and you should know about them:
 
-- **State creation** is 3.7× slower in v2000. If you create thousands of state objects in a hot path, that will show.
-- **State reads outside effects** are 6.4× slower. Bare property reads on reactive objects cost more. If you read millions of reactive values in a tight loop with no subscribers, consider reading into a local variable first.
-- **State with no subscribers** is 3.9× slower. v2000 pays a baseline proxy cost even when there is nothing to notify.
-- **Batch + derive** is ~2.7× slower in the median.
+- **State creation** is ~5.5× slower in v2000. If you create thousands of state objects in a hot path, that will show.
+- **State reads outside effects** are ~8.4× slower. Bare property reads on reactive objects cost more. If you read millions of reactive values in a tight loop with no subscribers, consider reading into a local variable first.
+- **State with no subscribers** is ~6.6× slower. v2000 pays a baseline proxy cost even when there is nothing to notify.
+- **Batch + derive** is ~4.2× slower in the median. v1000's batch path was simpler (no dirty-target tracking, no deferred scheduling), so the raw overhead is higher even though the mechanism is more correct.
 
 ## What makes Beacon fast
 
@@ -87,7 +88,7 @@ batch(() => {
 // effects run once with final state
 ```
 
-The benchmark confirms this. `100 states individual` vs `100 states batched` in v1000: 160ms vs 3.36ms. In v2000: 49ms vs 3.35ms. Batching is not an optimization — it is the correct usage pattern for bulk writes.
+The benchmark confirms this. `100 states individual` vs `100 states batched` in v1000: 151ms vs 3.38ms. In v2000: 63ms vs 4.40ms. Batching is not an optimization — it is the correct usage pattern for bulk writes.
 
 ### Batch fast path
 
@@ -143,8 +144,8 @@ Internal metadata uses Symbols, so it doesn't appear in `Object.keys()`, `JSON.s
 
 When an effect is disposed:
 
-- `cleanupEffect()` removes it from all subscriber sets and clears previous dependency snapshots
-- `cleanupEffectCompletely()` also recursively cleans up child effects
+- `cleanupEffect()` removes it from all subscriber sets and resets tracking state
+- `cleanupEffectCompletely()` also iteratively cleans up child effects (no recursion — avoids stack overflow)
 - Nested effects are automatically cleaned up when parent effects re-run
 
 ### Derive disposal
