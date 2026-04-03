@@ -1,6 +1,6 @@
 ---
 title: Effects
-description: Run side effects that automatically track and respond to signal changes
+description: Side effects with automatic dependency tracking
 ---
 
 ## API
@@ -105,7 +105,7 @@ effect(() => {
 })
 ```
 
-However, be careful: the outer effect re-runs whenever `$a` changes, which creates a new inner effect each time. This can lead to duplicate inner effects. In most cases, prefer flat effects.
+The outer effect re-runs whenever `$a` changes, which creates a new inner effect each time. This leads to duplicate inner effects. Prefer flat effects.
 
 ## Effect execution order
 

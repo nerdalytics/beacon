@@ -5,8 +5,8 @@ description: Install Beacon and set up your project
 
 ## Requirements
 
-- **Node.js** >= 20.0.0 (LTS v20 or v22)
-- **TypeScript** >= 5.x (recommended, not required)
+- Node.js 20.0.0 or later (LTS v20 or v22)
+- TypeScript 5.x recommended, not required
 
 ## Install
 
@@ -16,9 +16,7 @@ npm install @nerdalytics/beacon
 
 ## Project setup
 
-### package.json
-
-Beacon is an ESM package. Your project must use `"type": "module"`:
+Beacon ships as ESM. Set `"type": "module"` in your `package.json`:
 
 ```json
 {
@@ -26,7 +24,7 @@ Beacon is an ESM package. Your project must use `"type": "module"`:
 }
 ```
 
-### tsconfig.json (recommended)
+For TypeScript, these compiler options work well with Beacon:
 
 ```json
 {
@@ -40,7 +38,7 @@ Beacon is an ESM package. Your project must use `"type": "module"`:
 }
 ```
 
-## Verify installation
+## Verify
 
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
@@ -53,4 +51,4 @@ $count.set(1)
 // => 1
 ```
 
-If you see `0` then `1` printed, Beacon is working.
+If you see `0` then `1`, the installation is correct.

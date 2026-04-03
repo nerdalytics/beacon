@@ -106,13 +106,8 @@ try {
 console.log($count()) // => 999
 ```
 
-## When to use batch
+## When to batch
 
-- **Multiple related updates** — changing several signals that feed the same effect
-- **Bulk operations** — looping over data to update multiple signals
-- **Initialization** — setting up initial state without triggering intermediate effects
+Batch when you update multiple signals that feed the same effects. Bulk operations over data, or initialization sequences where intermediate states are meaningless, are good candidates.
 
-## When not to use batch
-
-- **Single updates** — one `.set()` call doesn't benefit from batching
-- **Async operations** — `batch()` is synchronous. The batch context ends when the callback returns, so `await` inside a batch breaks the grouping
+A single `.set()` call has no benefit from batching. And because `batch()` is synchronous, `await` inside the callback ends the batch context at the first yield point. Async work belongs outside the batch.

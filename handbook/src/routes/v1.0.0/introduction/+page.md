@@ -3,39 +3,23 @@ title: Introduction
 description: What Beacon is and why it exists
 ---
 
-Beacon is a lightweight reactive signal library for Node.js backends. It enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.
+Beacon is a reactive signal library for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
-## What it does
+The entire API is four functions:
 
-Beacon provides four primitives that cover the entire API:
+- **`state(initialValue)`** creates a signal that holds a value
+- **`derived(fn)`** computes a value from other signals
+- **`effect(fn)`** runs a function when its dependencies change
+- **`batch(fn)`** groups updates so effects run once
 
-- **`state(initialValue)`** — creates a reactive signal that holds a value
-- **`derived(fn)`** — computes a value that stays in sync with its dependencies
-- **`effect(fn)`** — runs a function whenever its dependencies change
-- **`batch(fn)`** — groups multiple state changes into a single update cycle
+When you read a signal inside an effect, Beacon records the dependency. When the signal changes, the effect re-runs. There are no manual subscriptions, event names, or selectors.
 
-Reading a signal inside an effect automatically tracks the dependency. When the signal's value changes, the effect re-runs. No manual subscriptions. No event names. No selectors.
+## Constraints
 
-## Design constraints
+Beacon is a single TypeScript file under 200 lines with zero dependencies. It targets Node.js 20+ and provides full type inference out of the box. Dependencies are tracked at the signal level and cleaned up automatically on each re-run.
 
-- Zero dependencies
-- Under 200 lines of code
-- Single-file core
-- TypeScript-first with full type inference
-- Fine-grained reactivity at the signal level
-- Automatic dependency cleanup on re-run
+## Use cases
 
-## Who this is for
+Beacon is for backend developers who want reactive patterns on the server. Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph.
 
-Backend developers who want reactive patterns on the server. If you've used signals or observables on the frontend and wished you had the same thing in your Node.js services, Beacon fills that gap.
-
-Common use cases:
-
-- Configuration objects that trigger side effects on change
-- In-memory caches that recompute derived data automatically
-- Event-driven pipelines where state changes propagate through a dependency graph
-- Testing harnesses that need observable state
-
-## Who this is not for
-
-Beacon is not a frontend framework. It has no DOM bindings and no component model. It manages plain JavaScript values on the server.
+It is not a frontend framework. There are no DOM bindings and no component model. It manages plain JavaScript values.

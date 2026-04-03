@@ -1,9 +1,9 @@
 ---
 title: Quick Start
-description: A five-minute walkthrough of Beacon's core concepts
+description: Signals, derived values, effects, and batching in five minutes
 ---
 
-This walkthrough covers signals, derived values, effects, and batching in five minutes.
+This page walks through each of Beacon's four primitives with runnable examples.
 
 ## Create a signal
 

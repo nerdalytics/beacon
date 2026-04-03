@@ -1,13 +1,13 @@
 ---
 title: Resources
-description: External links and references
+description: Source code, packages, and related work
 ---
 
 ## Source
 
-- [GitHub repository](https://github.com/nerdalytics/beacon)
-- [npm package](https://www.npmjs.com/package/@nerdalytics/beacon)
+- [GitHub](https://github.com/nerdalytics/beacon)
+- [npm](https://www.npmjs.com/package/@nerdalytics/beacon)
 
 ## Related
 
-- [TC39 Signals Proposal](https://github.com/tc39/proposal-signals) — the JavaScript standards proposal that inspired Beacon's API design
+- [TC39 Signals Proposal](https://github.com/tc39/proposal-signals) — the standards proposal that informed Beacon's API surface

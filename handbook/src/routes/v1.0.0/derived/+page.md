@@ -1,6 +1,6 @@
 ---
 title: Derived
-description: Compute values that stay in sync with their signal dependencies
+description: Computed signals that recompute when dependencies change
 ---
 
 ## API
@@ -9,7 +9,7 @@ description: Compute values that stay in sync with their signal dependencies
 function derived<T>(fn: () => T): Signal<T>
 ```
 
-Creates a read-only signal whose value is computed from `fn`. Whenever the signals read inside `fn` change, the derived value recomputes.
+Returns a signal whose value is computed from `fn`. When any signal read inside `fn` changes, the derived value recomputes.
 
 ## Basic usage
 
@@ -47,7 +47,7 @@ It creates an internal signal initialized with `fn()`, then an effect that keeps
 
 ## Chaining derived values
 
-Derived values compose naturally:
+Derived values compose. Each one tracks its own dependencies independently:
 
 ```typescript
 const $items = state([10, 20, 30])
@@ -61,11 +61,10 @@ $items.set([10, 20, 30, 40])
 console.log($average()) // => 25
 ```
 
-Each derived value only recomputes when its specific dependencies change.
 
 ## Reading vs subscribing
 
-Like any signal, reading a derived value inside an `effect()` creates a dependency:
+Reading a derived value inside an `effect()` creates a dependency, like any other signal:
 
 ```typescript
 const $count = state(0)

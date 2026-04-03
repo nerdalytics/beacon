@@ -3,7 +3,7 @@ title: Architecture
 description: How Beacon works internally
 ---
 
-Beacon is a single file under 200 lines of TypeScript. This page explains the internal design.
+Beacon fits in a single TypeScript file under 200 lines. This page covers how the internals work.
 
 ## Module-level state
 

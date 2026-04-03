@@ -1,6 +1,6 @@
 ---
 title: State
-description: Create and manage reactive signals with automatic dependency tracking
+description: Reactive signals with automatic dependency tracking
 ---
 
 ## API
@@ -9,9 +9,9 @@ description: Create and manage reactive signals with automatic dependency tracki
 function state<T>(initialValue: T): Signal<T>
 ```
 
-Creates a reactive signal wrapping the initial value. Returns a `Signal<T>` — a callable function with `.set()` and `.update()` methods.
+Returns a `Signal<T>` wrapping the initial value. A signal is a callable function with `.set()` and `.update()` methods.
 
-## The Signal interface
+## Signal interface
 
 ```typescript
 interface Signal<T> {

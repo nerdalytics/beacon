@@ -11,6 +11,8 @@
 
 	let { children } = $props()
 
+	let scrollContainer: HTMLElement | undefined = $state()
+
 	let isRootLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolveHref(''))
 	let isVersionLanding = $derived.by(() => {
 		const prefix = getVersionPrefix(page.url.pathname)
@@ -24,6 +26,7 @@
 	$effect(() => {
 		page.url.pathname
 		if (sidebarOpen) sidebarOpen = false
+		scrollContainer?.scrollTo(0, 0)
 	})
 
 	onNavigate((navigation) => {
@@ -89,7 +92,7 @@
 		</div>
 	</header>
 
-	<div class="flex-1 min-h-0 overflow-y-auto">
+	<div class="flex-1 min-h-0 overflow-y-auto" bind:this={scrollContainer}>
 		<div class="doc-grid mx-auto" class:landing={isLanding}>
 			{#if !isLanding}
 				<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />
