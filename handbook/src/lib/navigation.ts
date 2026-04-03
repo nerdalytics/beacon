@@ -71,7 +71,7 @@ export const navigation: Record<string, NavGroup[]> = {
 			items: [
 				{
 					href: '/latest/migration',
-					title: 'v1000.2.5 → v1000.3.0',
+					title: 'v1000.3.0 → v1000.3.1',
 				},
 			],
 			title: 'Migration',
@@ -884,6 +884,81 @@ export const navigation: Record<string, NavGroup[]> = {
 			items: [
 				{
 					href: '/v1000.3.0/links',
+					title: 'Resources',
+				},
+			],
+			title: 'Links',
+		},
+	],
+	'/v1000.3.1': [
+		{
+			items: [
+				{
+					href: '/v1000.3.1/introduction',
+					title: 'Introduction',
+				},
+				{
+					href: '/v1000.3.1/installation',
+					title: 'Installation',
+				},
+				{
+					href: '/v1000.3.1/quick-start',
+					title: 'Quick Start',
+				},
+			],
+			title: 'Getting Started',
+		},
+		{
+			items: [
+				{
+					href: '/v1000.3.1/state',
+					title: 'State',
+				},
+				{
+					href: '/v1000.3.1/effects',
+					title: 'Effects',
+				},
+				{
+					href: '/v1000.3.1/derive',
+					title: 'Derive',
+				},
+				{
+					href: '/v1000.3.1/batch',
+					title: 'Batch',
+				},
+				{
+					href: '/v1000.3.1/select',
+					title: 'Select',
+				},
+				{
+					href: '/v1000.3.1/lens',
+					title: 'Lens',
+				},
+			],
+			title: 'Guides',
+		},
+		{
+			items: [
+				{
+					href: '/v1000.3.1/architecture',
+					title: 'Architecture',
+				},
+			],
+			title: 'Advanced',
+		},
+		{
+			items: [
+				{
+					href: '/v1000.3.1/migration',
+					title: 'v1000.3.0 → v1000.3.1',
+				},
+			],
+			title: 'Migration',
+		},
+		{
+			items: [
+				{
+					href: '/v1000.3.1/links',
 					title: 'Resources',
 				},
 			],

@@ -4,6 +4,7 @@
 	import VersionSelector from '$lib/components/VersionSelector.svelte'
 	import { asset, resolve } from '$app/paths'
 	import { page } from '$app/state'
+	import { untrack } from 'svelte'
 	import { onNavigate } from '$app/navigation'
 	import { resolveHref } from '$lib/resolve-href'
 	import { getVersionPrefix } from '$lib/navigation'
@@ -27,8 +28,10 @@
 
 	$effect(() => {
 		page.url.pathname
-		if (sidebarOpen) sidebarOpen = false
-		scrollContainer?.scrollTo(0, 0)
+		untrack(() => {
+			if (sidebarOpen) sidebarOpen = false
+			scrollContainer?.scrollTo(0, 0)
+		})
 	})
 
 	onNavigate((navigation) => {
@@ -50,9 +53,9 @@
 	})
 </script>
 
-<div class="h-screen flex flex-col overflow-hidden bg-navy text-text font-sans">
-	<header class="shrink-0 z-40 bg-navy/95 backdrop-blur header-gradient-border">
-		<div class="flex items-center justify-between px-4 lg:px-6 h-14">
+<div class="h-dvh flex flex-col overflow-hidden bg-navy text-text font-sans">
+	<header class="shrink-0 z-40 bg-navy/95 backdrop-blur header-gradient-border" style="padding-top: env(safe-area-inset-top);">
+		<div class="flex items-center justify-between h-14" style="padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right));">
 			<div class="flex items-center gap-2">
 				{#if !isLanding}
 					<button
@@ -94,7 +97,7 @@
 		</div>
 	</header>
 
-	<div class="flex-1 min-h-0 overflow-y-auto" bind:this={scrollContainer}>
+	<div class="flex-1 min-h-0 overflow-y-auto" style="padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);" bind:this={scrollContainer}>
 		<div class="doc-grid mx-auto" class:landing={isLanding}>
 			{#if !isLanding}
 				<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />

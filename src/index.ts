@@ -30,6 +30,15 @@ const subscriberDependencies: WeakMap<Subscriber, Set<Set<Subscriber>>> = new We
 const parentSubscriber: WeakMap<Subscriber, Subscriber> = new WeakMap<Subscriber, Subscriber>()
 const childSubscribers: WeakMap<Subscriber, Set<Subscriber>> = new WeakMap<Subscriber, Set<Subscriber>>()
 
+const getOrCreate = <K extends object, V>(map: WeakMap<K, V>, key: K, factory: () => V): V => {
+	let value = map.get(key)
+	if (!value) {
+		value = factory()
+		map.set(key, value)
+	}
+	return value
+}
+
 const notifySubscribers = (): void => {
 	if (isNotifying) {
 		return
@@ -64,9 +73,30 @@ const cleanupEffect = (effect: Subscriber): void => {
 	}
 }
 
-/**
- * Creates a reactive state container with the provided initial value.
- */
+const disposeEffect = (effect: Subscriber): void => {
+	cleanupEffect(effect)
+	activeSubscribers.delete(effect)
+	stateTracking.delete(effect)
+
+	const parent = parentSubscriber.get(effect)
+	if (parent) {
+		const siblings = childSubscribers.get(parent)
+		if (siblings) {
+			siblings.delete(effect)
+		}
+	}
+	parentSubscriber.delete(effect)
+
+	const children = childSubscribers.get(effect)
+	if (children) {
+		for (const child of children) {
+			disposeEffect(child)
+		}
+		children.clear()
+		childSubscribers.delete(effect)
+	}
+}
+
 const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> => {
 	let value = initialValue
 	const subscribers = new Set<Subscriber>()
@@ -77,19 +107,9 @@ const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = O
 		if (currentEffect) {
 			subscribers.add(currentEffect)
 
-			let dependencies = subscriberDependencies.get(currentEffect)
-			if (!dependencies) {
-				dependencies = new Set()
-				subscriberDependencies.set(currentEffect, dependencies)
-			}
-			dependencies.add(subscribers)
+			getOrCreate(subscriberDependencies, currentEffect, () => new Set()).add(subscribers)
 
-			let readStates = stateTracking.get(currentEffect)
-			if (!readStates) {
-				readStates = new Set()
-				stateTracking.set(currentEffect, readStates)
-			}
-			readStates.add(stateId)
+			getOrCreate(stateTracking, currentEffect, () => new Set()).add(stateId)
 		}
 		return value
 	}
@@ -130,9 +150,6 @@ const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = O
 	return get as State<T>
 }
 
-/**
- * Registers a function to run whenever its reactive dependencies change.
- */
 const createEffect = (fn: () => void): Unsubscribe => {
 	const runEffect = (): void => {
 		if (activeSubscribers.has(runEffect)) {
@@ -146,16 +163,16 @@ const createEffect = (fn: () => void): Unsubscribe => {
 			cleanupEffect(runEffect)
 
 			currentSubscriber = runEffect
-			stateTracking.set(runEffect, new Set())
+			const existingStates = stateTracking.get(runEffect)
+			if (existingStates) {
+				existingStates.clear()
+			} else {
+				stateTracking.set(runEffect, new Set())
+			}
 
 			if (parentEffect) {
 				parentSubscriber.set(runEffect, parentEffect)
-				let children = childSubscribers.get(parentEffect)
-				if (!children) {
-					children = new Set()
-					childSubscribers.set(parentEffect, children)
-				}
-				children.add(runEffect)
+				getOrCreate(childSubscribers, parentEffect, () => new Set()).add(runEffect)
 			}
 
 			fn()
@@ -171,46 +188,17 @@ const createEffect = (fn: () => void): Unsubscribe => {
 		if (currentSubscriber) {
 			const parent = currentSubscriber
 			parentSubscriber.set(runEffect, parent)
-			let children = childSubscribers.get(parent)
-			if (!children) {
-				children = new Set()
-				childSubscribers.set(parent, children)
-			}
-			children.add(runEffect)
+			getOrCreate(childSubscribers, parent, () => new Set()).add(runEffect)
 		}
 
 		deferredEffectCreations.push(runEffect)
 	}
 
 	return (): void => {
-		cleanupEffect(runEffect)
-		pendingSubscribers.delete(runEffect)
-		activeSubscribers.delete(runEffect)
-		stateTracking.delete(runEffect)
-
-		const parent = parentSubscriber.get(runEffect)
-		if (parent) {
-			const siblings = childSubscribers.get(parent)
-			if (siblings) {
-				siblings.delete(runEffect)
-			}
-		}
-		parentSubscriber.delete(runEffect)
-
-		const children = childSubscribers.get(runEffect)
-		if (children) {
-			for (const child of children) {
-				cleanupEffect(child)
-			}
-			children.clear()
-			childSubscribers.delete(runEffect)
-		}
+		disposeEffect(runEffect)
 	}
 }
 
-/**
- * Groups multiple state updates to trigger effects only once at the end.
- */
 const executeBatch = <T>(fn: () => T): T => {
 	batchDepth++
 	try {
@@ -240,87 +228,69 @@ const executeBatch = <T>(fn: () => T): T => {
 	}
 }
 
-/**
- * Creates a read-only computed value that updates when its dependencies change.
- */
 const createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
-	const container = {
-		cachedValue: undefined as unknown as T,
-		computeFn,
-		initialized: false,
-		valueState: createState<T | undefined>(undefined),
-	}
+	let cachedValue: T = undefined as unknown as T
+	let initialized = false
+	const valueState = createState<T | undefined>(undefined)
 
 	createEffect(function deriveEffect(): void {
-		const newValue = container.computeFn()
+		const newValue = computeFn()
 
-		if (!(container.initialized && Object.is(container.cachedValue, newValue))) {
-			container.cachedValue = newValue
-			container.valueState.set(newValue)
+		if (!(initialized && Object.is(cachedValue, newValue))) {
+			cachedValue = newValue
+			valueState.set(newValue)
 		}
 
-		container.initialized = true
+		initialized = true
 	})
 
 	return function deriveGetter(): T {
-		if (!container.initialized) {
-			container.cachedValue = container.computeFn()
-			container.initialized = true
-			container.valueState.set(container.cachedValue)
+		if (!initialized) {
+			cachedValue = computeFn()
+			initialized = true
+			valueState.set(cachedValue)
 		}
-		return container.valueState() as T
+		return valueState() as T
 	}
 }
 
-/**
- * Creates an efficient subscription to a subset of a state value.
- */
 const createSelect = <T, R>(
 	source: ReadOnlyState<T>,
 	selectorFn: (state: T) => R,
 	equalityFn: (a: R, b: R) => boolean = Object.is
 ): ReadOnlyState<R> => {
-	const container = {
-		equalityFn,
-		initialized: false,
-		lastSelectedValue: undefined as R | undefined,
-		lastSourceValue: undefined as T | undefined,
-		selectorFn,
-		source,
-		valueState: createState<R | undefined>(undefined),
-	}
+	let initialized = false
+	let lastSelectedValue: R | undefined
+	let lastSourceValue: T | undefined
+	const valueState = createState<R | undefined>(undefined)
 
 	createEffect(function selectEffect(): void {
-		const sourceValue = container.source()
+		const sourceValue = source()
 
-		if (container.initialized && Object.is(container.lastSourceValue, sourceValue)) {
+		if (initialized && Object.is(lastSourceValue, sourceValue)) {
 			return
 		}
 
-		container.lastSourceValue = sourceValue
-		const newSelectedValue = container.selectorFn(sourceValue)
+		lastSourceValue = sourceValue
+		const newSelectedValue = selectorFn(sourceValue)
 
-		if (
-			container.initialized &&
-			container.lastSelectedValue !== undefined &&
-			container.equalityFn(container.lastSelectedValue, newSelectedValue)
-		) {
+		if (initialized && lastSelectedValue !== undefined && equalityFn(lastSelectedValue, newSelectedValue)) {
 			return
 		}
 
-		container.lastSelectedValue = newSelectedValue
-		container.valueState.set(newSelectedValue)
-		container.initialized = true
+		lastSelectedValue = newSelectedValue
+		valueState.set(newSelectedValue)
+		initialized = true
 	})
 
 	return function selectGetter(): R {
-		if (!container.initialized) {
-			container.lastSourceValue = container.source()
-			container.lastSelectedValue = container.selectorFn(container.lastSourceValue)
-			container.valueState.set(container.lastSelectedValue)
-			container.initialized = true
+		if (!initialized) {
+			lastSourceValue = source()
+			lastSelectedValue = selectorFn(lastSourceValue)
+			valueState.set(lastSelectedValue)
+			initialized = true
 		}
-		return container.valueState() as R
+		return valueState() as R
 	}
 }
 
@@ -352,92 +322,65 @@ const createContainer = (key: string | number): Record<string | number, unknown>
 	return isArrayKey ? [] : {}
 }
 
-// Helper for handling array path updates
-const updateArrayPath = <V>(array: unknown[], pathSegments: (string | number)[], value: V): unknown[] => {
-	const index = Number(pathSegments[0])
-
-	if (pathSegments.length === 1) {
-		return updateArrayItem(array, index, value)
-	}
-
-	const copy = [
-		...array,
-	]
-	const nextPathSegments = pathSegments.slice(1)
-	const nextKey = nextPathSegments[0]
-
-	let nextValue = array[index]
-	if (nextValue === undefined || nextValue === null) {
-		nextValue = nextKey === undefined ? {} : createContainer(nextKey)
-	}
-
-	copy[index] = setValueAtPath(nextValue, nextPathSegments, value)
-	return copy
-}
-
-// Helper for handling object path updates
-const updateObjectPath = <V>(
-	obj: Record<string | number, unknown>,
-	pathSegments: (string | number)[],
-	value: V
-): Record<string | number, unknown> => {
-	const currentKey = pathSegments[0]
-	if (currentKey === undefined) {
-		return obj
-	}
-
-	if (pathSegments.length === 1) {
-		return updateShallowProperty(obj, currentKey, value)
-	}
-
-	const nextPathSegments = pathSegments.slice(1)
-	const nextKey = nextPathSegments[0]
-
-	let currentValue = obj[currentKey]
-	if (currentValue === undefined || currentValue === null) {
-		currentValue = nextKey === undefined ? {} : createContainer(nextKey)
-	}
-
-	const result = {
-		...obj,
-	}
-	result[currentKey] = setValueAtPath(currentValue, nextPathSegments, value)
-	return result
-}
-
-const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], value: V): O => {
-	if (pathSegments.length === 0) {
+const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: number, value: V): O => {
+	if (depth >= pathSegments.length) {
 		return value as unknown as O
 	}
 
 	if (obj === undefined || obj === null) {
-		return setValueAtPath({} as O, pathSegments, value)
+		return setValueAtPath({} as O, pathSegments, depth, value)
 	}
 
-	const currentKey = pathSegments[0]
+	const currentKey = pathSegments[depth]
 	if (currentKey === undefined) {
 		return obj
 	}
 
 	if (Array.isArray(obj)) {
-		return updateArrayPath(obj, pathSegments, value) as unknown as O
+		const index = Number(currentKey)
+
+		if (depth === pathSegments.length - 1) {
+			return updateArrayItem(obj, index, value) as unknown as O
+		}
+
+		const copy = [
+			...obj,
+		]
+		const nextDepth = depth + 1
+		const nextKey = pathSegments[nextDepth]
+
+		let nextValue = obj[index]
+		if (nextValue === undefined || nextValue === null) {
+			nextValue = nextKey === undefined ? {} : createContainer(nextKey)
+		}
+
+		copy[index] = setValueAtPath(nextValue, pathSegments, nextDepth, value)
+		return copy as unknown as O
 	}
 
-	return updateObjectPath(obj as Record<string | number, unknown>, pathSegments, value) as unknown as O
+	const record = obj as Record<string | number, unknown>
+
+	if (depth === pathSegments.length - 1) {
+		return updateShallowProperty(record, currentKey, value) as unknown as O
+	}
+
+	const nextDepth = depth + 1
+	const nextKey = pathSegments[nextDepth]
+
+	let currentValue = record[currentKey]
+	if (currentValue === undefined || currentValue === null) {
+		currentValue = nextKey === undefined ? {} : createContainer(nextKey)
+	}
+
+	const result = {
+		...record,
+	}
+	result[currentKey] = setValueAtPath(currentValue, pathSegments, nextDepth, value)
+	return result as unknown as O
 }
 
-/**
- * Creates a lens for direct updates to nested properties of a state.
- */
 const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
-	const container = {
-		accessor,
-		isUpdating: false,
-		lensState: null as unknown as State<K>,
-		originalSet: null as unknown as (value: K) => void,
-		path: [] as (string | number)[],
-		source,
-	}
+	let isUpdating = false
 
 	const extractPath = (): (string | number)[] => {
 		const pathCollector: (string | number)[] = []
@@ -454,7 +397,7 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 		)
 
 		try {
-			container.accessor(proxy as unknown as T)
+			accessor(proxy as unknown as T)
 		} catch {
 			// Ignore errors, we're just collecting the path
 		}
@@ -462,57 +405,49 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 		return pathCollector
 	}
 
-	container.path = extractPath()
-
-	container.lensState = createState<K>(container.accessor(container.source()))
-	container.originalSet = container.lensState.set
+	const path = extractPath()
+	const lensState = createState<K>(accessor(source()))
+	const originalSet = lensState.set
 
 	createEffect(function lensEffect(): void {
-		if (container.isUpdating) {
+		if (isUpdating) {
 			return
 		}
 
-		container.isUpdating = true
+		isUpdating = true
 		try {
-			container.lensState.set(container.accessor(container.source()))
+			lensState.set(accessor(source()))
 		} finally {
-			container.isUpdating = false
+			isUpdating = false
 		}
 	})
 
-	container.lensState.set = function lensSet(value: K): void {
-		if (container.isUpdating) {
+	lensState.set = function lensSet(value: K): void {
+		if (isUpdating) {
 			return
 		}
 
-		container.isUpdating = true
+		isUpdating = true
 		try {
-			container.originalSet(value)
-
-			container.source.update((current: T): T => setValueAtPath(current, container.path, value))
+			originalSet(value)
+			source.update((current: T): T => setValueAtPath(current, path, 0, value))
 		} finally {
-			container.isUpdating = false
+			isUpdating = false
 		}
 	}
 
-	container.lensState.update = function lensUpdate(fn: (value: K) => K): void {
-		container.lensState.set(fn(container.lensState()))
+	lensState.update = function lensUpdate(fn: (value: K) => K): void {
+		lensState.set(fn(lensState()))
 	}
 
-	return container.lensState
+	return lensState
 }
 
-/**
- * Creates a read-only view of a state, hiding mutation methods.
- */
 const createReadonlyState =
 	<T>(source: State<T>): ReadOnlyState<T> =>
 	(): T =>
 		source()
 
-/**
- * Creates a state with access control, returning a tuple of reader and writer.
- */
 const createProtectedState = <T>(
 	initialValue: T,
 	equalityFn: (a: T, b: T) => boolean = Object.is
@@ -521,8 +456,9 @@ const createProtectedState = <T>(
 	WriteableState<T>,
 ] => {
 	const fullState = createState(initialValue, equalityFn)
+	const reader = createReadonlyState(fullState)
 	return [
-		(): T => createReadonlyState(fullState)(),
+		reader,
 		{
 			set: (value: T): void => fullState.set(value),
 			update: (fn: (value: T) => T): void => fullState.update(fn),

@@ -37,7 +37,7 @@ count.set(5);
 ## Documentation
 
 Full documentation, API reference, and examples available at:
-**[github.com/nerdalytics/beacon](https://github.com/nerdalytics/beacon)**
+**[nerdalytics.github.io/beacon](https://nerdalytics.github.io/beacon/)**
 
 ## License
 
