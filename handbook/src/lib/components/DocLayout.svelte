@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte'
 	import { page } from '$app/state'
 	import { addCopyButtons } from '$lib/copy-code'
-	import { allPages } from '$lib/navigation'
+	import { getAllPages, getVersionPrefix } from '$lib/navigation'
 	import { resolveHref } from '$lib/resolve-href'
 	import TOC from './TOC.svelte'
 
@@ -22,6 +22,8 @@
 		if (articleEl) addCopyButtons(articleEl)
 	})
 
+	let versionPrefix = $derived(getVersionPrefix(page.url.pathname) ?? '')
+	let allPages = $derived(getAllPages(versionPrefix))
 	let currentIndex = $derived(
 		allPages.findIndex((item) => resolveHref(item.href) === page.url.pathname)
 	)
