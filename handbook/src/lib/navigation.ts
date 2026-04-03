@@ -1,3 +1,5 @@
+import { base } from '$app/paths'
+
 export interface NavItem {
 	href: string
 	title: string
@@ -42,9 +44,10 @@ export const navigation: Record<string, NavGroup[]> = {
 	],
 }
 
-/** Extract the version prefix from a URL path (e.g., "/v1.0.0/state" -> "/v1.0.0") */
+/** Extract the version prefix from a URL path (e.g., "/beacon/v1.0.0/state" -> "/v1.0.0") */
 export function getVersionPrefix(pathname: string): string | undefined {
-	const match = pathname.match(/^(\/v[\d.]+)/)
+	const path = base && pathname.startsWith(base) ? pathname.slice(base.length) : pathname
+	const match = path.match(/^(\/v[\d.]+)/)
 	return match?.[1]
 }
 
