@@ -322,65 +322,6 @@ const createContainer = (key: string | number): Record<string | number, unknown>
 	return isArrayKey ? [] : {}
 }
 
-// Helper for handling array path updates
-const updateArrayPath = <V>(
-	array: unknown[],
-	pathSegments: (string | number)[],
-	depth: number,
-	value: V
-): unknown[] => {
-	const index = Number(pathSegments[depth])
-
-	if (depth === pathSegments.length - 1) {
-		return updateArrayItem(array, index, value)
-	}
-
-	const copy = [
-		...array,
-	]
-	const nextDepth = depth + 1
-	const nextKey = pathSegments[nextDepth]
-
-	let nextValue = array[index]
-	if (nextValue === undefined || nextValue === null) {
-		nextValue = nextKey === undefined ? {} : createContainer(nextKey)
-	}
-
-	copy[index] = setValueAtPath(nextValue, pathSegments, nextDepth, value)
-	return copy
-}
-
-// Helper for handling object path updates
-const updateObjectPath = <V>(
-	obj: Record<string | number, unknown>,
-	pathSegments: (string | number)[],
-	depth: number,
-	value: V
-): Record<string | number, unknown> => {
-	const currentKey = pathSegments[depth]
-	if (currentKey === undefined) {
-		return obj
-	}
-
-	if (depth === pathSegments.length - 1) {
-		return updateShallowProperty(obj, currentKey, value)
-	}
-
-	const nextDepth = depth + 1
-	const nextKey = pathSegments[nextDepth]
-
-	let currentValue = obj[currentKey]
-	if (currentValue === undefined || currentValue === null) {
-		currentValue = nextKey === undefined ? {} : createContainer(nextKey)
-	}
-
-	const result = {
-		...obj,
-	}
-	result[currentKey] = setValueAtPath(currentValue, pathSegments, nextDepth, value)
-	return result
-}
-
 const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: number, value: V): O => {
 	if (depth >= pathSegments.length) {
 		return value as unknown as O
@@ -396,10 +337,46 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: 
 	}
 
 	if (Array.isArray(obj)) {
-		return updateArrayPath(obj, pathSegments, depth, value) as unknown as O
+		const index = Number(currentKey)
+
+		if (depth === pathSegments.length - 1) {
+			return updateArrayItem(obj, index, value) as unknown as O
+		}
+
+		const copy = [
+			...obj,
+		]
+		const nextDepth = depth + 1
+		const nextKey = pathSegments[nextDepth]
+
+		let nextValue = obj[index]
+		if (nextValue === undefined || nextValue === null) {
+			nextValue = nextKey === undefined ? {} : createContainer(nextKey)
+		}
+
+		copy[index] = setValueAtPath(nextValue, pathSegments, nextDepth, value)
+		return copy as unknown as O
 	}
 
-	return updateObjectPath(obj as Record<string | number, unknown>, pathSegments, depth, value) as unknown as O
+	const record = obj as Record<string | number, unknown>
+
+	if (depth === pathSegments.length - 1) {
+		return updateShallowProperty(record, currentKey, value) as unknown as O
+	}
+
+	const nextDepth = depth + 1
+	const nextKey = pathSegments[nextDepth]
+
+	let currentValue = record[currentKey]
+	if (currentValue === undefined || currentValue === null) {
+		currentValue = nextKey === undefined ? {} : createContainer(nextKey)
+	}
+
+	const result = {
+		...record,
+	}
+	result[currentKey] = setValueAtPath(currentValue, pathSegments, nextDepth, value)
+	return result as unknown as O
 }
 
 const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
