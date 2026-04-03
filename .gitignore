@@ -14,6 +14,18 @@
 !assets/*.png
 !assets/*.svg
 !docs/
+!handbook/
+!handbook/**/
+!handbook/**/*.css
+!handbook/**/*.d.ts
+!handbook/**/*.html
+!handbook/**/*.js
+!handbook/**/*.json
+!handbook/**/*.svelte
+!handbook/**/*.svg
+!handbook/**/*.ts
+!handbook/**/*.txt
+!handbook/**/*.woff2
 !scripts/
 !scripts/*.?s
 !src/
@@ -40,6 +52,7 @@
 
 # But still ignore these specific patterns everywhere
 **/node_modules/**
+**/.svelte-kit/**
 *.tsbuildinfo
 coverage/
 
