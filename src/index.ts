@@ -521,8 +521,9 @@ const createProtectedState = <T>(
 	WriteableState<T>,
 ] => {
 	const fullState = createState(initialValue, equalityFn)
+	const reader = createReadonlyState(fullState)
 	return [
-		(): T => createReadonlyState(fullState)(),
+		reader,
 		{
 			set: (value: T): void => fullState.set(value),
 			update: (fn: (value: T) => T): void => fullState.update(fn),
