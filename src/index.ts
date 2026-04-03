@@ -97,9 +97,6 @@ const disposeEffect = (effect: Subscriber): void => {
 	}
 }
 
-/**
- * Creates a reactive state container with the provided initial value.
- */
 const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = Object.is): State<T> => {
 	let value = initialValue
 	const subscribers = new Set<Subscriber>()
@@ -153,9 +150,6 @@ const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = O
 	return get as State<T>
 }
 
-/**
- * Registers a function to run whenever its reactive dependencies change.
- */
 const createEffect = (fn: () => void): Unsubscribe => {
 	const runEffect = (): void => {
 		if (activeSubscribers.has(runEffect)) {
@@ -205,9 +199,6 @@ const createEffect = (fn: () => void): Unsubscribe => {
 	}
 }
 
-/**
- * Groups multiple state updates to trigger effects only once at the end.
- */
 const executeBatch = <T>(fn: () => T): T => {
 	batchDepth++
 	try {
@@ -237,9 +228,6 @@ const executeBatch = <T>(fn: () => T): T => {
 	}
 }
 
-/**
- * Creates a read-only computed value that updates when its dependencies change.
- */
 const createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
 	let cachedValue: T = undefined as unknown as T
 	let initialized = false
@@ -266,9 +254,6 @@ const createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
 	}
 }
 
-/**
- * Creates an efficient subscription to a subset of a state value.
- */
 const createSelect = <T, R>(
 	source: ReadOnlyState<T>,
 	selectorFn: (state: T) => R,
@@ -417,9 +402,6 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: 
 	return updateObjectPath(obj as Record<string | number, unknown>, pathSegments, depth, value) as unknown as O
 }
 
-/**
- * Creates a lens for direct updates to nested properties of a state.
- */
 const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
 	let isUpdating = false
 
@@ -484,17 +466,11 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 	return lensState
 }
 
-/**
- * Creates a read-only view of a state, hiding mutation methods.
- */
 const createReadonlyState =
 	<T>(source: State<T>): ReadOnlyState<T> =>
 	(): T =>
 		source()
 
-/**
- * Creates a state with access control, returning a tuple of reader and writer.
- */
 const createProtectedState = <T>(
 	initialValue: T,
 	equalityFn: (a: T, b: T) => boolean = Object.is
