@@ -3,7 +3,7 @@ title: v1000.2.5 → v1000.3.0
 description: Migrating from Beacon v1000.2.5 to v1000.3.0
 ---
 
-v1000.2.5 → v1000.3.0. Internal refactor: `StateImpl` class decomposed into standalone functions for tree-shaking. One breaking change at the type level.
+`StateImpl` class decomposed into standalone functions for tree-shaking. One breaking change at the type level.
 
 ## Type imports
 
@@ -23,7 +23,7 @@ This applies to all four type exports: `State`, `ReadOnlyState`, `WriteableState
 
 ## Tree-shaking
 
-Bundlers can now eliminate unused exports. If your application only uses `state` and `effect`, the code for `derive`, `batch`, `select`, and `lens` won't be included in the bundle. No configuration needed — this works automatically with any tree-shaking-capable bundler.
+Bundlers can now eliminate unused exports. If you only use `state` and `effect`, the code for `derive`, `batch`, `select`, and `lens` is excluded from the bundle. Works automatically with any tree-shaking-capable bundler.
 
 ## No runtime changes
 

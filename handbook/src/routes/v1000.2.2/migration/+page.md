@@ -3,11 +3,11 @@ title: v1000.2.1 → v1000.2.2
 description: Migrating from Beacon v1000.2.1 to v1000.2.2
 ---
 
-v1000.2.1 → v1000.2.2. `Unsubscribe` type is now exported. You can import it for explicit typing of effect cleanup functions. `STATE_ID` is now a named unique symbol.
+`Unsubscribe` type is now a named export. `STATE_ID` is a named unique symbol for better debuggability.
 
 ## Exported `Unsubscribe` type
 
-The `Unsubscribe` type was previously internal-only. It is now a named export:
+Previously internal-only. Now a named export you can use for explicit typing:
 
 ```typescript
 import { type Unsubscribe, state, effect } from '@nerdalytics/beacon'
@@ -18,18 +18,11 @@ const unsubscribe: Unsubscribe = effect(() => {
 })
 ```
 
-This is additive — existing code that infers the type continues to work.
+Additive change. Existing code that infers the type works without modification.
 
 ## Named `STATE_ID` symbol
 
-`STATE_ID` changed from `Symbol()` to `Symbol('STATE_ID')` with a `unique symbol` type. This improves debuggability — the symbol now has a description visible in stack traces and console output. No behavioral change.
-
-## Minor formatting changes
-
-- `protectedState` return type formatting adjusted
-- Batch internals formatting changes
-
-No behavioral impact.
+`STATE_ID` changed from `Symbol()` to `Symbol('STATE_ID')` with a `unique symbol` type. The description is visible in stack traces and console output. No behavioral change.
 
 ## Upgrade
 
