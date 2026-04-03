@@ -5,37 +5,39 @@ description: What Beacon v1000.0.0 is and what changed from v1.0.0
 
 Beacon is a reactive state library for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
-The API is seven functions:
+Seven functions make up the API:
 
-- **`state(initialValue)`** creates a signal that holds a value
+- **`state(initialValue)`** creates a readable and writable signal
 - **`derive(fn)`** computes a read-only value from other signals
 - **`effect(fn)`** runs a function when its dependencies change
 - **`batch(fn)`** groups updates so effects run once
 - **`select(source, selectorFn, equalityFn?)`** subscribes to a computed slice of state
-- **`readonlyState(state)`** creates a read-only view of a state signal
+- **`readonlyState(state)`** hides the write methods on a state
 - **`protectedState(initialValue)`** separates read and write into a tuple
 
-When you read a signal inside an effect, Beacon records the dependency. When the signal changes, the effect re-runs. There are no manual subscriptions, event names, or selectors to wire up.
+When you read a signal inside an effect, Beacon records the dependency. When the signal changes, the effect re-runs. No manual subscriptions, event names, or wiring.
 
 ## Changes from v1.0.0
 
-v1000.0.0 is a complete rewrite. Key changes:
+v1000.0.0 is a complete rewrite of the library internals and API surface:
 
-- **`derived()` renamed to `derive()`** and now returns `ReadOnlyState<T>` (no `.set()`/`.update()`)
-- **`select()`** added for efficient subscription to a slice of state
-- **`readonlyState()`** and **`protectedState()`** added for access control patterns
-- **Infinite loop detection** — effects that write to a state they depend on throw
-- **Re-entrance prevention** — effects already running are skipped on re-entry
-- **Parent-child effect tracking** — nested effects are tracked hierarchically, cleanup propagates to children
-- **Deferred effect creation in batches** — effects created inside `batch()` run after the batch completes
-- **`derive()` is lazy-initialized** — computes on first read if dependencies haven't triggered yet
+- `derived()` renamed to `derive()`, now returns `ReadOnlyState<T>` (no `.set()`/`.update()`)
+- `select()` added for property-level subscriptions on state objects
+- `readonlyState()` and `protectedState()` added for access control
+- Effects that write to a state they depend on throw instead of looping
+- Re-entrance is skipped when an effect triggers itself indirectly
+- Nested effects track parent-child relationships; cleanup propagates downward
+- Effects created inside `batch()` are deferred until the batch completes
+- `derive()` is lazy: it computes on first read, not on creation
+
+See the [migration guide](/v1000.0.0/migration) for the full list of breaking changes.
 
 ## Constraints
 
-Beacon is a single TypeScript file, approximately 427 lines, with zero dependencies. It targets Node.js 20+ and provides full type inference out of the box. Internals are implemented as a `StateImpl` class with static methods.
+Single TypeScript file, ~427 lines, zero dependencies. Node.js 20+, full type inference. Internals are a `StateImpl` class with static methods.
 
 ## Use cases
 
-Beacon is for backend developers who want reactive patterns on the server. Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph. The `select()` primitive makes it practical to work with large state objects without triggering unnecessary recomputation.
+Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph. `select()` makes it practical to work with large state objects without triggering unrelated recomputation.
 
-It is not a frontend framework. There are no DOM bindings and no component model. It manages plain JavaScript values.
+Beacon is not a frontend framework. No DOM bindings, no component model. It manages plain JavaScript values on the server.

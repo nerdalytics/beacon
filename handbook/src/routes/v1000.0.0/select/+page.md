@@ -13,7 +13,7 @@ function select<T, R>(
 ): ReadOnlyState<R>
 ```
 
-Returns a `ReadOnlyState<R>` that holds the result of `selectorFn(source())`. The returned signal only updates when the selected value changes, not when unrelated parts of the source change.
+Returns a `ReadOnlyState<R>` holding `selectorFn(source())`. The signal only notifies downstream when the selected value changes, not when unrelated parts of the source change.
 
 ## Basic usage
 
@@ -53,7 +53,7 @@ $user.update((u) => ({ ...u, loginCount: u.loginCount + 1 }))
 // Effect re-runs even though name is still 'Ada'
 ```
 
-`select()` solves this by comparing the selected slice before and after each source update. If the slice hasn't changed, downstream effects are not notified.
+`select()` compares the selected slice before and after each source update. If the slice hasn't changed, downstream effects are not notified.
 
 ## Custom equality
 
@@ -103,9 +103,9 @@ effect(() => {
 
 ## Select vs derive
 
-Both `select()` and `derive()` produce read-only signals. The difference is in when they re-evaluate:
+Both produce `ReadOnlyState`. The difference is notification:
 
-- **`derive()`** re-evaluates when any signal it reads changes
-- **`select()`** re-evaluates when its source changes, but only notifies downstream when the selected slice changes
+- `derive()` notifies downstream whenever any dependency changes and the result differs
+- `select()` only notifies when the selected slice differs, even if the source object changed
 
-For large state objects where you only care about one property, `select()` avoids unnecessary downstream work that `derive()` would cause.
+For large state objects where you care about one property, `select()` avoids the recomputation overhead `derive()` would cause.

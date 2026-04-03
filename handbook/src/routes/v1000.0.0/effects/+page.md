@@ -105,7 +105,7 @@ effect(() => {
 })
 ```
 
-This catches a common mistake where an effect both reads and writes the same signal, which would otherwise loop indefinitely.
+In v1.0.0 this pattern looped until the queue drained. In v1000.0.0 it throws immediately.
 
 ## Parent-child effect tracking
 
@@ -130,7 +130,7 @@ $b.set(1)
 // (nothing — inner effect was cleaned up with its parent)
 ```
 
-This is a significant improvement over v1.0.0, where nested effects could accumulate duplicates.
+In v1.0.0, nested effects accumulated duplicates on each parent re-run.
 
 ## Effect execution order
 

@@ -3,11 +3,11 @@ title: Architecture
 description: How Beacon v1000.0.0 works internally
 ---
 
-Beacon v1000.0.0 is approximately 427 lines of TypeScript. The internals are implemented as a `StateImpl` class with static methods. This page covers how the reactive system works.
+Beacon v1000.0.0 is ~427 lines of TypeScript, organized as a `StateImpl` class with static methods. This page covers the internals.
 
 ## StateImpl class
 
-All reactive state management is centralized in a single class. The class holds module-level tracking state as static properties and exposes static methods for creating signals, effects, and derived values.
+A single class holds all tracking state as static properties and exposes static factory methods for signals, effects, and derived values.
 
 ## Module-level tracking
 
@@ -106,4 +106,4 @@ On error at the outermost batch level, pending effects and deferred effects are 
 
 ## WeakMap-based dependency tracking
 
-`subscriberDependencies` uses a `WeakMap`, which means that when an effect is garbage collected, its dependency tracking data is also collected. This prevents memory leaks from long-lived applications that create and dispose many effects over time.
+`subscriberDependencies` is a `WeakMap`. When an effect is garbage collected, its dependency tracking data is collected with it. Long-lived applications that create and dispose many effects over time do not leak memory.

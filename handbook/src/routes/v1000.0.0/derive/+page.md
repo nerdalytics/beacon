@@ -1,6 +1,6 @@
 ---
 title: Derive
-description: Computed read-only signals that recompute when dependencies change
+description: Read-only computed signals that track their own dependencies
 ---
 
 ## API
@@ -9,7 +9,7 @@ description: Computed read-only signals that recompute when dependencies change
 function derive<T>(computeFn: () => T): ReadOnlyState<T>
 ```
 
-Returns a `ReadOnlyState<T>` whose value is computed from `computeFn`. When any signal read inside `computeFn` changes, the derived value recomputes.
+Returns a `ReadOnlyState<T>` computed from `computeFn`. Recomputes when any signal read inside `computeFn` changes.
 
 ## Basic usage
 

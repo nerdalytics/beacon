@@ -38,6 +38,12 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{ href: '/v1000.0.0/migration', title: 'v1.0.0 → v1000.0.0' },
+			],
+			title: 'Migration',
+		},
+		{
+			items: [
 				{ href: '/v1000.0.0/links', title: 'Resources' },
 			],
 			title: 'Links',
