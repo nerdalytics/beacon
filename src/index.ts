@@ -184,7 +184,6 @@ const createEffect = (fn: () => void): Unsubscribe => {
 
 	return (): void => {
 		cleanupEffect(runEffect)
-		pendingSubscribers.delete(runEffect)
 		activeSubscribers.delete(runEffect)
 		stateTracking.delete(runEffect)
 
