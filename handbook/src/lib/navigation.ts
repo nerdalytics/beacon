@@ -11,6 +11,45 @@ export interface NavGroup {
 }
 
 export const navigation: Record<string, NavGroup[]> = {
+	'/v1000.2.3': [
+		{
+			items: [
+				{ href: '/v1000.2.3/introduction', title: 'Introduction' },
+				{ href: '/v1000.2.3/installation', title: 'Installation' },
+				{ href: '/v1000.2.3/quick-start', title: 'Quick Start' },
+			],
+			title: 'Getting Started',
+		},
+		{
+			items: [
+				{ href: '/v1000.2.3/state', title: 'State' },
+				{ href: '/v1000.2.3/effects', title: 'Effects' },
+				{ href: '/v1000.2.3/derive', title: 'Derive' },
+				{ href: '/v1000.2.3/batch', title: 'Batch' },
+				{ href: '/v1000.2.3/select', title: 'Select' },
+				{ href: '/v1000.2.3/lens', title: 'Lens' },
+			],
+			title: 'Guides',
+		},
+		{
+			items: [
+				{ href: '/v1000.2.3/architecture', title: 'Architecture' },
+			],
+			title: 'Advanced',
+		},
+		{
+			items: [
+				{ href: '/v1000.2.3/migration', title: 'v1000.2.2 → v1000.2.3' },
+			],
+			title: 'Migration',
+		},
+		{
+			items: [
+				{ href: '/v1000.2.3/links', title: 'Resources' },
+			],
+			title: 'Links',
+		},
+	],
 	'/v1000.2.2': [
 		{
 			items: [
