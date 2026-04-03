@@ -3,25 +3,23 @@ title: v1000.3.0 → v1000.3.1
 description: Migrating from Beacon v1000.3.0 to v1000.3.1
 ---
 
-Internal performance improvements and code cleanup. No API changes, no breaking changes.
+No API changes. No breaking changes. Drop-in upgrade.
 
-## Performance
+This release reduces allocations in three hot paths. The public interface, behavior, and type signatures are identical to v1000.3.0.
 
-- **`protectedState` reader**: the readonly wrapper is now cached once at construction instead of recreated on every read
-- **Effect re-runs**: the `stateTracking` Set is reused and cleared instead of allocating a new Set each cycle
-- **Lens path updates**: deep nested updates use index-based iteration instead of `Array.slice()`, eliminating O(n) allocations per recursion level
+## What changed
 
-## Internal cleanup
+`protectedState` previously created a new readonly wrapper function on every read. It now caches the wrapper once at construction time.
 
-- Extracted `getOrCreate` helper to deduplicate the WeakMap get-or-create pattern
-- Replaced container objects in `derive`, `select`, and `lens` with plain closure variables
-- Extracted `disposeEffect` for full recursive cleanup of nested effects, fixing potential zombie refs
-- Unified `updateArrayPath`/`updateObjectPath` into a single `setValueAtPath` function
-- Removed redundant JSDoc comments that restated function names
+Effects that re-run used to allocate a fresh `Set` for dependency tracking each cycle. The existing Set is now cleared and reused.
 
-## No runtime changes
+`lens` path updates called `Array.slice()` at each recursion level when writing to nested properties, allocating O(n) intermediate arrays on a path of depth n. These now use index-based iteration with zero intermediate allocations.
 
-All behavior is identical to v1000.3.0. The eight function exports and four type exports are unchanged. Existing tests pass without modification.
+## Internal
+
+The unsubscribe path for nested effects now fully cleans up child references in `activeSubscribers`, `stateTracking`, and `parentSubscriber`. Previously, only the dependency subscriptions were removed, leaving unreachable entries in those WeakMaps until garbage collection. This was not observable in behavior or tests, but it delayed memory reclamation in long-lived applications with frequent effect creation and disposal.
+
+Several internal simplifications: closure variables replace container objects in `derive`, `select`, and `lens`; a shared `getOrCreate` helper replaces four duplicated WeakMap lookup blocks; `updateArrayPath` and `updateObjectPath` are inlined into `setValueAtPath`.
 
 ## Upgrade
 
@@ -29,4 +27,4 @@ All behavior is identical to v1000.3.0. The eight function exports and four type
 npm install @nerdalytics/beacon@1000.3.1
 ```
 
-No code changes required.
+No code changes required. Existing tests pass without modification.
