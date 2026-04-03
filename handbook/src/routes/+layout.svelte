@@ -21,6 +21,8 @@
 		return path === '' || path === '/'
 	})
 	let isLanding = $derived(isRootLanding || isVersionLanding)
+	let activePrefix = $derived(getVersionPrefix(page.url.pathname))
+	let homeHref = $derived(activePrefix ? resolveHref(activePrefix) : resolveHref(currentVersion.prefix))
 	let sidebarOpen = $state(false)
 
 	$effect(() => {
@@ -65,7 +67,7 @@
 				{/if}
 
 				<a
-					href={resolveHref(currentVersion.prefix)}
+					href={homeHref}
 					class="flex items-center gap-2 text-lg font-bold text-text hover:text-teal transition-colors"
 				>
 					{#if !isLanding}

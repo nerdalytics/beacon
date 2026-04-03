@@ -2,7 +2,7 @@
 	import { page } from '$app/state'
 	import { goto } from '$app/navigation'
 	import { versions } from '$lib/versions'
-	import { getVersionPrefix } from '$lib/navigation'
+	import { getAllPages, getVersionPrefix } from '$lib/navigation'
 	import { resolveHref } from '$lib/resolve-href'
 
 	let activePrefix = $derived(getVersionPrefix(page.url.pathname))
@@ -11,11 +11,27 @@
 	function switchVersion(newPrefix: string): void {
 		const currentPath = page.url.pathname
 		if (!activePrefix) {
-			goto(resolveHref(`${newPrefix}/introduction`))
+			goto(resolveHref(newPrefix))
 			return
 		}
 		const pagePath = currentPath.replace(resolveHref(activePrefix), '')
-		goto(resolveHref(`${newPrefix}${pagePath || '/introduction'}`))
+
+		// If on landing or no sub-path, go to the new version's landing
+		if (!pagePath || pagePath === '/') {
+			goto(resolveHref(newPrefix))
+			return
+		}
+
+		// Check if the target version has this page
+		const targetPages = getAllPages(newPrefix)
+		const pageExists = targetPages.some((p) => p.href === `${newPrefix}${pagePath}`)
+
+		if (pageExists) {
+			goto(resolveHref(`${newPrefix}${pagePath}`))
+		} else {
+			// Fall back to the version's landing page
+			goto(resolveHref(newPrefix))
+		}
 	}
 </script>
 
