@@ -50,7 +50,7 @@
 	})
 </script>
 
-<div class="h-screen flex flex-col overflow-hidden bg-navy text-text font-sans" style="padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);">
+<div class="h-dvh flex flex-col overflow-hidden bg-navy text-text font-sans" style="padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);">
 	<header class="shrink-0 z-40 bg-navy/95 backdrop-blur header-gradient-border" style="padding-top: env(safe-area-inset-top);">
 		<div class="flex items-center justify-between px-4 lg:px-6 h-14">
 			<div class="flex items-center gap-2">
