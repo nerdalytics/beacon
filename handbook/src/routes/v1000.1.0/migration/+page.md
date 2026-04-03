@@ -27,7 +27,7 @@ effect(() => console.log($host()))
 // => "0.0.0.0"
 ```
 
-Internally, `lens()` extracts the property path from the accessor using a Proxy trap, creates an internal state synced via an effect, and overrides `.set()` to immutably update the source at the captured path.
+Internally, `lens()` extracts the property path from the accessor via a Proxy trap at creation time, syncs to the source via an effect, and overrides `.set()` to immutably update the source at that path.
 
 ## No breaking changes
 

@@ -12,7 +12,7 @@ function lens<T, K>(
 ): State<K>
 ```
 
-Returns a writable `State<K>` bound to a nested property of `source`. Reading the lens returns the current value at that path. Writing to the lens immutably updates the source at that path.
+Returns a writable `State<K>` focused on a nested property of `source`. Reads return the value at that path. Writes immutably update the source at that path.
 
 ## Basic usage
 
@@ -71,7 +71,7 @@ $collapsed.set(true)
 console.log($app().ui.panels.sidebar.collapsed) // => true
 ```
 
-When the lens writes, it rebuilds the object tree immutably from the leaf to the root. The source reference changes, triggering any effects that depend on it or on intermediate slices.
+Writes rebuild the object tree immutably from the leaf to the root. The source reference changes, triggering effects that depend on it or on intermediate slices.
 
 ## Array index support
 
@@ -90,7 +90,7 @@ console.log($list().items) // => ['a', 'B', 'c']
 
 ## Circular update prevention
 
-Internally, `lens()` uses an `isUpdating` flag to prevent circular updates between the source and the lens. When the lens writes to the source, the internal effect that syncs the lens from the source is suppressed. When the source changes externally, the lens updates to reflect the new value without writing back.
+`lens()` uses an `isUpdating` flag to break the source↔lens feedback loop. When the lens writes to the source, the sync effect is suppressed. When the source changes externally, the lens reflects the new value without writing back.
 
 ```typescript
 const $config = state({ theme: 'dark' })
