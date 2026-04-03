@@ -352,25 +352,30 @@ const createContainer = (key: string | number): Record<string | number, unknown>
 }
 
 // Helper for handling array path updates
-const updateArrayPath = <V>(array: unknown[], pathSegments: (string | number)[], value: V): unknown[] => {
-	const index = Number(pathSegments[0])
+const updateArrayPath = <V>(
+	array: unknown[],
+	pathSegments: (string | number)[],
+	depth: number,
+	value: V
+): unknown[] => {
+	const index = Number(pathSegments[depth])
 
-	if (pathSegments.length === 1) {
+	if (depth === pathSegments.length - 1) {
 		return updateArrayItem(array, index, value)
 	}
 
 	const copy = [
 		...array,
 	]
-	const nextPathSegments = pathSegments.slice(1)
-	const nextKey = nextPathSegments[0]
+	const nextDepth = depth + 1
+	const nextKey = pathSegments[nextDepth]
 
 	let nextValue = array[index]
 	if (nextValue === undefined || nextValue === null) {
 		nextValue = nextKey === undefined ? {} : createContainer(nextKey)
 	}
 
-	copy[index] = setValueAtPath(nextValue, nextPathSegments, value)
+	copy[index] = setValueAtPath(nextValue, pathSegments, nextDepth, value)
 	return copy
 }
 
@@ -378,19 +383,20 @@ const updateArrayPath = <V>(array: unknown[], pathSegments: (string | number)[],
 const updateObjectPath = <V>(
 	obj: Record<string | number, unknown>,
 	pathSegments: (string | number)[],
+	depth: number,
 	value: V
 ): Record<string | number, unknown> => {
-	const currentKey = pathSegments[0]
+	const currentKey = pathSegments[depth]
 	if (currentKey === undefined) {
 		return obj
 	}
 
-	if (pathSegments.length === 1) {
+	if (depth === pathSegments.length - 1) {
 		return updateShallowProperty(obj, currentKey, value)
 	}
 
-	const nextPathSegments = pathSegments.slice(1)
-	const nextKey = nextPathSegments[0]
+	const nextDepth = depth + 1
+	const nextKey = pathSegments[nextDepth]
 
 	let currentValue = obj[currentKey]
 	if (currentValue === undefined || currentValue === null) {
@@ -400,29 +406,29 @@ const updateObjectPath = <V>(
 	const result = {
 		...obj,
 	}
-	result[currentKey] = setValueAtPath(currentValue, nextPathSegments, value)
+	result[currentKey] = setValueAtPath(currentValue, pathSegments, nextDepth, value)
 	return result
 }
 
-const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], value: V): O => {
-	if (pathSegments.length === 0) {
+const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: number, value: V): O => {
+	if (depth >= pathSegments.length) {
 		return value as unknown as O
 	}
 
 	if (obj === undefined || obj === null) {
-		return setValueAtPath({} as O, pathSegments, value)
+		return setValueAtPath({} as O, pathSegments, depth, value)
 	}
 
-	const currentKey = pathSegments[0]
+	const currentKey = pathSegments[depth]
 	if (currentKey === undefined) {
 		return obj
 	}
 
 	if (Array.isArray(obj)) {
-		return updateArrayPath(obj, pathSegments, value) as unknown as O
+		return updateArrayPath(obj, pathSegments, depth, value) as unknown as O
 	}
 
-	return updateObjectPath(obj as Record<string | number, unknown>, pathSegments, value) as unknown as O
+	return updateObjectPath(obj as Record<string | number, unknown>, pathSegments, depth, value) as unknown as O
 }
 
 /**
@@ -488,7 +494,7 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 		try {
 			container.originalSet(value)
 
-			container.source.update((current: T): T => setValueAtPath(current, container.path, value))
+			container.source.update((current: T): T => setValueAtPath(current, container.path, 0, value))
 		} finally {
 			container.isUpdating = false
 		}
