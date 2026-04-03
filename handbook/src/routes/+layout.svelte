@@ -4,6 +4,7 @@
 	import VersionSelector from '$lib/components/VersionSelector.svelte'
 	import { asset, resolve } from '$app/paths'
 	import { page } from '$app/state'
+	import { untrack } from 'svelte'
 	import { onNavigate } from '$app/navigation'
 	import { resolveHref } from '$lib/resolve-href'
 	import { getVersionPrefix } from '$lib/navigation'
@@ -27,8 +28,10 @@
 
 	$effect(() => {
 		page.url.pathname
-		if (sidebarOpen) sidebarOpen = false
-		scrollContainer?.scrollTo(0, 0)
+		untrack(() => {
+			if (sidebarOpen) sidebarOpen = false
+			scrollContainer?.scrollTo(0, 0)
+		})
 	})
 
 	onNavigate((navigation) => {
