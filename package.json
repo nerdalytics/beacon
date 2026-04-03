@@ -13,15 +13,15 @@
 	},
 	"exports": {
 		".": {
+			"types": "./dist/src/index.d.ts",
+			"typescript": "./src/index.ts",
 			"import": {
-				"default": "./dist/src/index.min.js",
-				"types": "./dist/src/index.d.ts"
+				"types": "./dist/src/index.d.ts",
+				"default": "./dist/src/index.min.js"
 			},
 			"require": {
 				"default": "./dist/src/index.min.js"
-			},
-			"types": "./dist/src/index.d.ts",
-			"typescript": "./src/index.ts"
+			}
 		}
 	},
 	"files": [

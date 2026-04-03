@@ -1,0 +1,67 @@
+{
+    "$schema": "https://raw.githubusercontent.com/shikijs/shiki/main/packages/shiki/themes/dark-plus.json",
+    "name": "beacon",
+    "type": "dark",
+    "colors": {
+        "editor.background": "#0f1629",
+        "editor.foreground": "#c8d2e0"
+    },
+    "tokenColors": [
+        {
+            "scope": ["keyword", "storage.type", "storage.modifier"],
+            "settings": { "foreground": "#14d4d4" }
+        },
+        {
+            "scope": ["variable", "variable.other", "variable.parameter", "entity.name.variable"],
+            "settings": { "foreground": "#c8d2e0" }
+        },
+        {
+            "scope": ["entity.name.function", "support.function", "meta.function-call"],
+            "settings": { "foreground": "#5ba3f5" }
+        },
+        {
+            "scope": ["string", "string.quoted", "string.template"],
+            "settings": { "foreground": "#c2cf0e" }
+        },
+        {
+            "scope": ["comment", "punctuation.definition.comment"],
+            "settings": { "foreground": "#c2cf0e", "fontStyle": "italic" }
+        },
+        {
+            "scope": ["constant.numeric"],
+            "settings": { "foreground": "#e8a46e" }
+        },
+        {
+            "scope": ["constant.language"],
+            "settings": { "foreground": "#e8a46e" }
+        },
+        {
+            "scope": ["entity.name.type", "support.type"],
+            "settings": { "foreground": "#14d4d4" }
+        },
+        {
+            "scope": ["punctuation", "meta.brace"],
+            "settings": { "foreground": "#7b8a9e" }
+        },
+        {
+            "scope": ["entity.name.tag"],
+            "settings": { "foreground": "#14d4d4" }
+        },
+        {
+            "scope": ["entity.other.attribute-name"],
+            "settings": { "foreground": "#5ba3f5" }
+        },
+        {
+            "scope": ["meta.object-literal.key"],
+            "settings": { "foreground": "#9db4d4" }
+        },
+        {
+            "scope": ["variable.other.property", "support.variable.property", "variable.other.object.property"],
+            "settings": { "foreground": "#9db4d4" }
+        },
+        {
+            "scope": ["keyword.operator", "keyword.operator.assignment"],
+            "settings": { "foreground": "#7b8a9e" }
+        }
+    ]
+}
