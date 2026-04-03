@@ -1,12 +1,15 @@
 <script lang="ts">
-	import { navigation } from '$lib/navigation'
+	import { page } from '$app/state'
+	import { getNavigation } from '$lib/navigation'
 	import NavLink from './NavLink.svelte'
 
 	let { open = false, onclose }: { open?: boolean; onclose?: () => void } = $props()
+
+	let groups = $derived(getNavigation(page.url.pathname))
 </script>
 
 <nav class="hidden lg:block w-56 shrink-0 overflow-y-auto py-6 pr-4">
-	{#each navigation as group}
+	{#each groups as group}
 		{#if group.items.length > 0}
 			<div class="mb-6">
 				<h3 class="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 px-3">
@@ -37,7 +40,7 @@
 		></button>
 
 		<nav class="absolute left-0 top-0 bottom-0 w-72 bg-navy border-r border-navy-border overflow-y-auto py-6 px-4 sidebar-slide-in">
-			{#each navigation as group}
+			{#each groups as group}
 				{#if group.items.length > 0}
 					<div class="mb-6">
 						<h3 class="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 px-3">
