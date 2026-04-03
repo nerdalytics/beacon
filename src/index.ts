@@ -30,6 +30,15 @@ const subscriberDependencies: WeakMap<Subscriber, Set<Set<Subscriber>>> = new We
 const parentSubscriber: WeakMap<Subscriber, Subscriber> = new WeakMap<Subscriber, Subscriber>()
 const childSubscribers: WeakMap<Subscriber, Set<Subscriber>> = new WeakMap<Subscriber, Set<Subscriber>>()
 
+const getOrCreate = <K extends object, V>(map: WeakMap<K, V>, key: K, factory: () => V): V => {
+	let value = map.get(key)
+	if (!value) {
+		value = factory()
+		map.set(key, value)
+	}
+	return value
+}
+
 const notifySubscribers = (): void => {
 	if (isNotifying) {
 		return
@@ -77,19 +86,9 @@ const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = O
 		if (currentEffect) {
 			subscribers.add(currentEffect)
 
-			let dependencies = subscriberDependencies.get(currentEffect)
-			if (!dependencies) {
-				dependencies = new Set()
-				subscriberDependencies.set(currentEffect, dependencies)
-			}
-			dependencies.add(subscribers)
+			getOrCreate(subscriberDependencies, currentEffect, () => new Set()).add(subscribers)
 
-			let readStates = stateTracking.get(currentEffect)
-			if (!readStates) {
-				readStates = new Set()
-				stateTracking.set(currentEffect, readStates)
-			}
-			readStates.add(stateId)
+			getOrCreate(stateTracking, currentEffect, () => new Set()).add(stateId)
 		}
 		return value
 	}
@@ -155,12 +154,7 @@ const createEffect = (fn: () => void): Unsubscribe => {
 
 			if (parentEffect) {
 				parentSubscriber.set(runEffect, parentEffect)
-				let children = childSubscribers.get(parentEffect)
-				if (!children) {
-					children = new Set()
-					childSubscribers.set(parentEffect, children)
-				}
-				children.add(runEffect)
+				getOrCreate(childSubscribers, parentEffect, () => new Set()).add(runEffect)
 			}
 
 			fn()
@@ -176,12 +170,7 @@ const createEffect = (fn: () => void): Unsubscribe => {
 		if (currentSubscriber) {
 			const parent = currentSubscriber
 			parentSubscriber.set(runEffect, parent)
-			let children = childSubscribers.get(parent)
-			if (!children) {
-				children = new Set()
-				childSubscribers.set(parent, children)
-			}
-			children.add(runEffect)
+			getOrCreate(childSubscribers, parent, () => new Set()).add(runEffect)
 		}
 
 		deferredEffectCreations.push(runEffect)
