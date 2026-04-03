@@ -20,7 +20,7 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1000.3.0
 
-v1000.3.1 reduces allocations in three hot paths: `protectedState` reader caching, `stateTracking` Set reuse on effect re-runs, and index-based iteration in `lens` path updates. Nested effect disposal now fully cleans up child references. No API or behavioral changes. ~480 LOC. See the [migration guide](/latest/migration).
+v1000.3.1 reduces allocations in three hot paths: `protectedState` reader caching, `stateTracking` Set reuse on effect re-runs, and index-based iteration in `lens` path updates. Nested effect disposal now fully cleans up child references. No API or behavioral changes. ~480 LOC. See the [migration guide](/v1000.3.1/migration).
 
 ## Constraints
 

@@ -94,5 +94,5 @@
 	"sideEffects": false,
 	"type": "module",
 	"types": "dist/src/index.d.ts",
-	"version": "1000.3.0"
+	"version": "1000.3.1"
 }
