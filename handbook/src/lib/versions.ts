@@ -13,6 +13,14 @@ export const versions: Version[] = [
 			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
 		},
 		current: true,
+		label: 'v1000.2.1',
+		prefix: '/v1000.2.1',
+	},
+	{
+		badges: {
+			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+		},
+		current: false,
 		label: 'v1000.2.0',
 		prefix: '/v1000.2.0',
 	},
