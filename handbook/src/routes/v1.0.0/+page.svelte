@@ -11,7 +11,7 @@
 </svelte:head>
 
 <div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-10 lg:py-20 min-h-0 lg:min-h-[80vh] page-enter">
-	<img src={asset('/favicon.svg')} alt="Beacon logo" class="w-28 h-28 mb-3" style="view-transition-name: beacon-logo" />
+	<img src={asset('/favicon.svg')} alt="Beacon logo" class="w-28 h-28 mb-3"  />
 	<div class="mb-3 text-7xl font-extrabold beacon-gradient-text">
 		Beacon
 	</div>
@@ -20,16 +20,27 @@
 		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
 			<img src="https://flat.badgen.net/static/license/MIT/blue" alt="MIT License" />
 		</a>
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1.0.0">
-			<img src="https://img.shields.io/npm/v/@nerdalytics/beacon/1.0.0.svg" alt="npm v1.0.0" />
-		</a>
 	</div>
-	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
+	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
 		<a href="https://nodejs.org/">
 			<img src="https://img.shields.io/badge/Node.js_%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js >= 20" />
 		</a>
 		<a href="https://typescriptlang.org/">
 			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+		</a>
+		<a href="https://biomejs.dev/">
+			<img src="https://img.shields.io/badge/Biome-60a5fa?style=flat-square&logo=biome&logoColor=white" alt="Biome" />
+		</a>
+	</div>
+	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon">
+			<img src="https://img.shields.io/badge/npm-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" />
+		</a>
+		<a href="https://yarnpkg.com/">
+			<img src="https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white" alt="yarn" />
+		</a>
+		<a href="https://pnpm.io/">
+			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
 		</a>
 	</div>
 

@@ -394,22 +394,6 @@ article pre code .line::before {
     animation: page-slide-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* ——— Logo fly animation ——— */
-@keyframes logo-settle {
-    from {
-        transform: scale(3) translate(40vw, 30vh);
-        opacity: 0;
-    }
-    to {
-        transform: scale(1) translate(0, 0);
-        opacity: 1;
-    }
-}
-
-.logo-animate-in {
-    animation: logo-settle 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-}
-
 /* ——— Mobile sidebar slide-in ——— */
 @keyframes sidebar-slide {
     from { transform: translateX(-100%); }
@@ -420,9 +404,9 @@ article pre code .line::before {
     animation: sidebar-slide 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-/* ——— View transitions (logo fly) ——— */
-::view-transition-old(beacon-logo),
-::view-transition-new(beacon-logo) {
-    animation-duration: 0.5s;
+/* ——— View transitions ——— */
+::view-transition-old(root),
+::view-transition-new(root) {
+    animation-duration: 0.3s;
     animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
 }

@@ -6,10 +6,19 @@
 	import { page } from '$app/state'
 	import { onNavigate } from '$app/navigation'
 	import { resolveHref } from '$lib/resolve-href'
+	import { getVersionPrefix } from '$lib/navigation'
+	import { currentVersion } from '$lib/versions'
 
 	let { children } = $props()
 
-	let isLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolveHref(''))
+	let isRootLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolveHref(''))
+	let isVersionLanding = $derived.by(() => {
+		const prefix = getVersionPrefix(page.url.pathname)
+		if (!prefix) return false
+		const path = page.url.pathname.replace(resolveHref(prefix), '')
+		return path === '' || path === '/'
+	})
+	let isLanding = $derived(isRootLanding || isVersionLanding)
 	let sidebarOpen = $state(false)
 
 	$effect(() => {
@@ -19,6 +28,14 @@
 
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return
+
+		// Skip view transition for landing page navigations to avoid layout shift
+		const fromPrefix = getVersionPrefix(navigation.from?.url.pathname ?? '')
+		const toPrefix = getVersionPrefix(navigation.to?.url.pathname ?? '')
+		const fromIsLanding = fromPrefix ? !navigation.from?.url.pathname.replace(resolveHref(fromPrefix), '').replace(/\/$/, '') : true
+		const toIsLanding = toPrefix ? !navigation.to?.url.pathname.replace(resolveHref(toPrefix), '').replace(/\/$/, '') : true
+		if (fromIsLanding || toIsLanding) return
+
 		return new Promise((r) => {
 			document.startViewTransition(async () => {
 				r()
@@ -45,7 +62,7 @@
 				{/if}
 
 				<a
-					href={resolve('/')}
+					href={resolveHref(currentVersion.prefix)}
 					class="flex items-center gap-2 text-lg font-bold text-text hover:text-teal transition-colors"
 				>
 					{#if !isLanding}
@@ -53,7 +70,6 @@
 							src={asset('/favicon.svg')}
 							alt=""
 							class="w-7 h-7"
-							style="view-transition-name: beacon-logo"
 						/>
 					{/if}
 					<span class="beacon-gradient-text">Beacon</span>
