@@ -146,7 +146,12 @@ const createEffect = (fn: () => void): Unsubscribe => {
 			cleanupEffect(runEffect)
 
 			currentSubscriber = runEffect
-			stateTracking.set(runEffect, new Set())
+			const existingStates = stateTracking.get(runEffect)
+			if (existingStates) {
+				existingStates.clear()
+			} else {
+				stateTracking.set(runEffect, new Set())
+			}
 
 			if (parentEffect) {
 				parentSubscriber.set(runEffect, parentEffect)
