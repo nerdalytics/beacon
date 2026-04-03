@@ -73,6 +73,30 @@ const cleanupEffect = (effect: Subscriber): void => {
 	}
 }
 
+const disposeEffect = (effect: Subscriber): void => {
+	cleanupEffect(effect)
+	activeSubscribers.delete(effect)
+	stateTracking.delete(effect)
+
+	const parent = parentSubscriber.get(effect)
+	if (parent) {
+		const siblings = childSubscribers.get(parent)
+		if (siblings) {
+			siblings.delete(effect)
+		}
+	}
+	parentSubscriber.delete(effect)
+
+	const children = childSubscribers.get(effect)
+	if (children) {
+		for (const child of children) {
+			disposeEffect(child)
+		}
+		children.clear()
+		childSubscribers.delete(effect)
+	}
+}
+
 /**
  * Creates a reactive state container with the provided initial value.
  */
@@ -177,27 +201,7 @@ const createEffect = (fn: () => void): Unsubscribe => {
 	}
 
 	return (): void => {
-		cleanupEffect(runEffect)
-		activeSubscribers.delete(runEffect)
-		stateTracking.delete(runEffect)
-
-		const parent = parentSubscriber.get(runEffect)
-		if (parent) {
-			const siblings = childSubscribers.get(parent)
-			if (siblings) {
-				siblings.delete(runEffect)
-			}
-		}
-		parentSubscriber.delete(runEffect)
-
-		const children = childSubscribers.get(runEffect)
-		if (children) {
-			for (const child of children) {
-				cleanupEffect(child)
-			}
-			children.clear()
-			childSubscribers.delete(runEffect)
-		}
+		disposeEffect(runEffect)
 	}
 }
 
