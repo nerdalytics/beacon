@@ -53,6 +53,7 @@
 # But still ignore these specific patterns everywhere
 **/node_modules/**
 **/.svelte-kit/**
+**/handbook/build/**
 *.tsbuildinfo
 coverage/
 
