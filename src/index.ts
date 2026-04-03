@@ -237,31 +237,28 @@ const executeBatch = <T>(fn: () => T): T => {
  * Creates a read-only computed value that updates when its dependencies change.
  */
 const createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
-	const container = {
-		cachedValue: undefined as unknown as T,
-		computeFn,
-		initialized: false,
-		valueState: createState<T | undefined>(undefined),
-	}
+	let cachedValue: T = undefined as unknown as T
+	let initialized = false
+	const valueState = createState<T | undefined>(undefined)
 
 	createEffect(function deriveEffect(): void {
-		const newValue = container.computeFn()
+		const newValue = computeFn()
 
-		if (!(container.initialized && Object.is(container.cachedValue, newValue))) {
-			container.cachedValue = newValue
-			container.valueState.set(newValue)
+		if (!(initialized && Object.is(cachedValue, newValue))) {
+			cachedValue = newValue
+			valueState.set(newValue)
 		}
 
-		container.initialized = true
+		initialized = true
 	})
 
 	return function deriveGetter(): T {
-		if (!container.initialized) {
-			container.cachedValue = container.computeFn()
-			container.initialized = true
-			container.valueState.set(container.cachedValue)
+		if (!initialized) {
+			cachedValue = computeFn()
+			initialized = true
+			valueState.set(cachedValue)
 		}
-		return container.valueState() as T
+		return valueState() as T
 	}
 }
 
@@ -273,47 +270,38 @@ const createSelect = <T, R>(
 	selectorFn: (state: T) => R,
 	equalityFn: (a: R, b: R) => boolean = Object.is
 ): ReadOnlyState<R> => {
-	const container = {
-		equalityFn,
-		initialized: false,
-		lastSelectedValue: undefined as R | undefined,
-		lastSourceValue: undefined as T | undefined,
-		selectorFn,
-		source,
-		valueState: createState<R | undefined>(undefined),
-	}
+	let initialized = false
+	let lastSelectedValue: R | undefined
+	let lastSourceValue: T | undefined
+	const valueState = createState<R | undefined>(undefined)
 
 	createEffect(function selectEffect(): void {
-		const sourceValue = container.source()
+		const sourceValue = source()
 
-		if (container.initialized && Object.is(container.lastSourceValue, sourceValue)) {
+		if (initialized && Object.is(lastSourceValue, sourceValue)) {
 			return
 		}
 
-		container.lastSourceValue = sourceValue
-		const newSelectedValue = container.selectorFn(sourceValue)
+		lastSourceValue = sourceValue
+		const newSelectedValue = selectorFn(sourceValue)
 
-		if (
-			container.initialized &&
-			container.lastSelectedValue !== undefined &&
-			container.equalityFn(container.lastSelectedValue, newSelectedValue)
-		) {
+		if (initialized && lastSelectedValue !== undefined && equalityFn(lastSelectedValue, newSelectedValue)) {
 			return
 		}
 
-		container.lastSelectedValue = newSelectedValue
-		container.valueState.set(newSelectedValue)
-		container.initialized = true
+		lastSelectedValue = newSelectedValue
+		valueState.set(newSelectedValue)
+		initialized = true
 	})
 
 	return function selectGetter(): R {
-		if (!container.initialized) {
-			container.lastSourceValue = container.source()
-			container.lastSelectedValue = container.selectorFn(container.lastSourceValue)
-			container.valueState.set(container.lastSelectedValue)
-			container.initialized = true
+		if (!initialized) {
+			lastSourceValue = source()
+			lastSelectedValue = selectorFn(lastSourceValue)
+			valueState.set(lastSelectedValue)
+			initialized = true
 		}
-		return container.valueState() as R
+		return valueState() as R
 	}
 }
 
@@ -429,14 +417,7 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: 
  * Creates a lens for direct updates to nested properties of a state.
  */
 const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
-	const container = {
-		accessor,
-		isUpdating: false,
-		lensState: null as unknown as State<K>,
-		originalSet: null as unknown as (value: K) => void,
-		path: [] as (string | number)[],
-		source,
-	}
+	let isUpdating = false
 
 	const extractPath = (): (string | number)[] => {
 		const pathCollector: (string | number)[] = []
@@ -453,7 +434,7 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 		)
 
 		try {
-			container.accessor(proxy as unknown as T)
+			accessor(proxy as unknown as T)
 		} catch {
 			// Ignore errors, we're just collecting the path
 		}
@@ -461,44 +442,42 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 		return pathCollector
 	}
 
-	container.path = extractPath()
-
-	container.lensState = createState<K>(container.accessor(container.source()))
-	container.originalSet = container.lensState.set
+	const path = extractPath()
+	const lensState = createState<K>(accessor(source()))
+	const originalSet = lensState.set
 
 	createEffect(function lensEffect(): void {
-		if (container.isUpdating) {
+		if (isUpdating) {
 			return
 		}
 
-		container.isUpdating = true
+		isUpdating = true
 		try {
-			container.lensState.set(container.accessor(container.source()))
+			lensState.set(accessor(source()))
 		} finally {
-			container.isUpdating = false
+			isUpdating = false
 		}
 	})
 
-	container.lensState.set = function lensSet(value: K): void {
-		if (container.isUpdating) {
+	lensState.set = function lensSet(value: K): void {
+		if (isUpdating) {
 			return
 		}
 
-		container.isUpdating = true
+		isUpdating = true
 		try {
-			container.originalSet(value)
-
-			container.source.update((current: T): T => setValueAtPath(current, container.path, 0, value))
+			originalSet(value)
+			source.update((current: T): T => setValueAtPath(current, path, 0, value))
 		} finally {
-			container.isUpdating = false
+			isUpdating = false
 		}
 	}
 
-	container.lensState.update = function lensUpdate(fn: (value: K) => K): void {
-		container.lensState.set(fn(container.lensState()))
+	lensState.update = function lensUpdate(fn: (value: K) => K): void {
+		lensState.set(fn(lensState()))
 	}
 
-	return container.lensState
+	return lensState
 }
 
 /**
