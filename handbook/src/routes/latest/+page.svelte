@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>Beacon v1000.2.1 — Lightweight reactive signals for Node.js backends</title>
+	<title>Beacon latest — Lightweight reactive signals for Node.js backends</title>
 	<meta
 		name="description"
 		content="Zero-dependency reactive signal library for Node.js backends. Automatic dependency tracking, select, and efficient updates."
@@ -23,11 +23,11 @@
 		<a href="https://pnpm.io/">
 			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
 		</a>
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.2.1">
-			<img src="https://flat.badgen.net/static/npm/v1000.2.1/blue" alt="npm v1000.2.1" />
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.3.0">
+			<img src="https://flat.badgen.net/static/npm/v1000.3.0/blue" alt="npm v1000.3.0" />
 		</a>
-		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.2.1">
-			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.2.1" alt="Socket" />
+		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.3.0">
+			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.3.0" alt="Socket" />
 		</a>
 	</div>
 	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
@@ -68,7 +68,7 @@
 	</div>
 
 	<a
-		href={resolve('/v1000.2.1/introduction')}
+		href={resolve('/latest/introduction')}
 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
 	>
 		Get Started

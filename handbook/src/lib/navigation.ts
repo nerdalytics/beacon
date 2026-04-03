@@ -11,6 +11,45 @@ export interface NavGroup {
 }
 
 export const navigation: Record<string, NavGroup[]> = {
+	'/latest': [
+		{
+			items: [
+				{ href: '/latest/introduction', title: 'Introduction' },
+				{ href: '/latest/installation', title: 'Installation' },
+				{ href: '/latest/quick-start', title: 'Quick Start' },
+			],
+			title: 'Getting Started',
+		},
+		{
+			items: [
+				{ href: '/latest/state', title: 'State' },
+				{ href: '/latest/effects', title: 'Effects' },
+				{ href: '/latest/derive', title: 'Derive' },
+				{ href: '/latest/batch', title: 'Batch' },
+				{ href: '/latest/select', title: 'Select' },
+				{ href: '/latest/lens', title: 'Lens' },
+			],
+			title: 'Guides',
+		},
+		{
+			items: [
+				{ href: '/latest/architecture', title: 'Architecture' },
+			],
+			title: 'Advanced',
+		},
+		{
+			items: [
+				{ href: '/latest/migration', title: 'v1000.2.5 → v1000.3.0' },
+			],
+			title: 'Migration',
+		},
+		{
+			items: [
+				{ href: '/latest/links', title: 'Resources' },
+			],
+			title: 'Links',
+		},
+	],
 	'/v1000.3.0': [
 		{
 			items: [
@@ -433,9 +472,10 @@ export const navigation: Record<string, NavGroup[]> = {
 	],
 }
 
-/** Extract the version prefix from a URL path (e.g., "/beacon/v1.0.0/state" -> "/v1.0.0") */
+/** Extract the version prefix from a URL path (e.g., "/beacon/v1.0.0/state" -> "/v1.0.0", "/beacon/latest/state" -> "/latest") */
 export function getVersionPrefix(pathname: string): string | undefined {
 	const path = base && pathname.startsWith(base) ? pathname.slice(base.length) : pathname
+	if (path === '/latest' || path.startsWith('/latest/')) return '/latest'
 	const match = path.match(/^(\/v[\d.]+)/)
 	return match?.[1]
 }

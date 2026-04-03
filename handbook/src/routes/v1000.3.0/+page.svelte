@@ -16,40 +16,32 @@
 		Beacon
 	</div>
 
-	<div class="mb-3 flex items-center gap-3 flex-wrap justify-center">
-		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
-			<img src="https://flat.badgen.net/static/license/MIT/blue" alt="MIT License" />
-		</a>
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.3.0">
-			<img src="https://flat.badgen.net/static/beacon/v1000.3.0/blue" alt="v1000.3.0" />
-		</a>
-		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.3.0">
-			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.3.0" alt="Socket" />
-		</a>
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon">
-			<img src="https://img.shields.io/npm/v/%40nerdalytics%2Fbeacon" alt="npm version" />
-		</a>
-	</div>
 	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
-		<a href="https://nodejs.org/">
-			<img src="https://img.shields.io/badge/Node.js_%3E%3D20-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js >= 20" />
-		</a>
-		<a href="https://typescriptlang.org/">
-			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
-		</a>
-		<a href="https://biomejs.dev/">
-			<img src="https://img.shields.io/badge/Biome-60a5fa?style=flat-square&logo=biome&logoColor=white" alt="Biome" />
-		</a>
-	</div>
-	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon">
-			<img src="https://img.shields.io/badge/npm-CB3837?style=flat-square&logo=npm&logoColor=white" alt="npm" />
-		</a>
 		<a href="https://yarnpkg.com/">
 			<img src="https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white" alt="yarn" />
 		</a>
 		<a href="https://pnpm.io/">
 			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
+		</a>
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.3.0">
+			<img src="https://flat.badgen.net/static/npm/v1000.3.0/blue" alt="npm v1000.3.0" />
+		</a>
+		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.3.0">
+			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.3.0" alt="Socket" />
+		</a>
+	</div>
+	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
+		<a href="https://nodejs.org/">
+			<img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+		</a>
+		<a href="https://typescriptlang.org/">
+			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+		</a>
+		<a href="https://biomejs.dev/">
+			<img src="https://img.shields.io/badge/Biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white" alt="Biome" />
+		</a>
+		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
+			<img src="https://img.shields.io/badge/MIT-blue?style=for-the-badge" alt="MIT License" />
 		</a>
 	</div>
 
