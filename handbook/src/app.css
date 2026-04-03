@@ -89,6 +89,11 @@
     --font-mono: 'Commit Mono', ui-monospace, monospace;
 }
 
+/* ——— iOS safe area ——— */
+html, body {
+    background: var(--color-navy);
+}
+
 /* ——— Interactive elements ——— */
 a[href], button, [role="button"] {
     cursor: pointer;
