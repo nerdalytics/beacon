@@ -20,6 +20,12 @@
 		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
 			<img src="https://flat.badgen.net/static/license/MIT/blue" alt="MIT License" />
 		</a>
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.1.1">
+			<img src="https://flat.badgen.net/static/beacon/v1000.1.1/blue" alt="v1000.1.1" />
+		</a>
+		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.1.1">
+			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.1.1" alt="Socket" />
+		</a>
 	</div>
 	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
 		<a href="https://nodejs.org/">
