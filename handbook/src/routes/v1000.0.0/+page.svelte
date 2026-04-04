@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>Beacon v1000.0.0 — Lightweight reactive signals for Node.js backends</title>
+	<title>Beacon v1000.0.0 — Reactive dependency graph runtime for Node.js</title>
 	<meta
 		name="description"
 		content="Zero-dependency reactive signal library for Node.js backends. Automatic dependency tracking, select, and efficient updates."
@@ -46,7 +46,7 @@
 	</div>
 
 	<p class="text-lg text-text-muted max-w-lg mb-8 font-serif leading-relaxed">
-		Lightweight reactive signals for Node.js backends
+		Reactive dependency graph runtime for Node.js
 	</p>
 
 	<div

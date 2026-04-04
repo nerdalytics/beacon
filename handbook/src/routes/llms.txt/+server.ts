@@ -9,7 +9,7 @@ export const GET: RequestHandler = () => {
 
 	const body = `# Beacon
 
-> Reactive state management for JavaScript
+> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the signal level. When state changes, derived values and effects update automatically.
 
 ## Versions
 
