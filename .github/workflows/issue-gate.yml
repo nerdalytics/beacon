@@ -15,9 +15,15 @@ jobs:
         with:
           script: |
             const association = context.payload.issue.author_association;
+            const login = context.payload.issue.user.login;
             const allowed = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+            const allowedBots = ['github-actions[bot]', 'dependabot[bot]'];
 
-            if (!allowed.includes(association)) {
+            if (allowed.includes(association) || allowedBots.includes(login)) {
+              return;
+            }
+
+            {
               await github.rest.issues.createComment({
                 ...context.repo,
                 issue_number: context.issue.number,
