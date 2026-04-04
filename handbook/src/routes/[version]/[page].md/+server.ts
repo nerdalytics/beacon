@@ -1,4 +1,4 @@
-import { getValidVersions, readPageMarkdown, slugFromHref, validatePage, validateVersion } from '$lib/llm-docs'
+import { getValidVersions, readPageMarkdown, slugFromHref } from '$lib/llm-docs'
 import { getAllPages } from '$lib/navigation'
 import type { RequestHandler } from './$types'
 
@@ -33,9 +33,7 @@ export const GET: RequestHandler = ({
 		page: string
 	}
 }) => {
-	const version = validateVersion(params.version)
-	const page = validatePage(version, params.page)
-	const body = readPageMarkdown(version, page)
+	const body = readPageMarkdown(params.version, params.page)
 
 	return new Response(body, {
 		headers: {

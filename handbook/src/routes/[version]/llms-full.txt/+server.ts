@@ -27,7 +27,7 @@ export const GET: RequestHandler = ({
 			const slug = slugFromHref(p.href)
 			return readPageMarkdown(version, slug)
 		})
-		.join('\n\n')
+		.join('\n\n---\n\n')
 
 	return new Response(body, {
 		headers: {

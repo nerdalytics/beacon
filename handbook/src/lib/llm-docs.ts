@@ -52,9 +52,7 @@ export function readPageMarkdown(version: string, page: string): string {
 	}
 }
 
-/** Return all valid version strings (without leading slash). */
+/** Return all valid version strings (without leading slash), in versions.ts declaration order. */
 export function getValidVersions(): string[] {
-	return [
-		...VALID_VERSIONS,
-	]
+	return versions.map((v) => v.prefix.slice(1))
 }
