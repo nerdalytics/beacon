@@ -32,13 +32,9 @@ Project maintainers have the right and responsibility to remove, edit, or reject
 
 This Code of Conduct applies both within project spaces (e.g., GitHub repositories, issue trackers, pull requests, chat channels, etc.) and in one-on-one communications when using these spaces. It also applies to interactions occurring outside of these spaces when they directly impact the project or its community.
 
-## Reporting
+## Reporting and Enforcement
 
-If you are subject to or witness unacceptable behavior, or have any other concerns, please contact a project maintainer immediately at **[insert email/contact here]**. All reports will be reviewed and investigated promptly and fairly.
-
-## Enforcement
-
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by contacting the project team at the email provided above. All complaints will be reviewed and investigated promptly, and will result in a response that is deemed necessary and appropriate to the circumstances. The project team is obligated to maintain confidentiality with regard to the reporter of an incident. Further details on specific enforcement policies may be posted separately.
+If you are subject to or witness unacceptable behavior, or have any other concerns, please contact a project maintainer at **security.outage400@passinbox.com**. All reports will be reviewed and investigated promptly and fairly, and will result in a response appropriate to the circumstances. The project team is obligated to maintain confidentiality with regard to the reporter of an incident.
 
 ## Attribution
 
