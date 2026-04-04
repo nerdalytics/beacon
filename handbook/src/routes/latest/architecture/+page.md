@@ -1,9 +1,9 @@
 ---
 title: Architecture
-description: How Beacon v1000.3.0 works internally
+description: How Beacon v1000.3.1 works internally
 ---
 
-Beacon v1000.3.0 is ~544 lines of TypeScript, organized as standalone top-level functions. The `StateImpl` class from prior versions has been eliminated entirely. This page covers the internals.
+Beacon v1000.3.1 is ~480 lines of TypeScript, organized as standalone top-level functions. The `StateImpl` class from prior versions has been eliminated entirely. This page covers the internals.
 
 ## Standalone functions
 

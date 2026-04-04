@@ -79,6 +79,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		{
 			items: [
 				{
+					href: '/latest/llms',
+					title: 'LLM Documentation',
+				},
+				{
 					href: '/latest/links',
 					title: 'Resources',
 				},
@@ -136,6 +140,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{
+					href: '/v1.0.0/llms',
+					title: 'LLM Documentation',
+				},
 				{
 					href: '/v1.0.0/links',
 					title: 'Resources',
@@ -207,6 +215,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{
+					href: '/v1000.0.0/llms',
+					title: 'LLM Documentation',
+				},
 				{
 					href: '/v1000.0.0/links',
 					title: 'Resources',
@@ -283,6 +295,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		{
 			items: [
 				{
+					href: '/v1000.1.0/llms',
+					title: 'LLM Documentation',
+				},
+				{
 					href: '/v1000.1.0/links',
 					title: 'Resources',
 				},
@@ -357,6 +373,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{
+					href: '/v1000.1.1/llms',
+					title: 'LLM Documentation',
+				},
 				{
 					href: '/v1000.1.1/links',
 					title: 'Resources',
@@ -433,6 +453,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		{
 			items: [
 				{
+					href: '/v1000.2.0/llms',
+					title: 'LLM Documentation',
+				},
+				{
 					href: '/v1000.2.0/links',
 					title: 'Resources',
 				},
@@ -507,6 +531,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{
+					href: '/v1000.2.1/llms',
+					title: 'LLM Documentation',
+				},
 				{
 					href: '/v1000.2.1/links',
 					title: 'Resources',
@@ -583,6 +611,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		{
 			items: [
 				{
+					href: '/v1000.2.2/llms',
+					title: 'LLM Documentation',
+				},
+				{
 					href: '/v1000.2.2/links',
 					title: 'Resources',
 				},
@@ -657,6 +689,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{
+					href: '/v1000.2.3/llms',
+					title: 'LLM Documentation',
+				},
 				{
 					href: '/v1000.2.3/links',
 					title: 'Resources',
@@ -733,6 +769,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		{
 			items: [
 				{
+					href: '/v1000.2.4/llms',
+					title: 'LLM Documentation',
+				},
+				{
 					href: '/v1000.2.4/links',
 					title: 'Resources',
 				},
@@ -807,6 +847,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{
+					href: '/v1000.2.5/llms',
+					title: 'LLM Documentation',
+				},
 				{
 					href: '/v1000.2.5/links',
 					title: 'Resources',
@@ -883,6 +927,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		{
 			items: [
 				{
+					href: '/v1000.3.0/llms',
+					title: 'LLM Documentation',
+				},
+				{
 					href: '/v1000.3.0/links',
 					title: 'Resources',
 				},
@@ -957,6 +1005,10 @@ export const navigation: Record<string, NavGroup[]> = {
 		},
 		{
 			items: [
+				{
+					href: '/v1000.3.1/llms',
+					title: 'LLM Documentation',
+				},
 				{
 					href: '/v1000.3.1/links',
 					title: 'Resources',
