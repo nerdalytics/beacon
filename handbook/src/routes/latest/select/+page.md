@@ -117,4 +117,4 @@ For large state objects where you care about one property, `select()` avoids the
 - `select()` returns `ReadOnlyState<R>` — read a slice, cannot write back
 - `lens()` returns `State<K>` — read and write a slice, with immutable updates propagated to the source
 
-Use `select()` when you only need to observe a property. Use [`lens()`](/v1000.2.5/lens) when you need two-way binding to a nested property.
+Use `select()` when you only need to observe a property. Use [`lens()`](/latest/lens) when you need two-way binding to a nested property.
