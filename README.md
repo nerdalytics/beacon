@@ -45,7 +45,7 @@ The handbook has plain-text endpoints for LLMs:
 - [`<version>/llms.txt`](https://nerdalytics.github.io/beacon/latest/llms.txt) lists pages for a version
 - [`<version>/llms-full.txt`](https://nerdalytics.github.io/beacon/latest/llms-full.txt) concatenates every page into one file
 
-You can also append `.md` to any handbook page URL for its Markdown source (e.g. `<version>/introduction.md`).
+You can also append `.md` to any handbook page URL for its Markdown source (e.g. [`<version>/introduction.md`](https://nerdalytics.github.io/beacon/latest/introduction.md)).
 
 ## License
 
