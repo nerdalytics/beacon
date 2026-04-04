@@ -10,8 +10,6 @@
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![linter:biome](https://img.shields.io/badge/biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white)](https://biomejs.dev/)
 
-Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.
-
 ## Installation
 
 ```
