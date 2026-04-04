@@ -41,13 +41,13 @@ Full documentation, API reference, and examples available at:
 
 ### LLM-friendly docs
 
-The handbook provides machine-readable endpoints:
+The handbook has plain-text endpoints for LLMs:
 
-- [`llms.txt`](https://nerdalytics.github.io/beacon/llms.txt) — version index
-- [`<version>/llms.txt`](https://nerdalytics.github.io/beacon/latest/llms.txt) — page index for a specific version
-- [`<version>/llms-full.txt`](https://nerdalytics.github.io/beacon/latest/llms-full.txt) — all pages merged into a single document
+- [`llms.txt`](https://nerdalytics.github.io/beacon/llms.txt) lists available versions
+- [`<version>/llms.txt`](https://nerdalytics.github.io/beacon/latest/llms.txt) lists pages for a version
+- [`<version>/llms-full.txt`](https://nerdalytics.github.io/beacon/latest/llms-full.txt) concatenates every page into one file
 
-Append `.md` to any handbook page URL to get its Markdown source (e.g. `<version>/introduction.md`).
+You can also append `.md` to any handbook page URL for its Markdown source (e.g. `<version>/introduction.md`).
 
 ## License
 
