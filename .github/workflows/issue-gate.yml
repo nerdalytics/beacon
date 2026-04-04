@@ -1,0 +1,39 @@
+name: Redirect issues to Discussions
+
+on:
+  issues:
+    types: [opened]
+
+permissions:
+  issues: write
+
+jobs:
+  check-author:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const association = context.payload.issue.author_association;
+            const allowed = ['OWNER', 'MEMBER', 'COLLABORATOR'];
+
+            if (!allowed.includes(association)) {
+              await github.rest.issues.createComment({
+                ...context.repo,
+                issue_number: context.issue.number,
+                body: [
+                  'Thanks for reaching out! This project uses [Discussions](https://github.com/nerdalytics/beacon/discussions) as the entry point for bugs, feature requests, and ideas.',
+                  '',
+                  'Please open a discussion so the community can weigh in. Maintainers will create tracked issues from discussions that are confirmed and scoped.',
+                  '',
+                  'Closing this automatically — nothing personal!'
+                ].join('\n')
+              });
+
+              await github.rest.issues.update({
+                ...context.repo,
+                issue_number: context.issue.number,
+                state: 'closed',
+                state_reason: 'not_planned'
+              });
+            }
