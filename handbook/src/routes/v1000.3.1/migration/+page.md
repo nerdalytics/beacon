@@ -24,7 +24,7 @@ Several internal simplifications: closure variables replace container objects in
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.3.1
+npm install @nerdalytics/beacon@1000.3.1 --save-exact
 ```
 
 No code changes required. Existing tests pass without modification.

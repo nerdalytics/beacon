@@ -8,7 +8,7 @@ Patch release. Biome configuration, TypeScript config, and benchmark script upda
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.2.1
+npm install @nerdalytics/beacon@1000.2.1 --save-exact
 ```
 
 No code changes required.

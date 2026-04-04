@@ -27,7 +27,7 @@ Additive change. Existing code that infers the type works without modification.
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.2.2
+npm install @nerdalytics/beacon@1000.2.2 --save-exact
 ```
 
 No code changes required.

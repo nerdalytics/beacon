@@ -20,7 +20,7 @@ Both eliminate allocation during flush. Most visible in batches with many effect
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.2.4
+npm install @nerdalytics/beacon@1000.2.4 --save-exact
 ```
 
 No code changes required.

@@ -39,7 +39,7 @@ Internally, `lens()` extracts the property path from the accessor via a Proxy tr
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.1.0
+npm install @nerdalytics/beacon@1000.1.0 --save-exact
 ```
 
 No code changes required.

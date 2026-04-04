@@ -51,7 +51,7 @@ $user.set({ name: 'Grace', age: 36 })
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.2.0
+npm install @nerdalytics/beacon@1000.2.0 --save-exact
 ```
 
 No code changes required.
