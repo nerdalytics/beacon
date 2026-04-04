@@ -8,7 +8,7 @@ Patch release. CI workflows restructured, `.gitignore`/`.gitattributes` cleaned 
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.2.3
+npm install @nerdalytics/beacon@1000.2.3 --save-exact
 ```
 
 No code changes required.

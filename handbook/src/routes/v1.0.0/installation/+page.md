@@ -11,7 +11,7 @@ description: Install Beacon and set up your project
 ## Install
 
 ```bash
-npm install @nerdalytics/beacon
+npm install @nerdalytics/beacon --save-exact
 ```
 
 ## Project setup

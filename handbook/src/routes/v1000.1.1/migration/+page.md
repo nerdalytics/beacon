@@ -14,7 +14,7 @@ If your bundler or runtime resolved Beacon correctly in v1000.1.0, this patch ha
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.1.1
+npm install @nerdalytics/beacon@1000.1.1 --save-exact
 ```
 
 No code changes required.

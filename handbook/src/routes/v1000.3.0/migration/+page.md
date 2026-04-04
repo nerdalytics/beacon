@@ -32,7 +32,7 @@ All behavior is identical to v1000.2.5. Tests pass without modification. The eig
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.3.0
+npm install @nerdalytics/beacon@1000.3.0 --save-exact
 ```
 
 Update any bare type imports to use `import type`. No other code changes required.

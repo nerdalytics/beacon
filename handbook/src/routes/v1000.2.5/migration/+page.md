@@ -8,7 +8,7 @@ Patch release. README moved from repository root to `.github/README.md`. No sour
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.2.5
+npm install @nerdalytics/beacon@1000.2.5 --save-exact
 ```
 
 No code changes required.
