@@ -23,11 +23,11 @@
 		<a href="https://pnpm.io/">
 			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
 		</a>
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.3.1">
-			<img src="https://flat.badgen.net/static/npm/v1000.3.1/blue" alt="npm v1000.3.1" />
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.3.2">
+			<img src="https://flat.badgen.net/static/npm/v1000.3.2/blue" alt="npm v1000.3.2" />
 		</a>
-		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.3.1">
-			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.3.1" alt="Socket" />
+		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.3.2">
+			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.3.2" alt="Socket" />
 		</a>
 	</div>
 	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
