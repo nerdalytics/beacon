@@ -105,6 +105,22 @@ $theme.set('dark')
 console.log($config().theme) // => "dark"
 ```
 
+## Path safety
+
+`lens()` rejects three property names: `__proto__`, `constructor`, and `prototype`. If the accessor traverses any of these keys, the lens silently ignores writes. Reads continue to work.
+
+This is a defense-in-depth measure against prototype pollution. Modern JavaScript engines handle the specific code path safely today, but the guard removes the dependency on engine behavior. The denylist is checked once during path extraction, not on every read or write.
+
+```typescript
+const $user = state({ name: 'Alice' })
+
+// This lens can read but will not write back
+const $noop = lens($user, (u) => (u as any).__proto__)
+$noop.set({ polluted: true })
+
+console.log($user()) // => { name: 'Alice' } — unchanged
+```
+
 ## Reactivity
 
 Like any `State<K>`, a lens works with effects and derive:
