@@ -1,6 +1,6 @@
 ---
 title: Introduction
-description: What Beacon v1000.3.1 is and what changed from v1000.3.0
+description: What Beacon v1000.3.2 is and what changed from v1000.3.1
 ---
 
 Beacon is a reactive state library for Node.js. It tracks which values each function reads and re-runs that function when those values change.
@@ -18,9 +18,9 @@ Eight functions make up the API:
 
 When you read a signal inside an effect, Beacon records the dependency. When the signal changes, the effect re-runs. No manual subscriptions, event names, or wiring.
 
-## Changes from v1000.3.0
+## Changes from v1000.3.1
 
-v1000.3.1 reduces allocations in three hot paths: `protectedState` reader caching, `stateTracking` Set reuse on effect re-runs, and index-based iteration in `lens` path updates. Nested effect disposal now fully cleans up child references. No API or behavioral changes. ~480 LOC. See the [migration guide](/v1000.3.1/migration).
+v1000.3.2 adds a proto-key denylist to `lens()` path extraction. Accessor paths that traverse `__proto__`, `constructor`, or `prototype` are silently rejected as a defense-in-depth measure against prototype pollution. No API or behavioral changes for legitimate use. See the [migration guide](/v1000.3.2/migration).
 
 ## Constraints
 
