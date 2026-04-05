@@ -137,4 +137,4 @@ batch(() => {
 // => "Server: http://0.0.0.0:8080"
 ```
 
-Seven functions, no configuration, no setup.
+Eight functions, no configuration, no setup.
