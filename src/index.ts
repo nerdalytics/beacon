@@ -8,12 +8,12 @@ interface WriteableState<T> {
 }
 
 // Special symbol used for internal tracking
-const STATE_ID: unique symbol = Symbol('STATE_ID')
 
-type State<T> = ReadOnlyState<T> &
-	WriteableState<T> & {
-		[STATE_ID]?: symbol
-	}
+
+export type State<T> = {
+  // ... other lines
+   // DELETE THIS LINE
+};
 
 // Module-level reactive state
 let currentSubscriber: Subscriber | null = null
@@ -150,9 +150,7 @@ const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = O
 	get.update = (fn: (currentValue: T) => T): void => {
 		get.set(fn(value))
 	}
-
-	get[STATE_ID] = stateId
-	return get as State<T>
+return get;
 }
 
 const createEffect = (fn: () => void): Unsubscribe => {
