@@ -88,8 +88,7 @@
 		"test:unit:lens": "node --test tests/lens.test.ts",
 		"test:unit:select": "node --test tests/select.test.ts",
 		"test:unit:state": "node --test tests/state.test.ts",
-		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange",
-		"update-performance-docs": "node --experimental-config-file=node.config.json scripts/update-performance-docs.ts"
+		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange"
 	},
 	"sideEffects": false,
 	"type": "module",
