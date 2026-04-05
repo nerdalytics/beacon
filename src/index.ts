@@ -29,6 +29,7 @@ const subscriberDependencies: WeakMap<Subscriber, Set<Set<Subscriber>>> = new We
 >()
 const parentSubscriber: WeakMap<Subscriber, Subscriber> = new WeakMap<Subscriber, Subscriber>()
 const childSubscribers: WeakMap<Subscriber, Set<Subscriber>> = new WeakMap<Subscriber, Set<Subscriber>>()
+const DANGEROUS_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype'])
 
 const getOrCreate = <K extends object, V>(map: WeakMap<K, V>, key: K, factory: () => V): V => {
 	let value = map.get(key)
@@ -384,12 +385,17 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 
 	const extractPath = (): (string | number)[] => {
 		const pathCollector: (string | number)[] = []
+		let tainted = false
 		const proxy = new Proxy(
 			{},
 			{
 				get: (_: object, prop: string | symbol): unknown => {
-					if (typeof prop === 'string' || typeof prop === 'number') {
-						pathCollector.push(prop)
+					if (!tainted && (typeof prop === 'string' || typeof prop === 'number')) {
+						if (DANGEROUS_KEYS.has(String(prop))) {
+							tainted = true
+						} else {
+							pathCollector.push(prop)
+						}
 					}
 					return proxy
 				},
@@ -402,7 +408,7 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 			// Ignore errors, we're just collecting the path
 		}
 
-		return pathCollector
+		return tainted ? [] : pathCollector
 	}
 
 	const path = extractPath()
@@ -423,7 +429,7 @@ const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K>
 	})
 
 	lensState.set = function lensSet(value: K): void {
-		if (isUpdating) {
+		if (isUpdating || path.length === 0) {
 			return
 		}
 
