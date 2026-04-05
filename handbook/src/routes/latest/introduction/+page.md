@@ -30,4 +30,4 @@ Single TypeScript file, ~480 lines, zero dependencies. Node.js 20+, full type in
 
 Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph. `select()` avoids unrelated recomputation on large state objects. `lens()` gives subsystems two-way ownership of a slice of shared state.
 
-Beacon is not a frontend framework. No DOM bindings, no component model. It manages plain JavaScript values on the server.
+Beacon is not a frontend framework. No DOM bindings, no component model. It tracks plain JavaScript values on the server.
