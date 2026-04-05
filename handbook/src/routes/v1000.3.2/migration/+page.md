@@ -1,30 +1,28 @@
 ---
-title: v1000.3.0 → v1000.3.1
-description: Migrating from Beacon v1000.3.0 to v1000.3.1
+title: v1000.3.1 → v1000.3.2
+description: Migrating from Beacon v1000.3.1 to v1000.3.2
 ---
 
 No API changes. No breaking changes. Drop-in upgrade.
 
-This release reduces allocations in three hot paths. The public interface, behavior, and type signatures are identical to v1000.3.0.
+This release adds a proto-key denylist to lens path extraction. The public interface, behavior, and type signatures are identical to v1000.3.1.
 
 ## What changed
 
-`protectedState` previously created a new readonly wrapper function on every read. It now caches the wrapper once at construction time.
+`lens()` now rejects `__proto__`, `constructor`, and `prototype` as path segments. If an accessor traverses one of these keys, the lens treats the path as invalid and silently ignores writes. Reads still reflect the source value.
 
-Effects that re-run used to allocate a fresh `Set` for dependency tracking each cycle. The existing Set is now cleared and reused.
+The guard runs once during path extraction via a `tainted` flag in the Proxy trap. When a dangerous key appears at any depth in the path, the entire path is discarded, not just the offending segment. This prevents orphaned child segments from writing to unintended properties.
 
-`lens` path updates called `Array.slice()` at each recursion level when writing to nested properties, allocating O(n) intermediate arrays on a path of depth n. These now use index-based iteration with zero intermediate allocations.
+`lensSet` checks for an empty path and returns early, making the write a no-op. `lensUpdate` delegates to `lensSet`, so both write methods are covered.
 
-## Internal
+## Why
 
-The unsubscribe path for nested effects now fully cleans up child references in `activeSubscribers`, `stateTracking`, and `parentSubscriber`. Previously, only the dependency subscriptions were removed, leaving unreachable entries in those WeakMaps until garbage collection. This was not observable in behavior or tests, but it delayed memory reclamation in long-lived applications with frequent effect creation and disposal.
-
-Several internal simplifications: closure variables replace container objects in `derive`, `select`, and `lens`; a shared `getOrCreate` helper replaces four duplicated WeakMap lookup blocks; `updateArrayPath` and `updateObjectPath` are inlined into `setValueAtPath`.
+Prototype pollution through `constructor.prototype` is a known attack vector with multiple CVEs in libraries like lodash, protobuf.js, and tree-kit. Beacon's spread-then-assign pattern in `setValueAtPath` is safe on current V8, but that safety comes from engine behavior, not explicit guards. The denylist makes the safety explicit.
 
 ## Upgrade
 
 ```bash
-npm install @nerdalytics/beacon@1000.3.1 --save-exact
+npm install @nerdalytics/beacon@1000.3.2 --save-exact
 ```
 
 No code changes required. Existing tests pass without modification.
