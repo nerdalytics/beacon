@@ -474,16 +474,20 @@ describe('Lens', {
 			const maliciousLens = lens($source, (s: Target): unknown => (s as Record<string, unknown>).__proto__)
 
 			// Write should be silently ignored
-			maliciousLens.set({ polluted: true })
+			maliciousLens.set({
+				polluted: true,
+			})
 
 			// Source state must be unchanged
-			assert.deepStrictEqual($source(), { name: 'Alice' })
+			assert.deepStrictEqual($source(), {
+				name: 'Alice',
+			})
 
 			// Object.prototype must not be polluted
 			assert.strictEqual(({} as Record<string, unknown>).polluted, undefined)
 		})
 
-		it('should silently ignore writes through constructor.prototype path', (): void => {
+		it('should silently ignore writes through constructor path', (): void => {
 			type Target = {
 				value: number
 			}
@@ -495,10 +499,64 @@ describe('Lens', {
 			const maliciousLens = lens($source, (s: Target): unknown => (s as Record<string, unknown>).constructor)
 
 			// Write should be silently ignored
-			maliciousLens.set({ polluted: true })
+			maliciousLens.set({
+				polluted: true,
+			})
 
 			// Source state must be unchanged
-			assert.deepStrictEqual($source(), { value: 42 })
+			assert.deepStrictEqual($source(), {
+				value: 42,
+			})
+		})
+
+		it('should silently ignore writes through prototype path', (): void => {
+			type Target = {
+				value: number
+			}
+
+			const $source = state<Target>({
+				value: 42,
+			})
+
+			const maliciousLens = lens($source, (s: Target): unknown => (s as Record<string, unknown>).prototype)
+
+			// Write should be silently ignored
+			maliciousLens.set({
+				polluted: true,
+			})
+
+			// Source state must be unchanged
+			assert.deepStrictEqual($source(), {
+				value: 42,
+			})
+		})
+
+		it('should silently ignore writes when dangerous key appears mid-path', (): void => {
+			type Target = {
+				nested: {
+					value: string
+				}
+			}
+
+			const $source = state<Target>({
+				nested: {
+					value: 'original',
+				},
+			})
+
+			const maliciousLens = lens($source, (s: Target): unknown => (s as Record<string, unknown>).nested.__proto__)
+
+			// Write should be silently ignored
+			maliciousLens.set({
+				polluted: true,
+			})
+
+			// Source state must be unchanged — 'nested' should not be overwritten
+			assert.deepStrictEqual($source(), {
+				nested: {
+					value: 'original',
+				},
+			})
 		})
 	})
 })
