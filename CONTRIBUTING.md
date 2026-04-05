@@ -50,9 +50,13 @@ For new feature ideas or improvements:
 Before submitting a pull request (PR), please:
 1. **Fork** the repository and create a new branch for your changes.
 2. **Follow the Code Style:** Ensure your code matches the existing style and includes tests where applicable.
-3. **Update Documentation:** Reflect your changes in the documentation, if necessary.
-4. **Describe Your Changes:** In the PR description, provide a summary of your changes and reference any related issues.
-5. **Review Process:** Your PR will be reviewed by the maintainers. Please respond to feedback promptly and update your PR as needed.
+3. **Run the Tests:** Run `npm test` to execute the full suite. To run a single test file in isolation, use Node's test runner directly:
+   ```bash
+   node --test tests/batch.test.ts
+   ```
+4. **Update Documentation:** Reflect your changes in the documentation, if necessary.
+5. **Describe Your Changes:** In the PR description, provide a summary of your changes and reference any related issues.
+6. **Review Process:** Your PR will be reviewed by the maintainers. Please respond to feedback promptly and update your PR as needed.
 
 ---
 
