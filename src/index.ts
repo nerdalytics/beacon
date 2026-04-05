@@ -29,7 +29,11 @@ const subscriberDependencies: WeakMap<Subscriber, Set<Set<Subscriber>>> = new We
 >()
 const parentSubscriber: WeakMap<Subscriber, Subscriber> = new WeakMap<Subscriber, Subscriber>()
 const childSubscribers: WeakMap<Subscriber, Set<Subscriber>> = new WeakMap<Subscriber, Set<Subscriber>>()
-const DANGEROUS_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype'])
+const DANGEROUS_KEYS: ReadonlySet<string> = new Set([
+	'__proto__',
+	'constructor',
+	'prototype',
+])
 
 const getOrCreate = <K extends object, V>(map: WeakMap<K, V>, key: K, factory: () => V): V => {
 	let value = map.get(key)

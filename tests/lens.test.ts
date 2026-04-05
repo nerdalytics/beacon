@@ -544,7 +544,8 @@ describe('Lens', {
 				},
 			})
 
-			const maliciousLens = lens($source, (s: Target): unknown => (s as Record<string, unknown>).nested.__proto__)
+			// biome-ignore lint/suspicious/noExplicitAny: intentionally testing dangerous path traversal
+			const maliciousLens = lens($source, (s: Target): unknown => (s as any).nested.__proto__)
 
 			// Write should be silently ignored
 			maliciousLens.set({
