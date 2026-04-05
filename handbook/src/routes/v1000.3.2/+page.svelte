@@ -3,7 +3,7 @@
 </script>
 
 <svelte:head>
-	<title>Beacon latest — Reactive dependency graph runtime for Node.js</title>
+	<title>Beacon v1000.3.2 — Reactive dependency graph runtime for Node.js</title>
 	<meta
 		name="description"
 		content="Zero-dependency reactive signal library for Node.js backends. Automatic dependency tracking, select, and efficient updates."
@@ -68,7 +68,7 @@
 	</div>
 
 	<a
-		href={resolve('/latest/introduction')}
+		href={resolve('/v1000.3.2/introduction')}
 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
 	>
 		Get Started

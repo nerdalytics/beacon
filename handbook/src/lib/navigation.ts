@@ -10,1014 +10,210 @@ export interface NavGroup {
 	title: string
 }
 
-export const navigation: Record<string, NavGroup[]> = {
-	'/latest': [
-		{
-			items: [
-				{
-					href: '/latest/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/latest/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/latest/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/latest/state',
-					title: 'State',
-				},
-				{
-					href: '/latest/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/latest/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/latest/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/latest/select',
-					title: 'Select',
-				},
-				{
-					href: '/latest/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/latest/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/latest/migration',
-					title: 'v1000.3.0 → v1000.3.1',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/latest/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/latest/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1.0.0': [
-		{
-			items: [
-				{
-					href: '/v1.0.0/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1.0.0/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1.0.0/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1.0.0/state',
-					title: 'State',
-				},
-				{
-					href: '/v1.0.0/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1.0.0/derived',
-					title: 'Derived',
-				},
-				{
-					href: '/v1.0.0/batch',
-					title: 'Batch',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1.0.0/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1.0.0/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1.0.0/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.0.0': [
-		{
-			items: [
-				{
-					href: '/v1000.0.0/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.0.0/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.0.0/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.0.0/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.0.0/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.0.0/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.0.0/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.0.0/select',
-					title: 'Select',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.0.0/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.0.0/migration',
-					title: 'v1.0.0 → v1000.0.0',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.0.0/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.0.0/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.1.0': [
-		{
-			items: [
-				{
-					href: '/v1000.1.0/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.1.0/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.1.0/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.0/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.1.0/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.1.0/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.1.0/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.1.0/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.1.0/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.0/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.0/migration',
-					title: 'v1000.0.0 → v1000.1.0',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.0/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.1.0/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.1.1': [
-		{
-			items: [
-				{
-					href: '/v1000.1.1/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.1.1/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.1.1/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.1/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.1.1/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.1.1/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.1.1/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.1.1/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.1.1/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.1/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.1/migration',
-					title: 'v1000.1.0 → v1000.1.1',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.1.1/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.1.1/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.2.0': [
-		{
-			items: [
-				{
-					href: '/v1000.2.0/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.2.0/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.2.0/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.0/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.2.0/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.2.0/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.2.0/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.2.0/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.2.0/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.0/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.0/migration',
-					title: 'v1000.1.1 → v1000.2.0',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.0/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.2.0/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.2.1': [
-		{
-			items: [
-				{
-					href: '/v1000.2.1/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.2.1/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.2.1/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.1/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.2.1/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.2.1/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.2.1/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.2.1/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.2.1/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.1/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.1/migration',
-					title: 'v1000.2.0 → v1000.2.1',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.1/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.2.1/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.2.2': [
-		{
-			items: [
-				{
-					href: '/v1000.2.2/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.2.2/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.2.2/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.2/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.2.2/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.2.2/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.2.2/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.2.2/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.2.2/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.2/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.2/migration',
-					title: 'v1000.2.1 → v1000.2.2',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.2/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.2.2/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.2.3': [
-		{
-			items: [
-				{
-					href: '/v1000.2.3/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.2.3/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.2.3/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.3/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.2.3/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.2.3/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.2.3/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.2.3/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.2.3/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.3/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.3/migration',
-					title: 'v1000.2.2 → v1000.2.3',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.3/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.2.3/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.2.4': [
-		{
-			items: [
-				{
-					href: '/v1000.2.4/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.2.4/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.2.4/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.4/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.2.4/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.2.4/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.2.4/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.2.4/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.2.4/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.4/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.4/migration',
-					title: 'v1000.2.3 → v1000.2.4',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.4/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.2.4/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.2.5': [
-		{
-			items: [
-				{
-					href: '/v1000.2.5/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.2.5/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.2.5/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.5/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.2.5/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.2.5/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.2.5/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.2.5/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.2.5/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.5/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.5/migration',
-					title: 'v1000.2.4 → v1000.2.5',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.2.5/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.2.5/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.3.0': [
-		{
-			items: [
-				{
-					href: '/v1000.3.0/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.3.0/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.3.0/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.0/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.3.0/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.3.0/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.3.0/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.3.0/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.3.0/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.0/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.0/migration',
-					title: 'v1000.2.5 → v1000.3.0',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.0/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.3.0/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
-	'/v1000.3.1': [
-		{
-			items: [
-				{
-					href: '/v1000.3.1/introduction',
-					title: 'Introduction',
-				},
-				{
-					href: '/v1000.3.1/installation',
-					title: 'Installation',
-				},
-				{
-					href: '/v1000.3.1/quick-start',
-					title: 'Quick Start',
-				},
-			],
-			title: 'Getting Started',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.1/state',
-					title: 'State',
-				},
-				{
-					href: '/v1000.3.1/effects',
-					title: 'Effects',
-				},
-				{
-					href: '/v1000.3.1/derive',
-					title: 'Derive',
-				},
-				{
-					href: '/v1000.3.1/batch',
-					title: 'Batch',
-				},
-				{
-					href: '/v1000.3.1/select',
-					title: 'Select',
-				},
-				{
-					href: '/v1000.3.1/lens',
-					title: 'Lens',
-				},
-			],
-			title: 'Guides',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.1/architecture',
-					title: 'Architecture',
-				},
-			],
-			title: 'Advanced',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.1/migration',
-					title: 'v1000.3.0 → v1000.3.1',
-				},
-			],
-			title: 'Migration',
-		},
-		{
-			items: [
-				{
-					href: '/v1000.3.1/llms',
-					title: 'LLM Documentation',
-				},
-				{
-					href: '/v1000.3.1/links',
-					title: 'Resources',
-				},
-			],
-			title: 'Links',
-		},
-	],
+interface NavConfig {
+	deriveName?: string
+	hasLens?: boolean
+	hasSelect?: boolean
+	migration?: string
 }
+
+const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
+	const { deriveName = 'Derive', hasLens = true, hasSelect = true, migration } = config
+
+	const guides: NavItem[] = [
+		{
+			href: `${prefix}/state`,
+			title: 'State',
+		},
+		{
+			href: `${prefix}/effects`,
+			title: 'Effects',
+		},
+		{
+			href: `${prefix}/${deriveName.toLowerCase()}`,
+			title: deriveName,
+		},
+		{
+			href: `${prefix}/batch`,
+			title: 'Batch',
+		},
+	]
+
+	if (hasSelect) {
+		guides.push({
+			href: `${prefix}/select`,
+			title: 'Select',
+		})
+	}
+
+	if (hasLens) {
+		guides.push({
+			href: `${prefix}/lens`,
+			title: 'Lens',
+		})
+	}
+
+	const groups: NavGroup[] = [
+		{
+			items: [
+				{
+					href: `${prefix}/introduction`,
+					title: 'Introduction',
+				},
+				{
+					href: `${prefix}/installation`,
+					title: 'Installation',
+				},
+				{
+					href: `${prefix}/quick-start`,
+					title: 'Quick Start',
+				},
+			],
+			title: 'Getting Started',
+		},
+		{
+			items: guides,
+			title: 'Guides',
+		},
+		{
+			items: [
+				{
+					href: `${prefix}/architecture`,
+					title: 'Architecture',
+				},
+			],
+			title: 'Advanced',
+		},
+	]
+
+	if (migration) {
+		groups.push({
+			items: [
+				{
+					href: `${prefix}/migration`,
+					title: migration,
+				},
+			],
+			title: 'Migration',
+		})
+	}
+
+	groups.push({
+		items: [
+			{
+				href: `${prefix}/llms`,
+				title: 'LLM Documentation',
+			},
+			{
+				href: `${prefix}/links`,
+				title: 'Resources',
+			},
+		],
+		title: 'Links',
+	})
+
+	return groups
+}
+
+const versionConfigs: [
+	string,
+	NavConfig,
+][] = [
+	[
+		'/latest',
+		{
+			migration: 'v1000.3.1 \u2192 v1000.3.2',
+		},
+	],
+	[
+		'/v1000.3.2',
+		{
+			migration: 'v1000.3.1 \u2192 v1000.3.2',
+		},
+	],
+	[
+		'/v1000.3.1',
+		{
+			migration: 'v1000.3.0 \u2192 v1000.3.1',
+		},
+	],
+	[
+		'/v1000.3.0',
+		{
+			migration: 'v1000.2.5 \u2192 v1000.3.0',
+		},
+	],
+	[
+		'/v1000.2.5',
+		{
+			migration: 'v1000.2.4 \u2192 v1000.2.5',
+		},
+	],
+	[
+		'/v1000.2.4',
+		{
+			migration: 'v1000.2.3 \u2192 v1000.2.4',
+		},
+	],
+	[
+		'/v1000.2.3',
+		{
+			migration: 'v1000.2.2 \u2192 v1000.2.3',
+		},
+	],
+	[
+		'/v1000.2.2',
+		{
+			migration: 'v1000.2.1 \u2192 v1000.2.2',
+		},
+	],
+	[
+		'/v1000.2.1',
+		{
+			migration: 'v1000.2.0 \u2192 v1000.2.1',
+		},
+	],
+	[
+		'/v1000.2.0',
+		{
+			migration: 'v1000.1.1 \u2192 v1000.2.0',
+		},
+	],
+	[
+		'/v1000.1.1',
+		{
+			migration: 'v1000.1.0 \u2192 v1000.1.1',
+		},
+	],
+	[
+		'/v1000.1.0',
+		{
+			migration: 'v1000.0.0 \u2192 v1000.1.0',
+		},
+	],
+	[
+		'/v1000.0.0',
+		{
+			hasLens: false,
+			migration: 'v1.0.0 \u2192 v1000.0.0',
+		},
+	],
+	[
+		'/v1.0.0',
+		{
+			deriveName: 'Derived',
+			hasLens: false,
+			hasSelect: false,
+		},
+	],
+]
+
+export const navigation: Record<string, NavGroup[]> = Object.fromEntries(
+	versionConfigs.map(([prefix, config]) => [
+		prefix,
+		buildNav(prefix, config),
+	])
+)
 
 /** Extract the version prefix from a URL path (e.g., "/beacon/v1.0.0/state" -> "/v1.0.0", "/beacon/latest/state" -> "/latest") */
 export function getVersionPrefix(pathname: string): string | undefined {
