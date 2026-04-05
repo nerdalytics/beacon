@@ -458,4 +458,47 @@ describe('Lens', {
 			]
 		)
 	})
+
+	describe('Lens security', {
+		concurrency: true,
+	}, (): void => {
+		it('should silently ignore writes through __proto__ path', (): void => {
+			type Target = {
+				name: string
+			}
+
+			const $source = state<Target>({
+				name: 'Alice',
+			})
+
+			const maliciousLens = lens($source, (s: Target): unknown => (s as Record<string, unknown>).__proto__)
+
+			// Write should be silently ignored
+			maliciousLens.set({ polluted: true })
+
+			// Source state must be unchanged
+			assert.deepStrictEqual($source(), { name: 'Alice' })
+
+			// Object.prototype must not be polluted
+			assert.strictEqual(({} as Record<string, unknown>).polluted, undefined)
+		})
+
+		it('should silently ignore writes through constructor.prototype path', (): void => {
+			type Target = {
+				value: number
+			}
+
+			const $source = state<Target>({
+				value: 42,
+			})
+
+			const maliciousLens = lens($source, (s: Target): unknown => (s as Record<string, unknown>).constructor)
+
+			// Write should be silently ignored
+			maliciousLens.set({ polluted: true })
+
+			// Source state must be unchanged
+			assert.deepStrictEqual($source(), { value: 42 })
+		})
+	})
 })
