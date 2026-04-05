@@ -3,7 +3,7 @@ title: Introduction
 description: What Beacon v1000.0.0 is and what changed from v1.0.0
 ---
 
-Beacon is a reactive state library for Node.js. It tracks which values each function reads and re-runs that function when those values change.
+Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
 Seven functions make up the API:
 
@@ -40,4 +40,4 @@ Single TypeScript file, ~427 lines, zero dependencies. Node.js 20+, full type in
 
 Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph. `select()` makes it practical to work with large state objects without triggering unrelated recomputation.
 
-Beacon is not a frontend framework. No DOM bindings, no component model. It manages plain JavaScript values on the server.
+Beacon is not a frontend framework. No DOM bindings, no component model. It tracks plain JavaScript values on the server.

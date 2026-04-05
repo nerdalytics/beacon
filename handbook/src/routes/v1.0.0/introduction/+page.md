@@ -22,4 +22,4 @@ Beacon is a single TypeScript file under 200 lines with zero dependencies. It ta
 
 Beacon is for backend developers who want reactive patterns on the server. Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph.
 
-It is not a frontend framework. There are no DOM bindings and no component model. It manages plain JavaScript values.
+It is not a frontend framework. There are no DOM bindings and no component model. It tracks plain JavaScript values.

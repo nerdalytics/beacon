@@ -6,7 +6,7 @@
 	<title>Beacon v1000.0.0 — Reactive dependency graph runtime for Node.js</title>
 	<meta
 		name="description"
-		content="Zero-dependency reactive signal library for Node.js backends. Automatic dependency tracking, select, and efficient updates."
+		content="Zero-dependency reactive dependency graph runtime for Node.js backends. Automatic dependency tracking, select, and efficient updates."
 	/>
 </svelte:head>
 
