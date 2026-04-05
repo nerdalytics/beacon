@@ -23,13 +23,13 @@ Replace `{version}` with a version number (e.g. `v1000.1.0`) or `latest`.
 Full documentation context:
 
 ```
-Read https://beacon.nerdalytics.dev/latest/llms-full.txt and explain how state() works.
+Read https://nerdalytics.github.io/beacon/latest/llms-full.txt and explain how state() works.
 ```
 
 Single page reference:
 
 ```
-Read https://beacon.nerdalytics.dev/latest/state.md and show me how to use nested reactivity.
+Read https://nerdalytics.github.io/beacon/latest/state.md and show me how to use nested reactivity.
 ```
 
 ## Tool integration
