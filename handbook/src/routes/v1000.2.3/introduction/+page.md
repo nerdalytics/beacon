@@ -1,7 +1,11 @@
 ---
 title: Introduction
-description: What Beacon v1000.2.3 is and what changed from v1000.2.2
+description: Introduction to Beacon
 ---
+
+<script>
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
 
 Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
@@ -20,7 +24,7 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1000.2.2
 
-Patch release. CI and repository configuration changes. No API changes. See the [migration guide](/v1000.2.3/migration).
+Patch release. CI and repository configuration changes. No API changes. See the <VersionLink path="/migration">migration guide</VersionLink>.
 
 ## Constraints
 

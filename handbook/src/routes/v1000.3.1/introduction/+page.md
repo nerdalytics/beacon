@@ -1,7 +1,12 @@
 ---
 title: Introduction
-description: What Beacon v1000.3.1 is and what changed from v1000.3.0
+description: Introduction to Beacon
 ---
+
+<script>
+import Version from '$lib/components/Version.svelte'
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
 
 Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
@@ -20,7 +25,7 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1000.3.0
 
-v1000.3.1 reduces allocations in three hot paths: `protectedState` reader caching, `stateTracking` Set reuse on effect re-runs, and index-based iteration in `lens` path updates. Nested effect disposal now fully cleans up child references. No API or behavioral changes. ~480 LOC. See the [migration guide](/v1000.3.1/migration).
+<Version /> reduces allocations in three hot paths: `protectedState` reader caching, `stateTracking` Set reuse on effect re-runs, and index-based iteration in `lens` path updates. Nested effect disposal now fully cleans up child references. No API or behavioral changes. ~480 LOC. See the <VersionLink path="/migration">migration guide</VersionLink>.
 
 ## Constraints
 

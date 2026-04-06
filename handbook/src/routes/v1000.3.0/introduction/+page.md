@@ -1,7 +1,12 @@
 ---
 title: Introduction
-description: What Beacon v1000.3.0 is and what changed from v1000.2.5
+description: Introduction to Beacon
 ---
+
+<script>
+import Version from '$lib/components/Version.svelte'
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
 
 Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
@@ -20,7 +25,7 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1000.2.5
 
-v1000.3.0 decomposes the `StateImpl` class into standalone functions for tree-shaking. Types are now `export type` only. No runtime behavioral changes. ~544 LOC. See the [migration guide](/v1000.3.0/migration).
+<Version /> decomposes the `StateImpl` class into standalone functions for tree-shaking. Types are now `export type` only. No runtime behavioral changes. ~544 LOC. See the <VersionLink path="/migration">migration guide</VersionLink>.
 
 ## Constraints
 

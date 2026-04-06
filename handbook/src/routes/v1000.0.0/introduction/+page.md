@@ -1,7 +1,12 @@
 ---
 title: Introduction
-description: What Beacon v1000.0.0 is and what changed from v1.0.0
+description: Introduction to Beacon
 ---
+
+<script>
+import Version from '$lib/components/Version.svelte'
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
 
 Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
@@ -19,7 +24,7 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1.0.0
 
-v1000.0.0 is a complete rewrite of the library internals and API surface:
+<Version /> is a complete rewrite of the library internals and API surface:
 
 - `derived()` renamed to `derive()`, now returns `ReadOnlyState<T>` (no `.set()`/`.update()`)
 - `select()` added for property-level subscriptions on state objects
@@ -30,7 +35,7 @@ v1000.0.0 is a complete rewrite of the library internals and API surface:
 - Effects created inside `batch()` are deferred until the batch completes
 - `derive()` is lazy: it computes on first read, not on creation
 
-See the [migration guide](/v1000.0.0/migration) for the full list of breaking changes.
+See the <VersionLink path="/migration">migration guide</VersionLink> for the full list of breaking changes.
 
 ## Constraints
 
