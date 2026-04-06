@@ -24,16 +24,6 @@ Tests compiled code on Node.js LTS versions.
 npm run test:lts
 ```
 
-### [`naiv-benchmark.ts`][3]
-Simple comparison between reactive patterns and classic loops.
-- Compares signal-based updates vs traditional JavaScript
-- Tests with and without batching
-- Provides basic performance metrics
-
-```bash
-node scripts/naiv-benchmark.ts
-```
-
 ---
 
 ## License
@@ -47,5 +37,5 @@ This project is licensed under the MIT License. See the [LICENSE][4] file for de
 <!-- Links collection -->
 [1]: ./benchmark.ts
 [2]: ./run-lts-tests.js
-[3]: ./naiv-benchmark.ts
+
 [4]: ./LICENSE
