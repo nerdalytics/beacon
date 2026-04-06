@@ -1,7 +1,11 @@
 ---
 title: Introduction
-description: What Beacon v1000.2.2 is and what changed from v1000.2.1
+description: Introduction to Beacon
 ---
+
+<script>
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
 
 Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
@@ -20,7 +24,7 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1000.2.1
 
-`Unsubscribe` type is now exported. You can import it for explicit typing of effect cleanup functions. `STATE_ID` is now a named unique symbol. See the [migration guide](/v1000.2.2/migration).
+`Unsubscribe` type is now exported. You can import it for explicit typing of effect cleanup functions. `STATE_ID` is now a named unique symbol. See the <VersionLink path="/migration">migration guide</VersionLink>.
 
 ## Constraints
 

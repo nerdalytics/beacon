@@ -1,7 +1,12 @@
 ---
 title: Introduction
-description: What Beacon v1000.3.2 is and what changed from v1000.3.1
+description: Introduction to Beacon
 ---
+
+<script>
+import Version from '$lib/components/Version.svelte'
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
 
 Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
 
@@ -20,7 +25,7 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1000.3.1
 
-v1000.3.2 adds a proto-key denylist to `lens()` path extraction. Accessor paths that traverse `__proto__`, `constructor`, or `prototype` are silently rejected as a defense-in-depth measure against prototype pollution. No API or behavioral changes for legitimate use. See the [migration guide](/latest/migration).
+<Version /> adds a proto-key denylist to `lens()` path extraction. Accessor paths that traverse `__proto__`, `constructor`, or `prototype` are silently rejected as a defense-in-depth measure against prototype pollution. No API or behavioral changes for legitimate use. See the <VersionLink path="/migration">migration guide</VersionLink>.
 
 ## Constraints
 

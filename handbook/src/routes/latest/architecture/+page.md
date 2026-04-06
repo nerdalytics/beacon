@@ -1,9 +1,13 @@
 ---
 title: Architecture
-description: How Beacon v1000.3.1 works internally
+description: How Beacon works internally
 ---
 
-Beacon v1000.3.1 is ~480 lines of TypeScript, organized as standalone top-level functions. The `StateImpl` class from prior versions has been eliminated entirely. This page covers the internals.
+<script>
+import Version from '$lib/components/Version.svelte'
+</script>
+
+Beacon <Version /> is ~480 lines of TypeScript, organized as standalone top-level functions. The `StateImpl` class from prior versions has been eliminated entirely. This page covers the internals.
 
 ## Standalone functions
 

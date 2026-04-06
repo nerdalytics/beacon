@@ -124,3 +124,11 @@ export const versions: Version[] = [
 
 // biome-ignore lint/style/noNonNullAssertion: versions array is static and always contains a current version
 export const currentVersion: Version = versions.find((v) => v.current)!
+
+export function resolveVersionLabel(prefix: string): string {
+	if (prefix === '/latest') {
+		const current = versions.find((v) => v.current)
+		return current ? current.label : 'latest'
+	}
+	return prefix.slice(1)
+}
