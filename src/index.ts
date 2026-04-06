@@ -232,26 +232,37 @@ const executeBatch = <T>(fn: () => T): T => {
 const createDerive = <T>(computeFn: () => T): ReadOnlyState<T> => {
 	let cachedValue: T = undefined as unknown as T
 	let initialized = false
-	const valueState = createState<T | undefined>(undefined)
+	const subscribers = new Set<Subscriber>()
 
 	createEffect(function deriveEffect(): void {
 		const newValue = computeFn()
 
 		if (!(initialized && Object.is(cachedValue, newValue))) {
 			cachedValue = newValue
-			valueState.set(newValue)
+
+			for (const sub of subscribers) {
+				pendingSubscribers.add(sub)
+			}
+			if (batchDepth === 0 && !isNotifying) {
+				notifySubscribers()
+			}
 		}
 
 		initialized = true
 	})
 
 	return function deriveGetter(): T {
+		const currentEffect = currentSubscriber
+		if (currentEffect) {
+			subscribers.add(currentEffect)
+			getOrCreate(subscriberDependencies, currentEffect, () => new Set()).add(subscribers)
+		}
+
 		if (!initialized) {
 			cachedValue = computeFn()
 			initialized = true
-			valueState.set(cachedValue)
 		}
-		return valueState() as T
+		return cachedValue
 	}
 }
 
@@ -263,7 +274,7 @@ const createSelect = <T, R>(
 	let initialized = false
 	let lastSelectedValue: R | undefined
 	let lastSourceValue: T | undefined
-	const valueState = createState<R | undefined>(undefined)
+	const subscribers = new Set<Subscriber>()
 
 	createEffect(function selectEffect(): void {
 		const sourceValue = source()
@@ -280,18 +291,29 @@ const createSelect = <T, R>(
 		}
 
 		lastSelectedValue = newSelectedValue
-		valueState.set(newSelectedValue)
 		initialized = true
+
+		for (const sub of subscribers) {
+			pendingSubscribers.add(sub)
+		}
+		if (batchDepth === 0 && !isNotifying) {
+			notifySubscribers()
+		}
 	})
 
 	return function selectGetter(): R {
+		const currentEffect = currentSubscriber
+		if (currentEffect) {
+			subscribers.add(currentEffect)
+			getOrCreate(subscriberDependencies, currentEffect, () => new Set()).add(subscribers)
+		}
+
 		if (!initialized) {
 			lastSourceValue = source()
 			lastSelectedValue = selectorFn(lastSourceValue)
-			valueState.set(lastSelectedValue)
 			initialized = true
 		}
-		return valueState() as R
+		return lastSelectedValue as R
 	}
 }
 
