@@ -88,7 +88,7 @@ function printResult(name: string, result: BenchResult): void {
 	const avgM = Math.round(totalM / RUN_COUNT)
 
 	console.info(
-		`${name}:  med=${median.toFixed(2)}ms  min=${min.toFixed(2)}ms  max=${max.toFixed(2)}ms  sd=${sd.toFixed(2)}ms  heap=${heapMedian}kb  total_t=${totalT.toFixed(2)}ms  avg_t=${avgT.toFixed(2)}ms  total_m=${totalM}kb  avg_m=${avgM}kb`
+		`${name}:  med=${median.toFixed(2)}ms  mean=${mean.toFixed(2)}ms  min=${min.toFixed(2)}ms  max=${max.toFixed(2)}ms  sd=${sd.toFixed(2)}ms  heap=${heapMedian}kb  total=${totalT.toFixed(2)}ms  avg/cycle=${avgT.toFixed(2)}ms  total mem=${totalM}kb  avg mem/cycle=${avgM}kb`
 	)
 }
 
