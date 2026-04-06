@@ -292,9 +292,11 @@ const createSelect = <T, R>(
 	}
 }
 
-// Helper to create the appropriate container type
-const createContainer = (key: string): Record<string, unknown> | unknown[] => {
-	return Number.isNaN(Number(key)) ? {} : []
+// Returns the value if non-nullish, otherwise creates the appropriate container type
+const ensureContainer = (value: unknown, nextKey: string | undefined): unknown => {
+	if (value != null) return value
+	if (nextKey !== undefined && !Number.isNaN(Number(nextKey))) return []
+	return {}
 }
 
 const setValueAtPath = <V, O>(obj: O, pathSegments: string[], depth: number, value: V): O => {
@@ -302,7 +304,7 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: string[], depth: number, val
 		return value as unknown as O
 	}
 
-	if (obj === undefined || obj === null) {
+	if (obj == null) {
 		return setValueAtPath({} as O, pathSegments, depth, value)
 	}
 
@@ -333,10 +335,7 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: string[], depth: number, val
 	const nextKey = pathSegments[nextDepth]
 	const source = isArray ? (obj as unknown[])[key as number] : (obj as Record<string | number, unknown>)[key]
 
-	let nextValue = source
-	if (nextValue === undefined || nextValue === null) {
-		nextValue = nextKey === undefined ? {} : createContainer(nextKey)
-	}
+	const nextValue = ensureContainer(source, nextKey)
 
 	if (isArray) {
 		const copy = [
