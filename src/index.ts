@@ -7,13 +7,7 @@ interface WriteableState<T> {
 	update(fn: (value: T) => T): void
 }
 
-// Special symbol used for internal tracking
-const STATE_ID: unique symbol = Symbol('STATE_ID')
-
-type State<T> = ReadOnlyState<T> &
-	WriteableState<T> & {
-		[STATE_ID]?: symbol
-	}
+type State<T> = ReadOnlyState<T> & WriteableState<T>
 
 // Module-level reactive state
 let currentSubscriber: Subscriber | null = null
@@ -151,7 +145,6 @@ const createState = <T>(initialValue: T, equalityFn: (a: T, b: T) => boolean = O
 		get.set(fn(value))
 	}
 
-	get[STATE_ID] = stateId
 	return get as State<T>
 }
 
@@ -341,46 +334,37 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: 
 		return obj
 	}
 
-	if (Array.isArray(obj)) {
-		const index = Number(currentKey)
-
-		if (depth === pathSegments.length - 1) {
-			return updateArrayItem(obj, index, value) as unknown as O
-		}
-
-		const copy = [
-			...obj,
-		]
-		const nextDepth = depth + 1
-		const nextKey = pathSegments[nextDepth]
-
-		let nextValue = obj[index]
-		if (nextValue === undefined || nextValue === null) {
-			nextValue = nextKey === undefined ? {} : createContainer(nextKey)
-		}
-
-		copy[index] = setValueAtPath(nextValue, pathSegments, nextDepth, value)
-		return copy as unknown as O
-	}
-
-	const record = obj as Record<string | number, unknown>
+	const isArray = Array.isArray(obj)
+	const key = isArray ? Number(currentKey) : currentKey
 
 	if (depth === pathSegments.length - 1) {
-		return updateShallowProperty(record, currentKey, value) as unknown as O
+		if (isArray) {
+			return updateArrayItem(obj as unknown[], key as number, value) as unknown as O
+		}
+		return updateShallowProperty(obj as Record<string | number, unknown>, key, value) as unknown as O
 	}
 
 	const nextDepth = depth + 1
 	const nextKey = pathSegments[nextDepth]
+	const source = isArray ? (obj as unknown[])[key as number] : (obj as Record<string | number, unknown>)[key]
 
-	let currentValue = record[currentKey]
-	if (currentValue === undefined || currentValue === null) {
-		currentValue = nextKey === undefined ? {} : createContainer(nextKey)
+	let nextValue = source
+	if (nextValue === undefined || nextValue === null) {
+		nextValue = nextKey === undefined ? {} : createContainer(nextKey)
+	}
+
+	if (isArray) {
+		const copy = [
+			...(obj as unknown[]),
+		]
+		copy[key as number] = setValueAtPath(nextValue, pathSegments, nextDepth, value)
+		return copy as unknown as O
 	}
 
 	const result = {
-		...record,
+		...(obj as Record<string | number, unknown>),
 	}
-	result[currentKey] = setValueAtPath(currentValue, pathSegments, nextDepth, value)
+	result[key] = setValueAtPath(nextValue, pathSegments, nextDepth, value)
 	return result as unknown as O
 }
 
