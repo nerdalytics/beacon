@@ -11,7 +11,9 @@ type State<T> = ReadOnlyState<T> & WriteableState<T>
 
 // Module-level reactive state
 let currentSubscriber: Subscriber | null = null
-let pendingSubscribers: Set<Subscriber> = new Set<Subscriber>()
+const flushing: Set<Subscriber> = new Set<Subscriber>()
+const queued: Set<Subscriber> = new Set<Subscriber>()
+let pendingSubscribers: Set<Subscriber> = queued
 let isNotifying = false
 let batchDepth = 0
 let deferredEffectCreations: Subscriber[] = []
@@ -48,11 +50,12 @@ const notifySubscribers = (): void => {
 	try {
 		while (pendingSubscribers.size > 0) {
 			const subscribers = pendingSubscribers
-			pendingSubscribers = new Set()
+			pendingSubscribers = subscribers === queued ? flushing : queued
 
 			for (const effect of subscribers) {
 				effect()
 			}
+			subscribers.clear()
 		}
 	} finally {
 		isNotifying = false
