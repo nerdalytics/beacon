@@ -1,5 +1,5 @@
 {
-	"$schema": "https://biomejs.dev/schemas/2.4.10/schema.json",
+	"$schema": "https://biomejs.dev/schemas/2.4.7/schema.json",
 	"assist": {
 		"actions": {
 			"source": {
@@ -19,7 +19,10 @@
 			"!**/tests/template.test.ts",
 			"!**/dist/**/*",
 			"!**/temp/**/*",
-			"!**/node_modules/**/*"
+			"!**/node_modules/**/*",
+			"!.claude/**/*",
+			"!**/.svelte-kit/**/*",
+			"!**/handbook/build/**/*"
 		]
 	},
 	"formatter": {
@@ -50,8 +53,8 @@
 			"trailingCommas": "none"
 		},
 		"parser": {
-			"allowComments": false,
-			"allowTrailingCommas": false
+			"allowComments": true,
+			"allowTrailingCommas": true
 		}
 	},
 	"linter": {
@@ -62,6 +65,12 @@
 			},
 			"complexity": {
 				"noBannedTypes": "error",
+				"noExcessiveCognitiveComplexity": {
+					"level": "error",
+					"options": {
+						"maxAllowedComplexity": 15
+					}
+				},
 				"useLiteralKeys": "error"
 			},
 			"correctness": {
@@ -75,7 +84,8 @@
 				"useExplicitType": "error"
 			},
 			"performance": {
-				"noAccumulatingSpread": "error"
+				"noAccumulatingSpread": "error",
+				"useTopLevelRegex": "error"
 			},
 			"recommended": true,
 			"security": {

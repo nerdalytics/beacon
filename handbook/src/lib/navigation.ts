@@ -1,5 +1,7 @@
 import { base } from '$app/paths'
 
+const VERSION_PREFIX_RE = /^(\/v[\d.]+)/
+
 export interface NavItem {
 	href: string
 	title: string
@@ -219,7 +221,7 @@ export const navigation: Record<string, NavGroup[]> = Object.fromEntries(
 export function getVersionPrefix(pathname: string): string | undefined {
 	const path = base && pathname.startsWith(base) ? pathname.slice(base.length) : pathname
 	if (path === '/latest' || path.startsWith('/latest/')) return '/latest'
-	const match = path.match(/^(\/v[\d.]+)/)
+	const match = path.match(VERSION_PREFIX_RE)
 	return match?.[1]
 }
 
