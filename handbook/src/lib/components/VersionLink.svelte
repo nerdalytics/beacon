@@ -4,5 +4,5 @@
 
 	const { prefix } = getContext('version')
 
-	export let path
-</script><a href={resolveHref(`${prefix}${path}`)}><slot /></a>
+	let { path, children } = $props()
+</script><a href={resolveHref(`${prefix}${path}`)}>{@render children()}</a>
