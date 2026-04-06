@@ -315,12 +315,11 @@ const updateShallowProperty = <V>(
 }
 
 // Helper to create the appropriate container type
-const createContainer = (key: string | number): Record<string | number, unknown> | unknown[] => {
-	const isArrayKey = typeof key === 'number' || !Number.isNaN(Number(key))
-	return isArrayKey ? [] : {}
+const createContainer = (key: string): Record<string, unknown> | unknown[] => {
+	return Number.isNaN(Number(key)) ? {} : []
 }
 
-const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: number, value: V): O => {
+const setValueAtPath = <V, O>(obj: O, pathSegments: string[], depth: number, value: V): O => {
 	if (depth >= pathSegments.length) {
 		return value as unknown as O
 	}
@@ -371,14 +370,14 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: (string | number)[], depth: 
 const createLens = <T, K>(source: State<T>, accessor: (state: T) => K): State<K> => {
 	let isUpdating = false
 
-	const extractPath = (): (string | number)[] => {
-		const pathCollector: (string | number)[] = []
+	const extractPath = (): string[] => {
+		const pathCollector: string[] = []
 		let tainted = false
 		const proxy = new Proxy(
 			{},
 			{
 				get: (_: object, prop: string | symbol): unknown => {
-					if (!tainted && (typeof prop === 'string' || typeof prop === 'number')) {
+					if (!tainted && typeof prop === 'string') {
 						if (DANGEROUS_KEYS.has(String(prop))) {
 							tainted = true
 						} else {
