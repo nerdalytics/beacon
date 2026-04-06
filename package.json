@@ -50,7 +50,7 @@
 	},
 	"scripts": {
 		"benchmark": "node --expose-gc scripts/benchmark.ts -R 3",
-		"benchmark:naiv": "node scripts/naiv-benchmark.ts",
+
 		"build": "npm run build:lts",
 		"build:lts": "tsc -p tsconfig.lts.json",
 		"check": "npx @biomejs/biome check",
