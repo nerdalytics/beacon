@@ -1,9 +1,10 @@
 <script lang="ts">
-	import { onMount } from 'svelte'
+	import { onMount, setContext } from 'svelte'
 	import { page } from '$app/state'
 	import { addCopyButtons } from '$lib/copy-code'
 	import { getAllPages, getVersionPrefix } from '$lib/navigation'
 	import { resolveHref } from '$lib/resolve-href'
+	import { resolveVersionLabel } from '$lib/versions'
 	import TOC from './TOC.svelte'
 
 	let {
@@ -29,6 +30,15 @@
 	)
 	let prevPage = $derived(currentIndex > 0 ? allPages[currentIndex - 1] : null)
 	let nextPage = $derived(currentIndex < allPages.length - 1 ? allPages[currentIndex + 1] : null)
+
+	setContext('version', {
+		get label() {
+			return resolveVersionLabel(versionPrefix)
+		},
+		get prefix() {
+			return versionPrefix
+		},
+	})
 </script>
 
 <svelte:head>
