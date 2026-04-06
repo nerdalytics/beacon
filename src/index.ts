@@ -292,28 +292,6 @@ const createSelect = <T, R>(
 	}
 }
 
-// Helper for array updates
-const updateArrayItem = <V>(arr: unknown[], index: number, value: V): unknown[] => {
-	const copy = [
-		...arr,
-	]
-	copy[index] = value
-	return copy
-}
-
-// Helper for single-level updates (optimization)
-const updateShallowProperty = <V>(
-	obj: Record<string | number, unknown>,
-	key: string | number,
-	value: V
-): Record<string | number, unknown> => {
-	const result = {
-		...obj,
-	}
-	result[key] = value
-	return result
-}
-
 // Helper to create the appropriate container type
 const createContainer = (key: string): Record<string, unknown> | unknown[] => {
 	return Number.isNaN(Number(key)) ? {} : []
@@ -338,9 +316,17 @@ const setValueAtPath = <V, O>(obj: O, pathSegments: string[], depth: number, val
 
 	if (depth === pathSegments.length - 1) {
 		if (isArray) {
-			return updateArrayItem(obj as unknown[], key as number, value) as unknown as O
+			const copy = [
+				...(obj as unknown[]),
+			]
+			copy[key as number] = value
+			return copy as unknown as O
 		}
-		return updateShallowProperty(obj as Record<string | number, unknown>, key, value) as unknown as O
+		const result = {
+			...(obj as Record<string, unknown>),
+		}
+		result[key] = value
+		return result as unknown as O
 	}
 
 	const nextDepth = depth + 1
