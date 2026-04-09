@@ -3,7 +3,7 @@ title: v1000.2.5 → v1000.3.0
 description: Migrating from Beacon v1000.2.5 to v1000.3.0
 ---
 
-`StateImpl` class decomposed into standalone functions for tree-shaking. One breaking change at the type level.
+Internals decomposed into standalone functions for tree-shaking. One breaking change at the type level.
 
 ## Type imports
 

@@ -124,7 +124,13 @@ const versionConfigs: [
 	[
 		'/latest',
 		{
-			migration: 'v1000.3.1 \u2192 v1000.3.2',
+			migration: 'v1000.3.2 \u2192 v1000.3.3',
+		},
+	],
+	[
+		'/v1000.3.3',
+		{
+			migration: 'v1000.3.2 \u2192 v1000.3.3',
 		},
 	],
 	[

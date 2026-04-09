@@ -3,7 +3,7 @@ title: v1.0.0 → v1000.0.0
 description: Migrating from Beacon v1.0.0 to v1000.0.0
 ---
 
-v1000.0.0 is a complete rewrite. The core API pattern stays the same — callable signals with `.set()` and `.update()` — but types, naming, and internals changed. This page covers every breaking change and new addition.
+v1000.0.0 is a complete rewrite. The core API pattern stays the same (callable signals with `.set()` and `.update()`), but types, naming, and runtime behavior changed. This page covers every breaking change and new addition.
 
 ## Renamed: `derived` → `derive`
 
@@ -17,7 +17,7 @@ import { derive } from '@nerdalytics/beacon'
 const $doubled = derive(() => $count() * 2)
 ```
 
-`derive()` also returns `ReadOnlyState<T>` instead of `Signal<T>`. You can no longer call `.set()` or `.update()` on a derived value.
+`derive()` returns `ReadOnlyState<T>` instead of `Signal<T>`. Calling `.set()` or `.update()` on a derived value is no longer possible.
 
 ## Renamed types: `Signal<T>` → `State<T>`
 
@@ -36,14 +36,14 @@ v1000.0.0 introduces three type levels:
 | Type | Description |
 |------|-------------|
 | `State<T>` | Readable and writable. Has `()`, `.set()`, `.update()` |
-| `ReadOnlyState<T>` | Readable only. Just `()` |
+| `ReadOnlyState<T>` | Readable only. Has `()` |
 | `WriteableState<T>` | Writable only. Has `.set()`, `.update()` |
 
 `derive()` and `select()` return `ReadOnlyState<T>`. `state()` returns `State<T>`.
 
 ## New: `select()`
 
-Subscribe to a computed slice of state. The effect only re-runs when the selected value changes, not when other properties on the source change.
+Subscribe to a computed slice of state. The subscriber only re-runs when the selected value changes, not when other properties on the source change.
 
 ```typescript
 import { state, select, effect } from '@nerdalytics/beacon'
@@ -63,11 +63,11 @@ $user.update((u) => ({ ...u, name: 'Grace' }))
 // => "Grace"
 ```
 
-An optional third argument accepts a custom equality function (defaults to `Object.is`).
+An optional third argument accepts a custom equality function. Defaults to `Object.is`.
 
 ## New: `readonlyState()`
 
-Wraps a `State<T>` to hide its `.set()` and `.update()` methods. Useful when exposing state to consumers that should read but not write.
+Wraps a `State<T>` to hide `.set()` and `.update()`. Useful when exposing state to consumers that should read but not write.
 
 ```typescript
 import { state, readonlyState } from '@nerdalytics/beacon'
@@ -81,7 +81,7 @@ console.log($readOnly()) // => 0
 
 ## New: `protectedState()`
 
-Returns a `[ReadOnlyState<T>, WriteableState<T>]` tuple. Separates read and write into distinct references.
+Returns a `[ReadOnlyState<T>, WriteableState<T>]` tuple. Separates read and write capabilities into distinct references.
 
 ```typescript
 import { protectedState } from '@nerdalytics/beacon'
@@ -95,7 +95,7 @@ console.log($get()) // => { name: "Grace" }
 
 ## Infinite loop detection
 
-v1000.0.0 detects when an effect writes to a state it reads and throws immediately:
+Effects that write to a state they read now throw immediately instead of looping:
 
 ```typescript
 const $count = state(0)
@@ -106,11 +106,11 @@ effect(() => {
 })
 ```
 
-In v1.0.0 this would loop until the `processEffects` queue drained. In v1000.0.0 it throws `"Infinite loop detected: effect() cannot update a state() it depends on!"`.
+In v1.0.0 this would loop until the effect queue drained. In v1000.0.0 it throws `"Infinite loop detected: effect() cannot update a state() it depends on!"`.
 
 ## Effect re-entrance prevention
 
-If an effect is already executing, re-entry is silently skipped. In v1.0.0, concurrent effect execution was prevented only by the `updateInProgress` flag on `processEffects`. In v1000.0.0, each effect tracks its own active state via an `activeSubscribers` set.
+If an effect is already executing, re-entry is silently skipped. Each effect tracks its own active state, so two distinct effects can run concurrently without interference.
 
 ## Deferred effect creation in batches
 
@@ -128,4 +128,12 @@ In v1.0.0, effects created inside batches ran immediately.
 
 ## Internal architecture
 
-The implementation moved from module-level closures (~200 LOC) to a `StateImpl` class with static methods (~427 LOC). The public API is unchanged — `state()`, `derive()`, `effect()`, `batch()` are still top-level function exports that delegate to `StateImpl`.
+The internals were restructured from module-level closures to a class-based implementation. The public API surface is unchanged: `state()`, `derive()`, `effect()`, `batch()` remain top-level function exports.
+
+## Upgrade
+
+```bash
+npm install @nerdalytics/beacon@1000.0.0 --save-exact
+```
+
+Search your codebase for `derived(` and replace with `derive(`. Update any `Signal<T>` type annotations to `State<T>`.
