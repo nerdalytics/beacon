@@ -11,7 +11,7 @@ This release adds a proto-key denylist to lens path extraction. The public inter
 
 `lens()` now rejects `__proto__`, `constructor`, and `prototype` as path segments. If an accessor traverses one of these keys, the lens treats the path as invalid and silently ignores writes. Reads still reflect the source value.
 
-The guard runs once during path extraction via a `tainted` flag in the Proxy trap. When a dangerous key appears at any depth in the path, the entire path is discarded, not just the offending segment. This prevents orphaned child segments from writing to unintended properties.
+The guard runs once during path extraction via a `tainted` flag in the Proxy trap. When a dangerous key appears at any depth in the path, the entire path is discarded, not just the offending segment.
 
 `lensSet` checks for an empty path and returns early, making the write a no-op. `lensUpdate` delegates to `lensSet`, so both write methods are covered.
 
@@ -25,4 +25,4 @@ Prototype pollution through `constructor.prototype` is a known attack vector wit
 npm install @nerdalytics/beacon@1000.3.2 --save-exact
 ```
 
-No code changes required. Existing tests pass without modification.
+No code changes required unless your code intentionally accessed `__proto__`, `constructor`, or `prototype` through lens paths, which would be a bug.
