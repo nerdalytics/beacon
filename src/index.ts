@@ -1,12 +1,22 @@
-// Beacon - reactive state management system
+/**
+ * Beacon — reactive dependency graph runtime for Node.js backends.
+ *
+ * Proxy-based per-property tracking. Reads are recorded automatically,
+ * writes propagate through the dependency graph. Zero dependencies.
+ *
+ * @module
+ */
 import { composeHook } from './hooks/compose.ts'
 import type { BatchHooks, DeriveHooks, EffectHooks, HookFunction, StateHooks } from './types.ts'
 
-// Type definitions
+/** Disposal function returned by {@linkcode effect}. Calling it removes the effect and cleans up its dependencies. */
 export type Unsubscribe = () => void
+/** Function signature accepted by {@linkcode effect}. */
 export type EffectCallback = () => void
+/** Optional name for an effect, used in hook callbacks for identification. */
 export type EffectName = string
 
+/** Value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
 export type ComputedValue<T> = {
 	readonly value: T | undefined | null
 	reactive: boolean
@@ -760,6 +770,7 @@ const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
 	set: createSetHandler(undefined),
 }
 
+/** Wrap an object in a reactive Proxy. Property reads are tracked, writes notify subscribers. */
 export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	if (initial === null || initial === undefined || typeof initial !== 'object') return initial
 
@@ -1103,6 +1114,7 @@ function registerChildEffect(eff: EffectFunction): void {
 	children.add(eff)
 }
 
+/** Run a function whenever its tracked dependencies change. Returns an {@linkcode Unsubscribe} disposal function. */
 export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe {
 	const onRun = composeHook(hooks?.onRun)
 	const onDispose = composeHook(hooks?.onDispose)
@@ -1192,6 +1204,7 @@ function handleBatchError(
 	}
 }
 
+/** Group multiple state mutations so effects flush once at the outermost batch boundary. */
 export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 	if (!hooks) {
 		batchDepth++
@@ -1328,6 +1341,7 @@ function runDeriveWithErrorHandling<T>(
 	}
 }
 
+/** Eagerly compute a value from reactive dependencies. Returns a {@linkcode ComputedValue} — set `reactive` to `false` to dispose. */
 export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T> {
 	const onCompute = composeHook(hooks?.onCompute)
 	const onCacheHit = composeHook(hooks?.onCacheHit)

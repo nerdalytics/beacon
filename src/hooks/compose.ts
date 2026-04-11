@@ -1,5 +1,6 @@
 import type { HookFunction, SingleOrArray } from '../types.ts'
 
+/** Compose one or more hook functions into a single hook. Errors in individual hooks are silently caught. */
 export function composeHook<Args extends unknown[]>(
 	hook: SingleOrArray<HookFunction<Args>> | undefined
 ): HookFunction<Args> | undefined {

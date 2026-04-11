@@ -1,5 +1,6 @@
 {
 	"$schema": "https://jsr.io/schema/config-file.v1.json",
+	"description": "Lightweight reactive state management for Node.js backends. Proxy-based dependency tracking with zero dependencies.",
 	"exports": {
 		".": "./src/index.ts",
 		"./hooks": "./src/hooks/index.ts"
