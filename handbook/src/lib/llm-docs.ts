@@ -6,7 +6,7 @@ import { resolveVersionLabel, versions } from '$lib/versions'
 
 const FRONTMATTER_BLANKS_RE = /^(---[\s\S]*?---\n)\n+/
 const ROUTES_DIR: string = join(process.cwd(), 'src', 'routes')
-const SCRIPT_BLOCK_RE = /<script[\s\S]*?<\/script>\s*/g
+const SCRIPT_BLOCK_RE = /<script[\s\S]*?<\/script>\s*/gi
 const VERSION_LINK_RE = /<VersionLink\s+path="([^"]*)">([\s\S]*?)<\/VersionLink>/g
 const VERSION_TAG_RE = /<Version\s*\/>/g
 
@@ -45,11 +45,14 @@ export function validatePage(version: string, page: string): string {
 function stripSvelteArtifacts(markdown: string, versionPrefix: string): string {
 	const label = resolveVersionLabel(`/${versionPrefix}`)
 	let result = markdown
-		.replace(SCRIPT_BLOCK_RE, '')
-		.replace(VERSION_TAG_RE, label)
-		.replace(VERSION_LINK_RE, (_match, path: string, text: string) => {
-			return `[${text}](/${versionPrefix}${path})`
-		})
+	let previous: string
+	do {
+		previous = result
+		result = result.replace(SCRIPT_BLOCK_RE, '')
+	} while (result !== previous)
+	result = result.replace(VERSION_TAG_RE, label).replace(VERSION_LINK_RE, (_match, path: string, text: string) => {
+		return `[${text}](/${versionPrefix}${path})`
+	})
 	result = result.replace(FRONTMATTER_BLANKS_RE, '$1\n')
 	return result
 }
