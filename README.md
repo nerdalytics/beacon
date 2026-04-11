@@ -2,14 +2,14 @@
 
 > Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.
 
-[![license:mit](https://flat.badgen.net/static/license/MIT/blue)](https://github.com/nerdalytics/beacon/blob/trunk/LICENSE)
 [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
 [![registry:jsr](https://jsr.io/badges/@nerdalytics/beacon)](https://jsr.io/@nerdalytics/beacon)
 [![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2000.0.0)
 
-[![tech:nodejs](https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org/)
-[![linter:biome](https://img.shields.io/badge/Biome-60a5fa?style=flat-square&logo=biome&logoColor=white)](https://biomejs.dev/)
+[![tech:nodejs](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+[![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
+[![linter:biome](https://img.shields.io/badge/Biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white)](https://biomejs.dev/)
+[![license:mit](https://img.shields.io/badge/MIT-blue?style=for-the-badge)](https://github.com/nerdalytics/beacon/blob/trunk/LICENSE)
 
 Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
 
