@@ -1,70 +1,74 @@
 # Contributing to @nerdalytics/beacon
 
-Thank you for your interest in contributing to **@nerdalytics/beacon**! We welcome contributions from everyone—whether you're reporting a bug, suggesting enhancements, or submitting code improvements. By participating in this project, you agree to follow these guidelines to ensure smooth, efficient, and respectful collaboration.
-
----
-
-## Table of Contents
-
-- [Code of Conduct](#code-of-conduct)
-- [How to Contribute](#how-to-contribute)
-  - [Reporting Issues](#reporting-issues)
-  - [Suggesting Enhancements](#suggesting-enhancements)
-  - [Submitting Pull Requests](#submitting-pull-requests)
-- [Style Guides](#style-guides)
-  - [Git Commit Messages](#git-commit-messages)
-  - [Code Formatting](#code-formatting)
-- [Documentation](#documentation)
-- [Additional Resources](#additional-resources)
-- [License](#license)
-
----
-
 ## Code of Conduct
 
-All contributors are expected to adhere to our [Code of Conduct][1]. Please read it carefully to understand our standards for respectful and constructive behavior.
+Follow the [Code of Conduct][1].
 
----
+## Development Setup
 
-## How to Contribute
+### Prerequisites
 
-We welcome contributions in many forms, including bug reports, feature requests, documentation improvements, and code enhancements. Please follow the guidelines below depending on your type of contribution:
+- Node.js v20.0.0 or later (v22+ recommended)
 
-### Reporting Issues
+### Getting Started
 
-If you've encountered a bug or have a feature request, please open an issue on GitHub. When reporting, be sure to include:
-- **Environment Details:** Operating system, Node.js version, etc.
-- **Steps to Reproduce:** A clear list of steps to reproduce the issue.
-- **Expected vs. Actual Behavior:** What you expected to happen versus what actually occurred.
-- **Screenshots/Logs:** Any relevant error messages or screenshots.
+1. Clone the repository:
+```bash
+git clone https://github.com/nerdalytics/beacon.git
+cd beacon
+```
 
-### Suggesting Enhancements
+2. Install dependencies:
+```bash
+npm install
+```
 
-For new feature ideas or improvements:
-1. Open a new issue with a clear title and detailed description.
-2. Explain why the change is needed and how it benefits the project.
-3. Optionally, propose a solution or approach.
+3. Build the project:
+```bash
+npm run build:lts
+```
 
-### Submitting Pull Requests
+4. Run tests to verify setup:
+```bash
+npm test
+```
 
-Before submitting a pull request (PR), please:
-1. **Fork** the repository and create a new branch for your changes.
-2. **Follow the Code Style:** Ensure your code matches the existing style and includes tests where applicable.
-3. **Run the Tests:** Run `npm test` to execute the full suite. To run a single test file in isolation, use Node's test runner directly:
-   ```bash
-   node --test tests/batch.test.ts
-   ```
-4. **Update Documentation:** Reflect your changes in the documentation, if necessary.
-5. **Describe Your Changes:** In the PR description, provide a summary of your changes and reference any related issues.
-6. **Review Process:** Your PR will be reviewed by the maintainers. Please respond to feedback promptly and update your PR as needed.
+To run a single test file in isolation:
+```bash
+node --test tests/batch.test.ts
+```
 
----
+## Architecture
 
-## Style Guides
+Single-file core (`src/index.ts`) with four primitives: `state`, `derive`, `effect`, `batch`. Zero external dependencies. See the [handbook architecture page][3] for internals.
 
-### Git Commit Messages
+## Reporting Issues
 
-We use a structured commit message format aligned with [Epoch Semantic Versioning][2]:
+Open an issue on GitHub. Include:
+
+- Environment details (OS, Node.js version)
+- Steps to reproduce
+- Expected vs. actual behavior
+- Relevant error messages or screenshots
+
+## Suggesting Enhancements
+
+1. Open an issue with a clear title and description
+2. Explain why the change is needed
+3. Optionally, propose an approach
+
+## Submitting Pull Requests
+
+1. Fork the repository and create a branch
+2. Match existing code style; include tests
+3. Update docs if needed
+4. Submit a PR describing changes and referencing related issues
+
+Maintainers will review your PR. Respond to feedback promptly.
+
+## Commit Messages
+
+Format aligned with [Epoch Semantic Versioning][2]:
 
 ```
 <type>(<scope>): <summary>
@@ -74,50 +78,47 @@ We use a structured commit message format aligned with [Epoch Semantic Versionin
 <footer>
 ```
 
-#### Types
+### Types
 
-Types indicate the kind of change being made, aligned with Epoch Semantic Versioning:
-
-- **epoch**: Major architectural or paradigm shifts (bumps EPOCH)
-- **breaking**: Incompatible API changes (bumps MAJOR within current EPOCH)
+- **epoch**: Architectural or paradigm shifts (bumps EPOCH)
+- **breaking**: Incompatible API changes (bumps MAJOR)
 - **feat**: New features (bumps MINOR)
 - **fix**: Bug fixes (bumps PATCH)
 - **perf**: Performance improvements (bumps PATCH)
-- **refactor**: Code changes that neither fix bugs nor add features (no version bump)
-- **style**: Changes that don't affect code behavior (no version bump)
+- **refactor**: No bug fix or feature (no version bump)
+- **style**: No behavior change (no version bump)
 - **test**: Adding or correcting tests (no version bump)
 - **docs**: Documentation updates (no version bump)
 - **chore**: Maintenance tasks (no version bump)
 
-#### Scope
+### Scope
 
-The scope is optional and indicates the part of the codebase affected, e.g., `state`, `derived`, `effect`, `batch`.
+Optional. Indicates the area affected: `state`, `derive`, `effect`, `batch`.
 
-#### Summary
+### Summary
 
-- Use imperative, present tense: "add" not "added" or "adds"
-- Don't capitalize the first letter
-- No period at the end
-- Keep it under 72 characters
+- Imperative, present tense: "add" not "added" or "adds"
+- Lowercase first letter
+- No period
+- Under 72 characters
 
-#### Body
+### Body
 
-- Explain the motivation for the change
-- Use imperative, present tense
-- Include relevant context
+- Explain motivation for the change
+- Imperative, present tense
 - Break lines at 72 characters
 
-#### Footer
+### Footer
 
-- Reference issues and PRs: `Fixes #123, Closes #456`
-- Note breaking changes: `BREAKING CHANGE: description of what breaks and how to migrate`
+- Reference issues: `Fixes #123, Closes #456`
+- Note breaking changes: `BREAKING CHANGE: description`
 
-#### Examples
+### Examples
 
 ```
-feat(derived): add support for explicit dependency tracking
+feat(derive): add support for explicit dependency tracking
 
-Add an optional second parameter to derived() that accepts an array
+Add an optional second parameter to derive() that accepts an array
 of dependencies to track explicitly, rather than using automatic
 dependency detection.
 
@@ -145,36 +146,32 @@ internal APIs are completely different. Extensions using internals
 will need to be updated.
 ```
 
-### Code Formatting
+## Code Formatting
 
-- Follow the coding standards already in place for **@nerdalytics/beacon**.
-- Ensure your code is clean, readable, and includes comments where needed.
-- Use our formatting tools (e.g., Biome, ESLint) to keep the codebase consistent.
+Run `npm run format` before committing. Biome handles formatting and linting.
 
----
+## Release Process
 
-## Documentation
+### Versioning
 
-- Update the documentation in tandem with code changes.
-- If you introduce new features or alter existing functionality, update the README and other relevant docs accordingly.
-- Consider adding examples or usage details for clarity.
+Beacon follows [Epoch Semantic Versioning][2]:
 
----
+- **PATCH** (1.0.x): Bug fixes
+- **MINOR** (1.x.0): New features
+- **MAJOR** (1000.0.0): Incompatible API changes
+- **EPOCH** (2000.0.0, 3000.0.0, etc.): Architectural shifts
 
-## Additional Resources
+Format: `{EPOCH * 1000 + MAJOR}.MINOR.PATCH` — compatible with SemVer tooling.
 
-- For more detailed developer guidance, check out our [Developer Guide][3].
-- Join our community chat for real-time support and discussion.
+### Release Steps
 
----
+1. Merge all changes to trunk
+2. Release via GitHub web interface or manually trigger the release workflow with a version number
+3. CI runs tests, builds the package, and publishes to npm
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the [MIT License][4]. This means that your contributions become part of **@nerdalytics/beacon** and are distributed under the same terms as the rest of the project.
-
----
-
-*Thank you for helping improve **@nerdalytics/beacon**. Your contributions make this project better for everyone!*
+By contributing, you agree that your contributions will be licensed under the [MIT License][4].
 
 <div align="center">
   <img src="https://raw.githubusercontent.com/nerdalytics/nerdalytics/refs/heads/main/nerdalytics-logo-gray-transparent.svg" width="128px">
@@ -184,5 +181,5 @@ By contributing, you agree that your contributions will be licensed under the [M
 
 [1]: ./CODE_OF_CONDUCT.md
 [2]: https://antfu.me/posts/epoch-semver
-[3]: ./DEVELOPER_GUIDE.md
+[3]: https://nerdalytics.github.io/beacon/v2000/architecture
 [4]: ./LICENSE

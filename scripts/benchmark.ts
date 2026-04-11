@@ -1,7 +1,7 @@
 import { performance } from 'node:perf_hooks'
 import { parseArgs } from 'node:util'
-import type { ReadOnlyState, Unsubscribe } from '../src/index.ts'
-import { batch, derive, effect, select, state } from '../src/index.ts'
+import type { ComputedValue, Unsubscribe } from '../src/index.ts'
+import { batch, derive, effect, state } from '../src/index.ts'
 
 const DEFAULT_RUN_COUNT = 10
 const LOOP_LENGTH = 1_000_000
@@ -110,81 +110,95 @@ function classicLoop(): number {
 }
 
 function stateNoSubscribers(): number {
-	const s = state(0)
+	const s = state({
+		count: 0,
+	})
 	const start = performance.now()
-	for (let i = 0; i < LOOP_LENGTH; i++) s.update((v: number): number => v + 1)
+	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
 	return performance.now() - start
 }
 
 function statePlusDeriveNoEffects(): number {
-	const s = state(0)
-	const totals: ReadOnlyState<number> = derive((): number => s() * 2)
+	const s = state({
+		count: 0,
+	})
+	const totals: ComputedValue<number> = derive((): number => s.count * 2)
 	const start = performance.now()
-	for (let i = 0; i < LOOP_LENGTH; i++) s.update((v: number): number => v + 1)
+	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
 	const end = performance.now()
-	if (totals() !== s() * 2) throw new Error('mismatch')
+	if (totals.value !== s.count * 2) throw new Error('mismatch')
 	return end - start
 }
 
 function statePlusDerivePlusEffects(): number {
-	const s = state(0)
+	const s = state({
+		count: 0,
+	})
 	const d1: Unsubscribe = effect((): void => {
-		s()
+		void s.count
 	})
 	const d2: Unsubscribe = effect((): void => {
-		s()
+		void s.count
 	})
-	const totals: ReadOnlyState<number> = derive((): number => s() * 2)
+	const totals: ComputedValue<number> = derive((): number => s.count * 2)
 	const start = performance.now()
-	for (let i = 0; i < LOOP_LENGTH; i++) s.update((v: number): number => v + 1)
+	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
 	const end = performance.now()
-	if (totals() !== s() * 2) throw new Error('mismatch')
+	if (totals.value !== s.count * 2) throw new Error('mismatch')
 	d1()
 	d2()
 	return end - start
 }
 
 function batchPlusDeriveNoEffects(): number {
-	const errors = state(0)
-	const processed = state(0)
-	const totals: ReadOnlyState<number> = derive((): number => errors() + processed())
+	const errors = state({
+		count: 0,
+	})
+	const processed = state({
+		count: 0,
+	})
+	const totals: ComputedValue<number> = derive((): number => errors.count + processed.count)
 	const start = performance.now()
 	batch((): void => {
 		for (let i = 0; i <= LOOP_LENGTH; i++) {
 			if (i % ERROR_FREQUENCY === 0) {
-				errors.update((v: number): number => v + 1)
+				errors.count++
 			} else {
-				processed.update((v: number): number => v + 1)
+				processed.count++
 			}
 		}
 	})
 	const end = performance.now()
-	if (processed() + errors() !== totals()) throw new Error('mismatch')
+	if (processed.count + errors.count !== totals.value) throw new Error('mismatch')
 	return end - start
 }
 
 function batchPlusDerivePlusEffects(): number {
-	const errors = state(0)
-	const processed = state(0)
+	const errors = state({
+		count: 0,
+	})
+	const processed = state({
+		count: 0,
+	})
 	const d1: Unsubscribe = effect((): void => {
-		errors()
+		void errors.count
 	})
 	const d2: Unsubscribe = effect((): void => {
-		processed()
+		void processed.count
 	})
-	const totals: ReadOnlyState<number> = derive((): number => errors() + processed())
+	const totals: ComputedValue<number> = derive((): number => errors.count + processed.count)
 	const start = performance.now()
 	batch((): void => {
 		for (let i = 0; i <= LOOP_LENGTH; i++) {
 			if (i % ERROR_FREQUENCY === 0) {
-				errors.update((v: number): number => v + 1)
+				errors.count++
 			} else {
-				processed.update((v: number): number => v + 1)
+				processed.count++
 			}
 		}
 	})
 	const end = performance.now()
-	if (processed() + errors() !== totals()) throw new Error('mismatch')
+	if (processed.count + errors.count !== totals.value) throw new Error('mismatch')
 	d1()
 	d2()
 	return end - start
@@ -193,28 +207,34 @@ function batchPlusDerivePlusEffects(): number {
 function stateCreation(): number {
 	const start = performance.now()
 	for (let i = 0; i < STATE_CREATION_COUNT; i++) {
-		state(i)
+		state({
+			v: i,
+		})
 	}
 	return performance.now() - start
 }
 
 function stateReadNoEffect(): number {
-	const s = state(42)
+	const s = state({
+		v: 42,
+	})
 	const start = performance.now()
 	for (let i = 0; i < STATE_READ_COUNT; i++) {
-		s()
+		void s.v
 	}
 	return performance.now() - start
 }
 
 function stateWrite1Sub(): number {
-	const s = state(0)
+	const s = state({
+		v: 0,
+	})
 	const cleanup: Unsubscribe = effect((): void => {
-		s()
+		void s.v
 	})
 	const start = performance.now()
 	for (let i = 0; i < SINGLE_SUB_WRITES; i++) {
-		s.set(i)
+		s.v = i
 	}
 	const end = performance.now()
 	cleanup()
@@ -222,18 +242,20 @@ function stateWrite1Sub(): number {
 }
 
 function stateWrite100Subs(): number {
-	const s = state(0)
+	const s = state({
+		v: 0,
+	})
 	const cleanups: Unsubscribe[] = []
 	for (let j = 0; j < MANY_SUB_COUNT; j++) {
 		cleanups.push(
 			effect((): void => {
-				s()
+				void s.v
 			})
 		)
 	}
 	const start = performance.now()
 	for (let i = 0; i < MANY_SUB_WRITES; i++) {
-		s.set(i)
+		s.v = i
 	}
 	const end = performance.now()
 	for (const c of cleanups) c()
@@ -241,13 +263,15 @@ function stateWrite100Subs(): number {
 }
 
 function effectTriggers(): number {
-	const s = state(0)
+	const s = state({
+		v: 0,
+	})
 	const cleanup: Unsubscribe = effect((): void => {
-		s()
+		void s.v
 	})
 	const start = performance.now()
 	for (let i = 0; i < EFFECT_TRIGGER_WRITES; i++) {
-		s.set(i)
+		s.v = i
 	}
 	const end = performance.now()
 	cleanup()
@@ -259,45 +283,60 @@ function manyDependencies(): number {
 		{
 			length: MULTI_SOURCE_COUNT,
 		},
-		(_: unknown, i: number) => state(i)
+		(
+			_: unknown,
+			i: number
+		): {
+			v: number
+		} =>
+			state({
+				v: i,
+			})
 	)
-	const sum: ReadOnlyState<number> = derive((): number => {
+	const sum: ComputedValue<number> = derive((): number => {
 		let acc = 0
-		for (const src of sources) acc += src()
+		for (const src of sources) acc += src.v as number
 		return acc
 	})
 	const cleanup: Unsubscribe = effect((): void => {
-		sum()
+		void sum.value
 	})
 	const start = performance.now()
 	for (let iter = 0; iter < MULTI_SOURCE_ITERATIONS; iter++) {
 		batch((): void => {
 			for (let i = 0; i < MULTI_SOURCE_COUNT; i++) {
-				sources[i].set(i + iter)
+				sources[i].v = i + iter
 			}
 		})
 	}
 	const end = performance.now()
 	cleanup()
+	sum.reactive = false
 	return end - start
 }
 
 function deriveChainDepth10(): number {
-	const source = state(0)
-	let current: ReadOnlyState<number> = derive((): number => source())
+	const source = state({
+		v: 0,
+	})
+	const chain: ComputedValue<number>[] = []
+	let current: ComputedValue<number> = derive((): number => source.v as number)
+	chain.push(current)
 	for (let i = 1; i < DERIVE_CHAIN_DEPTH; i++) {
 		const prev = current
-		current = derive((): number => prev() + 1)
+		current = derive((): number => (prev.value as number) + 1)
+		chain.push(current)
 	}
 	const cleanup: Unsubscribe = effect((): void => {
-		current()
+		void current.value
 	})
 	const start = performance.now()
 	for (let i = 0; i < DERIVE_CHAIN_ITERATIONS; i++) {
-		source.set(i)
+		source.v = i
 	}
 	const end = performance.now()
 	cleanup()
+	for (const d of chain) d.reactive = false
 	return end - start
 }
 
@@ -306,16 +345,24 @@ function update100StatesIndividual(): number {
 		{
 			length: MULTI_SOURCE_COUNT,
 		},
-		(_: unknown, i: number) => state(i)
+		(
+			_: unknown,
+			i: number
+		): {
+			v: number
+		} =>
+			state({
+				v: i,
+			})
 	)
 	const cleanup: Unsubscribe = effect((): void => {
 		let _sum = 0
-		for (const c of counters) _sum += c()
+		for (const c of counters) _sum += c.v as number
 	})
 	const start = performance.now()
 	for (let iter = 0; iter < MULTI_SOURCE_ITERATIONS; iter++) {
 		for (let i = 0; i < MULTI_SOURCE_COUNT; i++) {
-			counters[i].set(i + iter)
+			counters[i].v = i + iter
 		}
 	}
 	const end = performance.now()
@@ -328,17 +375,25 @@ function update100StatesBatched(): number {
 		{
 			length: MULTI_SOURCE_COUNT,
 		},
-		(_: unknown, i: number) => state(i)
+		(
+			_: unknown,
+			i: number
+		): {
+			v: number
+		} =>
+			state({
+				v: i,
+			})
 	)
 	const cleanup: Unsubscribe = effect((): void => {
 		let _sum = 0
-		for (const c of counters) _sum += c()
+		for (const c of counters) _sum += c.v as number
 	})
 	const start = performance.now()
 	for (let iter = 0; iter < MULTI_SOURCE_ITERATIONS; iter++) {
 		batch((): void => {
 			for (let i = 0; i < MULTI_SOURCE_COUNT; i++) {
-				counters[i].set(i + iter)
+				counters[i].v = i + iter
 			}
 		})
 	}
@@ -354,21 +409,15 @@ function disjointSubscribers(): number {
 	const cleanups: Unsubscribe[] = []
 	for (let i = 0; i < DISJOINT_PROP_COUNT; i++) {
 		const key = `p${i}`
-		const sel: ReadOnlyState<number> = select(s, (o: Record<string, number>): number => o[key])
 		cleanups.push(
 			effect((): void => {
-				sel()
+				void s[key]
 			})
 		)
 	}
 	const start = performance.now()
 	for (let i = 0; i < DISJOINT_WRITES; i++) {
-		s.update(
-			(o: Record<string, number>): Record<string, number> => ({
-				...o,
-				p0: i,
-			})
-		)
+		s.p0 = i
 	}
 	const end = performance.now()
 	for (const c of cleanups) c()
@@ -456,7 +505,7 @@ const suite: SuiteEntry[] = [
 
 const totalSamples: number = RUN_COUNT * BENCH_RUNS
 console.info(
-	`=== Beacon v1000 Benchmark (${LOOP_LENGTH.toLocaleString()} iterations, ${RUN_COUNT} cycles × ${BENCH_RUNS} samples = ${totalSamples} total) ===`
+	`=== Beacon Benchmark (${LOOP_LENGTH.toLocaleString()} iterations, ${RUN_COUNT} cycles × ${BENCH_RUNS} samples = ${totalSamples} total) ===`
 )
 console.info('')
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { afterEach, describe, it } from 'node:test'
 import { batch, derive, effect, state } from '../src/index.ts'
 
 /**
@@ -18,19 +18,35 @@ describe('Infinite Loop Detection', {
 	concurrency: true,
 	timeout: 1000,
 }, (): void => {
+	// Track all unsubscribe functions created in each test
+	let unsubscribes: Array<() => void> = []
+
+	afterEach((): void => {
+		// Clean up all effects created during the test
+		for (const unsubscribe of unsubscribes) {
+			try {
+				unsubscribe()
+			} catch {
+				// Ignore errors during cleanup
+			}
+		}
+		unsubscribes = []
+	})
 	it('should detect direct infinite loops in effects (read + write to same state)', (): void => {
-		const count = state(0)
+		const $count = state({
+			value: 0,
+		})
 		let errorThrown = false
 
 		try {
 			effect((): void => {
-				const currentCount = count()
-				count.set(currentCount + 1)
+				const currentCount = $count.value
+				$count.value = currentCount + 1
 			})
 
 			// Trigger another update to cause the error
-			count.set(10)
-		} catch (error) {
+			$count.value = 10
+		} catch (error: unknown) {
 			errorThrown = true
 			assert.ok(
 				error instanceof Error && error.message.includes('Infinite loop detected'),
@@ -42,7 +58,9 @@ describe('Infinite Loop Detection', {
 	})
 
 	it('should allow a single read-write cycle but prevent infinite loops', (): void => {
-		const counter = state(5)
+		const $counter = state({
+			value: 5,
+		})
 		const values: number[] = []
 		let errorThrown = false
 		let effectRanCount = 0
@@ -50,14 +68,14 @@ describe('Infinite Loop Detection', {
 		try {
 			effect((): void => {
 				effectRanCount++
-				const current = counter()
+				const current = $counter.value
 				values.push(current)
-				counter.set(current + 1)
+				$counter.value = current + 1
 			})
 
 			// Trigger the effect again with a new value
-			counter.set(10)
-		} catch (error) {
+			$counter.value = 10
+		} catch (error: unknown) {
 			errorThrown = true
 			assert.ok(
 				error instanceof Error && error.message.includes('Infinite loop detected'),
@@ -72,61 +90,70 @@ describe('Infinite Loop Detection', {
 
 	it('should allow safe patterns that avoid infinite loops', (): void => {
 		// Create two states to break the cycle
-		const source = state(0)
-		const target = state(0)
+		const $source = state({
+			value: 0,
+		})
+		const $target = state({
+			value: 0,
+		})
 		let effectRunCount = 0
 
 		// This pattern is safe: source → target (different states)
 		const dispose = effect((): void => {
 			effectRunCount++
 			// Read from source, write to target
-			target.set(source() * 2)
+			$target.value = $source.value * 2
 		})
+		unsubscribes.push(dispose)
 
 		// Reset counter after initial effect run
 		effectRunCount = 0
 
 		// Update source several times
-		source.set(1)
-		source.set(2)
-		source.set(3)
+		$source.value = 1
+		$source.value = 2
+		$source.value = 3
 
 		// Check final values
-		assert.strictEqual(source(), 3)
-		assert.strictEqual(target(), 6)
+		assert.strictEqual($source.value, 3)
+		assert.strictEqual($target.value, 6)
 		assert.strictEqual(effectRunCount, 3, 'Effect should run once per update')
-
-		dispose()
 	})
 
 	it('should not catch infinite loop error in safe complex update patterns', (): void => {
 		// Setup multiple states in a chain
-		const a = state(1)
-		const b = state(2)
-		const c = state(3)
+		const $a = state({
+			value: 1,
+		})
+		const $b = state({
+			value: 2,
+		})
+		const $c = state({
+			value: 3,
+		})
 		let errorThrown = false
 
 		try {
 			// First effect creates a safe dependency: a → b
 			effect((): void => {
-				b.set(a() * 2)
+				$b.value = $a.value * 2
 			})
 
 			// Second effect creates another safe chain: b → c
 			effect((): void => {
-				c.set(b() + 1)
+				$c.value = $b.value + 1
 			})
 
 			// This effect creates the dangerous cycle: c → a
 			// This completes a cycle: a → b → c → a
 			effect((): void => {
-				const cValue = c()
-				a.set(cValue)
+				const cValue = $c.value
+				$a.value = cValue
 			})
 
 			// Trigger the cycle
-			a.set(5)
-		} catch (error) {
+			$a.value = 5
+		} catch (error: unknown) {
 			errorThrown = true
 			assert.ok(
 				error instanceof Error && error.message.includes('Infinite loop detected'),
@@ -139,24 +166,26 @@ describe('Infinite Loop Detection', {
 
 	it('should not catch infinite loop error with safe derived states', (): void => {
 		// Create the base state
-		const baseState = state(5)
+		const $baseState = state({
+			value: 5,
+		})
 		let errorThrown = false
 
 		try {
 			// Create a derived state that depends on the base state
-			const derivedResult = derive((): number => {
-				return baseState() * 2
+			const $derivedResult = derive((): number => {
+				return $baseState.value * 2
 			})
 
 			// This effect creates a cycle: derivedResult → baseState
 			effect((): void => {
-				const value = derivedResult()
-				baseState.set(value)
+				const value = $derivedResult.value as number
+				$baseState.value = value
 			})
 
 			// Trigger the cycle
-			baseState.set(10)
-		} catch (error) {
+			$baseState.value = 10
+		} catch (error: unknown) {
 			errorThrown = true
 			assert.ok(
 				error instanceof Error && error.message.includes('Infinite loop detected'),
@@ -168,18 +197,20 @@ describe('Infinite Loop Detection', {
 	})
 
 	it('should detect infinite loops even with conditional logic', (): void => {
-		const counter = state(2)
+		const $counter = state({
+			value: 2,
+		})
 		let errorThrown = false
 
 		try {
 			effect((): void => {
-				const current = counter()
+				const current = $counter.value
 				// Only write back for even values
 				if (current % 2 === 0) {
-					counter.set(current + 1)
+					$counter.value = current + 1
 				}
 			})
-		} catch (error) {
+		} catch (error: unknown) {
 			errorThrown = true
 			assert.ok(
 				error instanceof Error && error.message.includes('Infinite loop detected'),
@@ -191,25 +222,27 @@ describe('Infinite Loop Detection', {
 	})
 
 	it('should detect infinite loops in effects created inside batches', (): void => {
-		const value = state(10)
+		const $value = state({
+			value: 10,
+		})
 		let errorThrown = false
 
 		try {
 			// Batch operation that creates an effect with a potential infinite loop
 			batch((): void => {
 				// Set initial value
-				value.set(20)
+				$value.value = 20
 
 				// Create effect inside batch that creates an infinite loop
 				effect((): void => {
-					const _currentValue = value()
-					value.set(42)
+					const _currentValue = $value.value
+					$value.value = 42
 				})
 
 				// Another update inside the batch
-				value.set(30)
+				$value.value = 30
 			})
-		} catch (error) {
+		} catch (error: unknown) {
 			errorThrown = true
 			assert.ok(
 				error instanceof Error && error.message.includes('Infinite loop detected'),
@@ -221,20 +254,22 @@ describe('Infinite Loop Detection', {
 	})
 
 	it('should detect infinite loops in oscillating patterns', (): void => {
-		const a = state(5)
+		const $a = state({
+			value: 5,
+		})
 		let errorThrown = false
 
 		try {
 			// Create an effect that reads and writes to the same state
 			effect((): void => {
-				const currentValue = a()
+				const currentValue = $a.value
 				// Negate the value - would cause oscillation
-				a.set(-currentValue)
+				$a.value = -currentValue
 			})
 
 			// Trigger the effect
-			a.set(10)
-		} catch (error) {
+			$a.value = 10
+		} catch (error: unknown) {
 			errorThrown = true
 			assert.ok(
 				error instanceof Error && error.message.includes('Infinite loop detected'),

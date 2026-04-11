@@ -14,25 +14,30 @@
 !assets/*.png
 !assets/*.svg
 !docs/
-!handbook/
-!handbook/**/
-!handbook/**/*.css
-!handbook/**/*.d.ts
-!handbook/**/*.html
-!handbook/**/*.js
-!handbook/**/*.json
-!handbook/**/*.svelte
-!handbook/**/*.svg
-!handbook/**/*.ts
-!handbook/**/*.txt
-!handbook/**/*.woff2
+!docs/**.md
 !scripts/
+!scripts/*.md
 !scripts/*.?s
 !src/
 !src/
 !src/*.ts
+!src/*.md
+!src/hooks/
+!src/hooks/*.ts
 !tests/
+!tests/*.md
 !tests/*.ts
+!handbook/
+!handbook/**/
+!handbook/**/*.svelte
+!handbook/**/*.ts
+!handbook/**/*.js
+!handbook/**/*.json
+!handbook/**/*.html
+!handbook/**/*.css
+!handbook/**/*.svg
+!handbook/**/*.md
+!handbook/**/*.woff2
 
 # Files in root
 !.gitattributes
@@ -45,6 +50,7 @@
 !package-lock.json
 !package.json
 !tsconfig.json
+!jsr.json
 !tsconfig.lts.json
 
 # Allow markdown anywhere
@@ -52,8 +58,6 @@
 
 # But still ignore these specific patterns everywhere
 **/node_modules/**
-**/.svelte-kit/**
-**/handbook/build/**
 *.tsbuildinfo
 coverage/
 

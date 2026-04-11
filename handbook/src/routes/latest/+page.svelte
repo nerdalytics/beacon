@@ -6,7 +6,7 @@
 	<title>Beacon latest — Reactive dependency graph runtime for Node.js</title>
 	<meta
 		name="description"
-		content="Zero-dependency reactive dependency graph runtime for Node.js backends. Automatic dependency tracking, select, and efficient updates."
+		content="Zero-dependency reactive dependency graph runtime for Node.js backends. Automatic dependency tracking and efficient updates."
 	/>
 </svelte:head>
 
@@ -23,11 +23,17 @@
 		<a href="https://pnpm.io/">
 			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
 		</a>
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/1000.3.3">
-			<img src="https://flat.badgen.net/static/npm/v1000.3.3/blue" alt="npm v1000.3.3" />
+		<a href="https://jsr.io/@nerdalytics/beacon">
+			<img src="https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black" alt="jsr" />
 		</a>
-		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/1000.3.3">
-			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/1000.3.3" alt="Socket" />
+		<a href="https://vlt.sh/">
+			<img src="https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white" alt="vlt" />
+		</a>
+		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/2000.0.0">
+			<img src="https://flat.badgen.net/static/npm/v2000.0.0/blue" alt="npm v2000.0.0" />
+		</a>
+		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/2000.0.0">
+			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0" alt="Socket" />
 		</a>
 	</div>
 	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
@@ -52,18 +58,16 @@
 	<div
 		class="mb-8 w-full max-w-md text-left rounded-lg border border-navy-border bg-navy-light p-5 text-sm font-mono leading-relaxed"
 	>
-		<div class="text-lime mb-1">// select a slice, react to it</div>
+		<div class="text-lime mb-1">// reactive in three lines</div>
 		<div>
-			<span class="text-teal">const</span> $user = <span class="text-blue-mid">state</span>({'{'} name: <span class="text-[#e8a46e]">'Ada'</span>, role: <span class="text-[#e8a46e]">'dev'</span> {'}'})
+			<span class="text-teal">const</span> $app = <span class="text-blue-mid">state</span>({'{'}
+			count: <span class="text-[#e8a46e]">0</span> {'}'})
 		</div>
 		<div>
-			<span class="text-teal">const</span> $name = <span class="text-blue-mid">select</span>($user, (u) =&gt; u.name)
+			<span class="text-blue-mid">effect</span>(() =&gt; <span class="text-blue-mid">console</span>.<span class="text-blue-mid">log</span>($app.count))
 		</div>
 		<div>
-			<span class="text-blue-mid">effect</span>(() =&gt; <span class="text-blue-mid">console</span>.<span class="text-blue-mid">log</span>($name()))
-		</div>
-		<div>
-			$user.<span class="text-blue-mid">update</span>((u) =&gt; ({'{'} ...u, name: <span class="text-[#e8a46e]">'Grace'</span> {'}'}))
+			$app.count++ <span class="text-lime">// logs: 1</span>
 		</div>
 	</div>
 

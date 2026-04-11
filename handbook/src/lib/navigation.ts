@@ -14,13 +14,26 @@ export interface NavGroup {
 
 interface NavConfig {
 	deriveName?: string
+	hasDebugging?: boolean
+	hasHooks?: boolean
 	hasLens?: boolean
+	hasPerformance?: boolean
+	hasRecipes?: boolean
 	hasSelect?: boolean
 	migration?: string
 }
 
 const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
-	const { deriveName = 'Derive', hasLens = true, hasSelect = true, migration } = config
+	const {
+		deriveName = 'Derive',
+		hasDebugging = false,
+		hasHooks = false,
+		hasLens = true,
+		hasPerformance = false,
+		hasRecipes = false,
+		hasSelect = true,
+		migration,
+	} = config
 
 	const guides: NavItem[] = [
 		{
@@ -83,10 +96,53 @@ const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
 					href: `${prefix}/architecture`,
 					title: 'Architecture',
 				},
+				...(hasDebugging
+					? [
+							{
+								href: `${prefix}/debugging`,
+								title: 'Debugging',
+							},
+						]
+					: []),
+				...(hasPerformance
+					? [
+							{
+								href: `${prefix}/performance`,
+								title: 'Performance',
+							},
+						]
+					: []),
 			],
 			title: 'Advanced',
 		},
 	]
+
+	if (hasHooks) {
+		groups.splice(2, 0, {
+			items: [
+				{
+					href: `${prefix}/hooks-overview`,
+					title: 'Overview',
+				},
+				{
+					href: `${prefix}/hooks-api`,
+					title: 'API Reference',
+				},
+				{
+					href: `${prefix}/hooks-catalog`,
+					title: 'Catalog',
+				},
+			],
+			title: 'Hooks',
+		})
+	}
+
+	if (hasRecipes) {
+		groups.push({
+			items: [],
+			title: 'Recipes',
+		})
+	}
 
 	if (migration) {
 		groups.push({
@@ -124,7 +180,25 @@ const versionConfigs: [
 	[
 		'/latest',
 		{
-			migration: 'v1000.3.2 \u2192 v1000.3.3',
+			hasDebugging: true,
+			hasHooks: true,
+			hasLens: false,
+			hasPerformance: true,
+			hasRecipes: true,
+			hasSelect: false,
+			migration: 'v1000.3.3 \u2192 v2000.0.0',
+		},
+	],
+	[
+		'/v2000.0.0',
+		{
+			hasDebugging: true,
+			hasHooks: true,
+			hasLens: false,
+			hasPerformance: true,
+			hasRecipes: true,
+			hasSelect: false,
+			migration: 'v1000.3.3 \u2192 v2000.0.0',
 		},
 	],
 	[
