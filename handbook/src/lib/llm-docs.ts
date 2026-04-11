@@ -6,7 +6,7 @@ import { resolveVersionLabel, versions } from '$lib/versions'
 
 const FRONTMATTER_BLANKS_RE = /^(---[\s\S]*?---\n)\n+/
 const ROUTES_DIR: string = join(process.cwd(), 'src', 'routes')
-const SCRIPT_BLOCK_RE = /<script[\s\S]*?<\/script>\s*/gi
+const SCRIPT_BLOCK_RE = /<script\b[\s\S]*?<\/script\s*>\s*/gi
 const VERSION_LINK_RE = /<VersionLink\s+path="([^"]*)">([\s\S]*?)<\/VersionLink>/g
 const VERSION_TAG_RE = /<Version\s*\/>/g
 
