@@ -11,12 +11,6 @@
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white)](https://typescriptlang.org/)
 [![linter:biome](https://img.shields.io/badge/Biome-60a5fa?style=flat-square&logo=biome&logoColor=white)](https://biomejs.dev/)
 
-[![pm:npm](https://img.shields.io/badge/npm-CB3837?style=flat-square&logo=npm&logoColor=white)](https://www.npmjs.com/package/@nerdalytics/beacon)
-[![pm:yarn](https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white)](https://yarnpkg.com/)
-[![pm:pnpm](https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![pm:jsr](https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black)](https://jsr.io/@nerdalytics/beacon)
-[![pm:vlt](https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white)](https://vlt.sh/)
-
 Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
 
 ## Installation
