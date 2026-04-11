@@ -12,7 +12,7 @@ description: Group multiple state updates into a single notification cycle
 function batch<T>(fn: () => T, hooks?: BatchHooks): T
 ```
 
-Returns the value returned by `fn`. See [Hooks](/v2000/hooks-overview) for the optional hooks parameter.
+Returns the value returned by `fn`. See [Hooks](/v2000.0.0/hooks-overview) for the optional hooks parameter.
 
 ## Basic usage
 

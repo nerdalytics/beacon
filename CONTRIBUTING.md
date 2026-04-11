@@ -33,6 +33,11 @@ npm run build:lts
 npm test
 ```
 
+To run a single test file in isolation:
+```bash
+node --test tests/batch.test.ts
+```
+
 ## Architecture
 
 Single-file core (`src/index.ts`) with four primitives: `state`, `derive`, `effect`, `batch`. Zero external dependencies. See the [handbook architecture page][3] for internals.

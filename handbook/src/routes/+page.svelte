@@ -34,12 +34,6 @@
 		<a href="https://nodejs.org/">
 			<img src="https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
 		</a>
-		<a href="https://bun.sh/">
-			<img src="https://img.shields.io/badge/Bun-000000?style=flat-square&logo=bun&logoColor=white" alt="Bun" />
-		</a>
-		<a href="https://deno.com/">
-			<img src="https://img.shields.io/badge/Deno-464647?style=flat-square&logo=deno&logoColor=white" alt="Deno" />
-		</a>
 		<a href="https://typescriptlang.org/">
 			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
 		</a>
@@ -86,7 +80,7 @@
 	</div>
 
 	<a
-		href={resolve('/v2000/introduction')}
+		href={resolve('/v2000.0.0/introduction')}
 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
 	>
 		Get Started

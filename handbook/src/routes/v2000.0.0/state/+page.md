@@ -12,7 +12,7 @@ description: Create and manage reactive objects with automatic dependency tracki
 function state<T extends object>(initial: T, hooks?: StateHooks<T>): T
 ```
 
-Returns a Proxy-wrapped version of the input object. Passing a non-object returns the value as-is. See [Hooks](/v2000/hooks-overview) for the optional hooks parameter.
+Returns a Proxy-wrapped version of the input object. Passing a non-object returns the value as-is. See [Hooks](/v2000.0.0/hooks-overview) for the optional hooks parameter.
 
 ## Creating reactive state
 

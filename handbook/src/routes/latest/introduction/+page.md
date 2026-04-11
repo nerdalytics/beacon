@@ -1,38 +1,44 @@
 ---
 title: Introduction
-description: Introduction to Beacon
+description: What Beacon is and why it exists
 ---
 
-<script>
-import Version from '$lib/components/Version.svelte'
-import VersionLink from '$lib/components/VersionLink.svelte'
-</script>
 
-Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.
+Beacon is a reactive state management library for Node.js backends. It tracks which properties each function reads and re-runs only when those properties change.
 
-Eight functions make up the API:
+## What it does
 
-- **`state(initialValue, equalityFn?)`** creates a readable and writable signal
-- **`derive(fn)`** computes a read-only value from other signals
-- **`effect(fn)`** runs a function when its dependencies change
-- **`batch(fn)`** groups updates so effects run once
-- **`select(source, selectorFn, equalityFn?)`** subscribes to a computed slice of state
-- **`lens(source, accessor)`** two-way binding to a nested property
-- **`readonlyState(state)`** hides the write methods on a state
-- **`protectedState(initialValue, equalityFn?)`** separates read and write into a tuple
+Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. No manual subscriptions. No event names. No selectors.
 
-When you read a signal inside an effect, Beacon records the dependency. When the signal changes, the effect re-runs. No manual subscriptions, event names, or wiring.
+Four primitives cover the entire API:
 
-## Changes from v1000.3.1
+- **`state(obj)`** — wraps an object in a reactive Proxy
+- **`effect(fn)`** — runs a function and re-runs it when its dependencies change
+- **`derive(fn)`** — computes a value that stays in sync with its dependencies
+- **`batch(fn)`** — groups multiple state changes into a single update cycle
 
-<Version /> adds a proto-key denylist to `lens()` path extraction. Accessor paths that traverse `__proto__`, `constructor`, or `prototype` are silently rejected as a defense-in-depth measure against prototype pollution. No API or behavioral changes for legitimate use. See the <VersionLink path="/migration">migration guide</VersionLink>.
+That's the whole library.
 
-## Constraints
+## Design constraints
 
-Single TypeScript file, ~480 lines, zero dependencies. Node.js 20+, full type inference. Internals are standalone functions with module-level tracking state.
+- Zero dependencies
+- ~10kb minified
+- Single-file core
+- TypeScript-first with full type inference
+- Deep reactivity — nested objects are automatically wrapped
+- Automatic dependency tracking at the property level
 
-## Use cases
+## Who this is for
 
-Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph. `select()` avoids unrelated recomputation on large state objects. `lens()` gives subsystems two-way ownership of a slice of shared state.
+Backend developers who want reactive patterns on the server. If you've used signals or observables on the frontend and wished you had the same thing in your Node.js services, Beacon fills that gap.
 
-Beacon is not a frontend framework. No DOM bindings, no component model. It tracks plain JavaScript values on the server.
+Common use cases:
+
+- Configuration objects that trigger side effects on change
+- In-memory caches that recompute derived data automatically
+- Event-driven pipelines where state changes propagate through a dependency graph
+- Testing harnesses that need observable state
+
+## Who this is not for
+
+Beacon is not a frontend framework. It has no DOM bindings and no component model. It manages plain JavaScript objects.

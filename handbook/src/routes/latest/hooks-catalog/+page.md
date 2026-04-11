@@ -6,7 +6,7 @@ description: Hook interfaces, composeHook utility, and patterns for writing your
 
 This page documents what ships in `@nerdalytics/beacon`: the hook type interfaces and the `composeHook` utility. There are no built-in hook implementations — you write your own hook functions against these interfaces.
 
-For a conceptual overview and the composition model, see [Hooks Overview](/v2000/hooks-overview).
+For a conceptual overview and the composition model, see [Hooks Overview](/latest/hooks-overview).
 
 ## Hook interface reference
 

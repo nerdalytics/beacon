@@ -288,4 +288,4 @@ const hooks = process.env.NODE_ENV === 'development'
 const $state = state(initial, hooks)
 ```
 
-See the [Hooks Catalog](/v2000/hooks-catalog) for hook interface reference, `composeHook` documentation, and practical examples.
+See the [Hooks Catalog](/latest/hooks-catalog) for hook interface reference, `composeHook` documentation, and practical examples.

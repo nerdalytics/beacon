@@ -1,108 +1,313 @@
+import { base } from '$app/paths'
+
+const VERSION_PREFIX_RE = /^(\/v[\d.]+)/
+
 export interface NavItem {
-	title: string
 	href: string
+	title: string
 }
 
 export interface NavGroup {
-	title: string
 	items: NavItem[]
+	title: string
 }
 
-export const navigation: NavGroup[] = [
-	{
+interface NavConfig {
+	deriveName?: string
+	hasDebugging?: boolean
+	hasHooks?: boolean
+	hasLens?: boolean
+	hasPerformance?: boolean
+	hasRecipes?: boolean
+	hasSelect?: boolean
+	migration?: string
+}
+
+const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
+	const { deriveName = 'Derive', hasDebugging = false, hasHooks = false, hasLens = true, hasPerformance = false, hasRecipes = false, hasSelect = true, migration } = config
+
+	const guides: NavItem[] = [
+		{
+			href: `${prefix}/state`,
+			title: 'State',
+		},
+		{
+			href: `${prefix}/effects`,
+			title: 'Effects',
+		},
+		{
+			href: `${prefix}/${deriveName.toLowerCase()}`,
+			title: deriveName,
+		},
+		{
+			href: `${prefix}/batch`,
+			title: 'Batch',
+		},
+	]
+
+	if (hasSelect) {
+		guides.push({
+			href: `${prefix}/select`,
+			title: 'Select',
+		})
+	}
+
+	if (hasLens) {
+		guides.push({
+			href: `${prefix}/lens`,
+			title: 'Lens',
+		})
+	}
+
+	const groups: NavGroup[] = [
+		{
+			items: [
+				{
+					href: `${prefix}/introduction`,
+					title: 'Introduction',
+				},
+				{
+					href: `${prefix}/installation`,
+					title: 'Installation',
+				},
+				{
+					href: `${prefix}/quick-start`,
+					title: 'Quick Start',
+				},
+			],
+			title: 'Getting Started',
+		},
+		{
+			items: guides,
+			title: 'Guides',
+		},
+		{
+			items: [
+				{
+					href: `${prefix}/architecture`,
+					title: 'Architecture',
+				},
+				...(hasDebugging
+					? [
+							{
+								href: `${prefix}/debugging`,
+								title: 'Debugging',
+							},
+						]
+					: []),
+				...(hasPerformance
+					? [
+							{
+								href: `${prefix}/performance`,
+								title: 'Performance',
+							},
+						]
+					: []),
+			],
+			title: 'Advanced',
+		},
+	]
+
+	if (hasHooks) {
+		groups.splice(2, 0, {
+			items: [
+				{
+					href: `${prefix}/hooks-overview`,
+					title: 'Overview',
+				},
+				{
+					href: `${prefix}/hooks-api`,
+					title: 'API Reference',
+				},
+				{
+					href: `${prefix}/hooks-catalog`,
+					title: 'Catalog',
+				},
+			],
+			title: 'Hooks',
+		})
+	}
+
+	if (hasRecipes) {
+		groups.push({
+			items: [],
+			title: 'Recipes',
+		})
+	}
+
+	if (migration) {
+		groups.push({
+			items: [
+				{
+					href: `${prefix}/migration`,
+					title: migration,
+				},
+			],
+			title: 'Migration',
+		})
+	}
+
+	groups.push({
 		items: [
 			{
-				href: '/v2000/introduction',
-				title: 'Introduction',
+				href: `${prefix}/llms`,
+				title: 'LLM Documentation',
 			},
 			{
-				href: '/v2000/installation',
-				title: 'Installation',
-			},
-			{
-				href: '/v2000/quick-start',
-				title: 'Quick Start',
-			},
-		],
-		title: 'Getting Started',
-	},
-	{
-		items: [
-			{
-				href: '/v2000/state',
-				title: 'State',
-			},
-			{
-				href: '/v2000/effects',
-				title: 'Effects',
-			},
-			{
-				href: '/v2000/derive',
-				title: 'Derive',
-			},
-			{
-				href: '/v2000/batch',
-				title: 'Batch',
-			},
-		],
-		title: 'Guides',
-	},
-	{
-		items: [
-			{
-				href: '/v2000/hooks-overview',
-				title: 'Overview',
-			},
-			{
-				href: '/v2000/hooks-api',
-				title: 'API Reference',
-			},
-			{
-				href: '/v2000/hooks-catalog',
-				title: 'Catalog',
-			},
-		],
-		title: 'Hooks',
-	},
-	{
-		items: [
-			{
-				href: '/v2000/architecture',
-				title: 'Architecture',
-			},
-			{
-				href: '/v2000/debugging',
-				title: 'Debugging',
-			},
-			{
-				href: '/v2000/performance',
-				title: 'Performance',
-			},
-		],
-		title: 'Advanced',
-	},
-	{
-		items: [
-			{
-				href: '/v2000/migration',
-				title: 'v1000 → v2000',
-			},
-		],
-		title: 'Migration',
-	},
-	{
-		items: [],
-		title: 'Recipes',
-	},
-	{
-		items: [
-			{
-				href: '/v2000/links',
+				href: `${prefix}/links`,
 				title: 'Resources',
 			},
 		],
 		title: 'Links',
-	},
+	})
+
+	return groups
+}
+
+const versionConfigs: [
+	string,
+	NavConfig,
+][] = [
+	[
+		'/latest',
+		{
+			hasDebugging: true,
+			hasHooks: true,
+			hasLens: false,
+			hasPerformance: true,
+			hasRecipes: true,
+			hasSelect: false,
+			migration: 'v1000.3.3 \u2192 v2000.0.0',
+		},
+	],
+	[
+		'/v2000.0.0',
+		{
+			hasDebugging: true,
+			hasHooks: true,
+			hasLens: false,
+			hasPerformance: true,
+			hasRecipes: true,
+			hasSelect: false,
+			migration: 'v1000.3.3 \u2192 v2000.0.0',
+		},
+	],
+	[
+		'/v1000.3.3',
+		{
+			migration: 'v1000.3.2 \u2192 v1000.3.3',
+		},
+	],
+	[
+		'/v1000.3.2',
+		{
+			migration: 'v1000.3.1 \u2192 v1000.3.2',
+		},
+	],
+	[
+		'/v1000.3.1',
+		{
+			migration: 'v1000.3.0 \u2192 v1000.3.1',
+		},
+	],
+	[
+		'/v1000.3.0',
+		{
+			migration: 'v1000.2.5 \u2192 v1000.3.0',
+		},
+	],
+	[
+		'/v1000.2.5',
+		{
+			migration: 'v1000.2.4 \u2192 v1000.2.5',
+		},
+	],
+	[
+		'/v1000.2.4',
+		{
+			migration: 'v1000.2.3 \u2192 v1000.2.4',
+		},
+	],
+	[
+		'/v1000.2.3',
+		{
+			migration: 'v1000.2.2 \u2192 v1000.2.3',
+		},
+	],
+	[
+		'/v1000.2.2',
+		{
+			migration: 'v1000.2.1 \u2192 v1000.2.2',
+		},
+	],
+	[
+		'/v1000.2.1',
+		{
+			migration: 'v1000.2.0 \u2192 v1000.2.1',
+		},
+	],
+	[
+		'/v1000.2.0',
+		{
+			migration: 'v1000.1.1 \u2192 v1000.2.0',
+		},
+	],
+	[
+		'/v1000.1.1',
+		{
+			migration: 'v1000.1.0 \u2192 v1000.1.1',
+		},
+	],
+	[
+		'/v1000.1.0',
+		{
+			migration: 'v1000.0.0 \u2192 v1000.1.0',
+		},
+	],
+	[
+		'/v1000.0.0',
+		{
+			hasLens: false,
+			migration: 'v1.0.0 \u2192 v1000.0.0',
+		},
+	],
+	[
+		'/v1.0.0',
+		{
+			deriveName: 'Derived',
+			hasLens: false,
+			hasSelect: false,
+		},
+	],
 ]
 
-export const allPages: NavItem[] = navigation.flatMap((g) => g.items)
+export const navigation: Record<string, NavGroup[]> = Object.fromEntries(
+	versionConfigs.map(([prefix, config]) => [
+		prefix,
+		buildNav(prefix, config),
+	])
+)
+
+/** Extract the version prefix from a URL path (e.g., "/beacon/v1.0.0/state" -> "/v1.0.0", "/beacon/latest/state" -> "/latest") */
+export function getVersionPrefix(pathname: string): string | undefined {
+	const path = base && pathname.startsWith(base) ? pathname.slice(base.length) : pathname
+	if (path === '/latest' || path.startsWith('/latest/')) return '/latest'
+	const match = path.match(VERSION_PREFIX_RE)
+	return match?.[1]
+}
+
+/** Get navigation for the current version, derived from URL path */
+export function getNavigation(pathname: string): NavGroup[] {
+	const prefix = getVersionPrefix(pathname)
+	if (prefix && navigation[prefix]) {
+		return navigation[prefix]
+	}
+	return []
+}
+
+/** Get all pages for a given version prefix */
+export function getAllPages(prefix: string): NavItem[] {
+	const groups = navigation[prefix]
+	if (!groups) return []
+	return groups.flatMap((g) => g.items)
+}

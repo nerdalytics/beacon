@@ -4,21 +4,46 @@
 	import VersionSelector from '$lib/components/VersionSelector.svelte'
 	import { asset, resolve } from '$app/paths'
 	import { page } from '$app/state'
+	import { untrack } from 'svelte'
 	import { onNavigate } from '$app/navigation'
 	import { resolveHref } from '$lib/resolve-href'
+	import { getVersionPrefix } from '$lib/navigation'
+	import { currentVersion } from '$lib/versions'
 
 	let { children } = $props()
 
-	let isLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolveHref(''))
+	let scrollContainer: HTMLElement | undefined = $state()
+
+	let isRootLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolveHref(''))
+	let isVersionLanding = $derived.by(() => {
+		const prefix = getVersionPrefix(page.url.pathname)
+		if (!prefix) return false
+		const path = page.url.pathname.replace(resolveHref(prefix), '')
+		return path === '' || path === '/'
+	})
+	let isLanding = $derived(isRootLanding || isVersionLanding)
+	let activePrefix = $derived(getVersionPrefix(page.url.pathname))
+	let homeHref = $derived(activePrefix ? resolveHref(activePrefix) : resolveHref(currentVersion.prefix))
 	let sidebarOpen = $state(false)
 
 	$effect(() => {
 		page.url.pathname
-		if (sidebarOpen) sidebarOpen = false
+		untrack(() => {
+			if (sidebarOpen) sidebarOpen = false
+			scrollContainer?.scrollTo(0, 0)
+		})
 	})
 
 	onNavigate((navigation) => {
 		if (!document.startViewTransition) return
+
+		// Skip view transition for landing page navigations to avoid layout shift
+		const fromPrefix = getVersionPrefix(navigation.from?.url.pathname ?? '')
+		const toPrefix = getVersionPrefix(navigation.to?.url.pathname ?? '')
+		const fromIsLanding = fromPrefix ? !navigation.from?.url.pathname.replace(resolveHref(fromPrefix), '').replace(/\/$/, '') : true
+		const toIsLanding = toPrefix ? !navigation.to?.url.pathname.replace(resolveHref(toPrefix), '').replace(/\/$/, '') : true
+		if (fromIsLanding || toIsLanding) return
+
 		return new Promise((r) => {
 			document.startViewTransition(async () => {
 				r()
@@ -28,9 +53,9 @@
 	})
 </script>
 
-<div class="h-screen flex flex-col overflow-hidden bg-navy text-text font-sans">
-	<header class="shrink-0 z-40 bg-navy/95 backdrop-blur header-gradient-border">
-		<div class="flex items-center justify-between px-4 lg:px-6 h-14">
+<div class="h-dvh flex flex-col overflow-hidden bg-navy text-text font-sans">
+	<header class="shrink-0 z-40 bg-navy/95 backdrop-blur header-gradient-border" style="padding-top: env(safe-area-inset-top);">
+		<div class="flex items-center justify-between h-14" style="padding-left: max(1rem, env(safe-area-inset-left)); padding-right: max(1rem, env(safe-area-inset-right));">
 			<div class="flex items-center gap-2">
 				{#if !isLanding}
 					<button
@@ -45,7 +70,7 @@
 				{/if}
 
 				<a
-					href={resolve('/')}
+					href={homeHref}
 					class="flex items-center gap-2 text-lg font-bold text-text hover:text-teal transition-colors"
 				>
 					{#if !isLanding}
@@ -53,7 +78,6 @@
 							src={asset('/favicon.svg')}
 							alt=""
 							class="w-7 h-7"
-							style="view-transition-name: beacon-logo"
 						/>
 					{/if}
 					<span class="beacon-gradient-text">Beacon</span>
@@ -77,7 +101,7 @@
 		</div>
 	</header>
 
-	<div class="flex-1 min-h-0 overflow-y-auto">
+	<div class="flex-1 min-h-0 overflow-y-auto" style="padding-bottom: env(safe-area-inset-bottom); padding-left: env(safe-area-inset-left); padding-right: env(safe-area-inset-right);" bind:this={scrollContainer}>
 		<div class="doc-grid mx-auto" class:landing={isLanding}>
 			{#if !isLanding}
 				<Sidebar open={sidebarOpen} onclose={() => (sidebarOpen = false)} />

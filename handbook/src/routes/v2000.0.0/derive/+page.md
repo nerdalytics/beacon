@@ -20,7 +20,7 @@ type ComputedValue<T> = {
 - `value` — the cached computed result (read-only)
 - `reactive` — controls the internal effect lifecycle; set to `false` to dispose, `true` to recreate
 
-See [Hooks](/v2000/hooks-overview) for the optional hooks parameter.
+See [Hooks](/v2000.0.0/hooks-overview) for the optional hooks parameter.
 
 ## Basic usage
 

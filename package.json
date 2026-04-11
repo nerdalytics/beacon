@@ -1,14 +1,14 @@
 {
 	"author": "Denny Trebbin (nerdalytics)",
-	"description": "A lightweight reactive state library for Node.js backends. Enables reactive state management with automatic dependency tracking and efficient updates for server-side applications.",
+	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.",
 	"devDependencies": {
-		"@biomejs/biome": "2.4.7",
-		"@types/node": "25.4.0",
+		"@biomejs/biome": "2.4.11",
+		"@types/node": "25.5.2",
 		"esbuild": "0.27.4",
 		"fast-check": "4.5.3",
 		"jsr": "0.14.3",
-		"npm-check-updates": "19.6.3",
-		"typescript": "6.0.1-rc"
+		"npm-check-updates": "20.0.0",
+		"typescript": "6.0.2"
 	},
 	"engines": {
 		"node": ">=22.0.0"
@@ -44,32 +44,24 @@
 	],
 	"keywords": [
 		"backend",
-		"batching",
-		"computed-values",
-		"dependency-tracking",
-		"effects",
-		"fine-grained",
-		"lightweight",
-		"memory-management",
+		"batch",
+		"dependency-graph",
+		"effect",
 		"nodejs",
-		"performance",
 		"reactive",
-		"server-side",
 		"signals",
-		"state-management",
-		"typescript"
+		"state"
 	],
 	"license": "MIT",
 	"main": "dist/src/index.min.js",
 	"name": "@nerdalytics/beacon",
-	"packageManager": "npm@11.9.0",
+	"packageManager": "npm@11.12.1",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/nerdalytics/beacon.git"
 	},
 	"scripts": {
 		"benchmark": "node --expose-gc scripts/benchmark.ts -R 3",
-		"benchmark:naiv": "node scripts/naiv-benchmark.ts",
 		"build": "npm run build:lts",
 		"build:lts": "tsc -p tsconfig.lts.json",
 		"check": "npx @biomejs/biome check --enforce-assist=true",
@@ -83,24 +75,9 @@
 		"prepublishOnly": "npm run build:lts",
 		"pretest:lts:22": "node scripts/run-lts-tests.js",
 		"test": "node --test --test-skip-pattern=\"COMPONENT NAME\" tests/**/*.ts",
-		"test:behavior": "node --test tests/infinite-loop.test.ts tests/cyclic-dependency.test.ts tests/cleanup.test.ts",
-		"test:core": "node --test tests/*-core.test.ts",
 		"test:coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.test.ts",
-		"test:integration": "node --test tests/state-*.test.ts tests/batch-integration.test.ts",
 		"test:lts:22": "node --test --test-skip-pattern=\"COMPONENT NAME\" dist/tests/**/*.js",
-		"test:unit:batch": "node --test tests/batch.test.ts",
-		"test:unit:cleanup": "node --test tests/cleanup.test.ts",
-		"test:unit:custom-equality": "node --test tests/custom-equality.test.ts",
-		"test:unit:cyclic-dependency": "node --test tests/cyclic-dependency.test.ts",
-		"test:unit:deep-chain": "node --test tests/deep-chain.test.ts",
-		"test:unit:derive": "node --test tests/derive.test.ts",
-		"test:unit:effect": "node --test tests/effect.test.ts",
-		"test:unit:infinite-loop": "node --test tests/infinite-loop.test.ts",
-		"test:unit:lens": "node --test tests/lens.test.ts",
-		"test:unit:select": "node --test tests/select.test.ts",
-		"test:unit:state": "node --test tests/state.test.ts",
-		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange",
-		"update-performance-docs": "node --experimental-config-file=node.config.json scripts/update-performance-docs.ts"
+		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange"
 	},
 	"sideEffects": false,
 	"type": "module",

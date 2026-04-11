@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { error } from '@sveltejs/kit'
 import { getAllPages } from '$lib/navigation'
-import { versions } from '$lib/versions'
+import { resolveVersionLabel, versions } from '$lib/versions'
 
 const ROUTES_DIR: string = join(process.cwd(), 'src', 'routes')
 
@@ -37,13 +37,28 @@ export function validatePage(version: string, page: string): string {
 	return page
 }
 
+/** Strip Svelte-specific syntax and resolve component tags to plain markdown. */
+function stripSvelteArtifacts(markdown: string, versionPrefix: string): string {
+	const label = resolveVersionLabel(`/${versionPrefix}`)
+	let result = markdown
+		.replace(/<script[\s\S]*?<\/script>\s*/g, '')
+		.replace(/<Version\s*\/>/g, label)
+		.replace(/<VersionLink\s+path="([^"]*)">([\s\S]*?)<\/VersionLink>/g, (_match, path: string, text: string) => {
+			return `[${text}](/${versionPrefix}${path})`
+		})
+	// Collapse leading blank lines left after script removal (keep frontmatter intact)
+	result = result.replace(/^(---[\s\S]*?---\n)\n+/, '$1\n')
+	return result
+}
+
 /** Read a raw +page.md file for a given version and page slug. */
 export function readPageMarkdown(version: string, page: string): string {
 	const safeVersion = validateVersion(version)
 	const safePage = validatePage(safeVersion, page)
 	const filePath = join(ROUTES_DIR, safeVersion, safePage, '+page.md')
 	try {
-		return readFileSync(filePath, 'utf-8')
+		const raw = readFileSync(filePath, 'utf-8')
+		return stripSvelteArtifacts(raw, safeVersion)
 	} catch (err: unknown) {
 		if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
 			error(404, 'Not found. See /llms.txt for available versions and pages.')

@@ -1,140 +1,137 @@
 ---
 title: Quick Start
-description: Signals, derived values, effects, batching, and select in five minutes
+description: Get up and running with Beacon in five minutes
 ---
 
-This page walks through Beacon's core primitives with runnable examples.
 
-## Create a signal
+This walkthrough builds a reactive system from scratch. By the end you'll have used all four Beacon primitives.
+
+## 1. Create reactive state
+
+`state()` wraps a plain object in a Proxy. It returns the same shape — you read and write properties as usual.
 
 ```typescript
 import { state } from '@nerdalytics/beacon'
 
-const $count = state(0)
+const $app = state({
+  users: 0,
+  errors: 0,
+})
 
-// Read the value by calling it
-console.log($count()) // => 0
-
-// Write with .set()
-$count.set(5)
-console.log($count()) // => 5
-
-// Update with a function
-$count.update((n) => n + 1)
-console.log($count()) // => 6
+$app.users = 5 // reactive — subscribers get notified
 ```
 
-A signal is a function that returns its current value when called. Use `.set()` to replace the value or `.update()` to transform it.
+## 2. React to changes with effects
 
-## Derive a value
-
-```typescript
-import { state, derive } from '@nerdalytics/beacon'
-
-const $count = state(0)
-const $doubled = derive(() => $count() * 2)
-
-console.log($doubled()) // => 0
-
-$count.set(3)
-console.log($doubled()) // => 6
-```
-
-`derive()` creates a read-only signal that recomputes whenever its dependencies change. It returns a `ReadOnlyState<T>` — you can read it but not write to it.
-
-## React to changes
+`effect()` runs a function immediately, then re-runs it whenever the state it read changes. It returns a dispose function.
 
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
 
-const $name = state('world')
+const $app = state({ users: 0, errors: 0 })
 
-const unsubscribe = effect(() => {
-  console.log(`Hello, ${$name()}!`)
+const dispose = effect(() => {
+  console.log(`Users: ${$app.users}, Errors: ${$app.errors}`)
 })
-// => "Hello, world!" (runs immediately)
+// => "Users: 0, Errors: 0"
 
-$name.set('Beacon')
-// => "Hello, Beacon!"
+$app.users = 3
+// => "Users: 3, Errors: 0"
 
-// Stop the effect
-unsubscribe()
-$name.set('ignored')
-// (nothing printed)
+dispose() // stop listening
 ```
 
-`effect()` runs its callback immediately, tracks which signals were read, and re-runs when any of them change. It returns an unsubscribe function that stops the effect and cleans up all subscriptions.
+Beacon tracks that this effect reads `$app.users` and `$app.errors`. Changes to either property re-run it. Changes to other properties don't.
 
-## Batch updates
+## 3. Compute derived values
+
+`derive()` creates a computed value that stays in sync with its dependencies. It returns an object with a `.value` property.
 
 ```typescript
-import { state, derive, effect, batch } from '@nerdalytics/beacon'
+import { state, derive, effect } from '@nerdalytics/beacon'
 
-const $first = state('Ada')
-const $last = state('Lovelace')
-const $full = derive(() => `${$first()} ${$last()}`)
+const $app = state({ users: 0, errors: 0 })
 
-let runs = 0
-effect(() => {
-  runs++
-  console.log($full())
+const errorRate = derive(() => {
+  if ($app.users === 0) return 0
+  return $app.errors / $app.users
 })
-// => "Ada Lovelace" (runs = 1)
+
+effect(() => {
+  console.log(`Error rate: ${errorRate.value}`)
+})
+// => "Error rate: 0"
+
+$app.users = 100
+// => "Error rate: 0"
+
+$app.errors = 5
+// => "Error rate: 0.05"
+
+// Clean up — derive creates an internal effect that must be disposed
+errorRate.reactive = false
+```
+
+Always set `reactive = false` when you're done with a derived value. It creates an internal effect that leaks if not disposed.
+
+## 4. Batch updates
+
+`batch()` groups multiple state changes so effects run once instead of once per change.
+
+```typescript
+import { state, effect, batch } from '@nerdalytics/beacon'
+
+const $app = state({ users: 0, errors: 0 })
+
+effect(() => {
+  console.log(`Users: ${$app.users}, Errors: ${$app.errors}`)
+})
+// => "Users: 0, Errors: 0"
 
 batch(() => {
-  $first.set('Grace')
-  $last.set('Hopper')
+  $app.users = 100
+  $app.errors = 5
 })
-// => "Grace Hopper" (runs = 2, not 3)
+// => "Users: 100, Errors: 5" (logged once, not twice)
 ```
 
-Without `batch()`, each `.set()` would trigger the effect separately. With `batch()`, effects run once after all updates complete.
-
-## Select a slice
-
-```typescript
-import { state, select, effect } from '@nerdalytics/beacon'
-
-const $user = state({ name: 'Ada', role: 'dev', loginCount: 0 })
-
-const $name = select($user, (u) => u.name)
-
-let runs = 0
-effect(() => {
-  console.log($name())
-  runs++
-})
-// => "Ada" (runs = 1)
-
-// Update an unrelated property — effect does NOT re-run
-$user.update((u) => ({ ...u, loginCount: u.loginCount + 1 }))
-// runs = 1 (still)
-
-// Update the selected property — effect re-runs
-$user.update((u) => ({ ...u, name: 'Grace' }))
-// => "Grace" (runs = 2)
-```
-
-`select()` creates a derived signal that only updates when the selected slice changes, not when unrelated properties change.
+Without `batch`, the effect would fire after `$app.users = 100` and again after `$app.errors = 5`. With `batch`, it fires once with both values updated.
 
 ## Putting it together
 
+Here's a complete, runnable example:
+
 ```typescript
-import { state, derive, effect, batch, select } from '@nerdalytics/beacon'
+import { state, effect, derive, batch } from '@nerdalytics/beacon'
 
-const $config = state({ host: 'localhost', port: 3000, debug: false })
-const $host = select($config, (c) => c.host)
-const $url = derive(() => `http://${$host()}:${$config().port}`)
-
-effect(() => {
-  console.log(`Server: ${$url()}`)
+// Reactive state
+const $server = state({
+  requests: 0,
+  failures: 0,
 })
-// => "Server: http://localhost:3000"
 
+// Derived computation
+const failureRate = derive(() => {
+  if ($server.requests === 0) return 0
+  return $server.failures / $server.requests
+})
+
+// Side effect — log when failure rate changes
+const stopLogging = effect(() => {
+  const rate = failureRate.value
+  if (rate > 0.1) {
+    console.log(`Warning: failure rate at ${(rate * 100).toFixed(1)}%`)
+  }
+})
+
+// Simulate traffic
 batch(() => {
-  $config.update((c) => ({ ...c, host: '0.0.0.0', port: 8080 }))
+  $server.requests = 1000
+  $server.failures = 150
 })
-// => "Server: http://0.0.0.0:8080"
-```
+// => "Warning: failure rate at 15.0%"
 
-Eight functions, no configuration, no setup.
+// Clean up
+stopLogging()
+failureRate.reactive = false
+```
