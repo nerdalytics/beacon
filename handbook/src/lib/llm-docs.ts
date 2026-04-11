@@ -4,7 +4,11 @@ import { error } from '@sveltejs/kit'
 import { getAllPages } from '$lib/navigation'
 import { resolveVersionLabel, versions } from '$lib/versions'
 
+const FRONTMATTER_BLANKS_RE = /^(---[\s\S]*?---\n)\n+/
 const ROUTES_DIR: string = join(process.cwd(), 'src', 'routes')
+const SCRIPT_BLOCK_RE = /<script[\s\S]*?<\/script>\s*/g
+const VERSION_LINK_RE = /<VersionLink\s+path="([^"]*)">([\s\S]*?)<\/VersionLink>/g
+const VERSION_TAG_RE = /<Version\s*\/>/g
 
 /** Set of valid version prefixes without leading slash: 'latest', 'v1000.3.1', etc. */
 const VALID_VERSIONS: Set<string> = new Set(versions.map((v) => v.prefix.slice(1)))
@@ -41,13 +45,12 @@ export function validatePage(version: string, page: string): string {
 function stripSvelteArtifacts(markdown: string, versionPrefix: string): string {
 	const label = resolveVersionLabel(`/${versionPrefix}`)
 	let result = markdown
-		.replace(/<script[\s\S]*?<\/script>\s*/g, '')
-		.replace(/<Version\s*\/>/g, label)
-		.replace(/<VersionLink\s+path="([^"]*)">([\s\S]*?)<\/VersionLink>/g, (_match, path: string, text: string) => {
+		.replace(SCRIPT_BLOCK_RE, '')
+		.replace(VERSION_TAG_RE, label)
+		.replace(VERSION_LINK_RE, (_match, path: string, text: string) => {
 			return `[${text}](/${versionPrefix}${path})`
 		})
-	// Collapse leading blank lines left after script removal (keep frontmatter intact)
-	result = result.replace(/^(---[\s\S]*?---\n)\n+/, '$1\n')
+	result = result.replace(FRONTMATTER_BLANKS_RE, '$1\n')
 	return result
 }
 

@@ -24,7 +24,16 @@ interface NavConfig {
 }
 
 const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
-	const { deriveName = 'Derive', hasDebugging = false, hasHooks = false, hasLens = true, hasPerformance = false, hasRecipes = false, hasSelect = true, migration } = config
+	const {
+		deriveName = 'Derive',
+		hasDebugging = false,
+		hasHooks = false,
+		hasLens = true,
+		hasPerformance = false,
+		hasRecipes = false,
+		hasSelect = true,
+		migration,
+	} = config
 
 	const guides: NavItem[] = [
 		{
