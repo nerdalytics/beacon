@@ -12,7 +12,7 @@ PR_TITLE="chore(core): update GitHub Actions to latest versions"
 EXISTING_PR=$(gh pr list --head "$BRANCH_NAME" --state open --json number --jq '.[0].number' 2>/dev/null || echo "")
 if [[ -n "$EXISTING_PR" ]]; then
   echo "Closing existing PR #${EXISTING_PR} to replace with updated version"
-  gh pr close "$EXISTING_PR" --comment "Superseded by a new PR with updated changes." --delete-branch || true
+  gh pr close "$EXISTING_PR" --comment "Superseded by a new PR with updated changes." || true
 fi
 
 # Delete remote branch if it still exists
