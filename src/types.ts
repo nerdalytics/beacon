@@ -1,6 +1,9 @@
+/** A hook callback that receives typed arguments. */
 export type HookFunction<Args extends unknown[]> = (...args: Args) => void
+/** Accept a single value or an array of values. */
 export type SingleOrArray<T> = T | T[]
 
+/** Hooks for {@linkcode batch}. */
 export interface BatchHooks {
 	onBatchEnd?: SingleOrArray<
 		HookFunction<
@@ -26,6 +29,7 @@ export interface BatchHooks {
 	>
 }
 
+/** Hooks for {@linkcode derive}. */
 export interface DeriveHooks<T = unknown> {
 	onCacheHit?: SingleOrArray<
 		HookFunction<
@@ -60,6 +64,7 @@ export interface DeriveHooks<T = unknown> {
 	>
 }
 
+/** Hooks for {@linkcode effect}. */
 export interface EffectHooks {
 	onDependencyAdd?: SingleOrArray<
 		HookFunction<
@@ -109,6 +114,7 @@ export interface EffectHooks {
 	>
 }
 
+/** Hooks for {@linkcode state}. */
 export interface StateHooks<T = unknown> {
 	onDelete?: SingleOrArray<
 		HookFunction<

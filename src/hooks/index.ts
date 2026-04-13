@@ -1,3 +1,8 @@
+/**
+ * Hook types and composition utility for Beacon's instrumentation system.
+ *
+ * @module
+ */
 export type {
 	BatchHooks,
 	DeriveHooks,
