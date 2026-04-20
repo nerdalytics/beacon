@@ -17,7 +17,7 @@ jobs:
         with:
           token: ${{ secrets.ACTION_UPDATER_PAT }}
 
-      - uses: nerdalytics/check-action-versions@800cc33a5c20ca73557cc7358a1c1f0b91f0a90a # v1
+      - uses: nerdalytics/check-action-versions@0d95f1ed70576169ff3c297057b7e3fcfb909a1a # v1.0.2
         with:
           committer-name: nerdalytics
           committer-email: 97166791+nerdalytics@users.noreply.github.com
