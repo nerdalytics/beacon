@@ -10,75 +10,22 @@ on:
   workflow_dispatch:
 
 jobs:
-  check-versions:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           token: ${{ secrets.ACTION_UPDATER_PAT }}
 
-      - name: Scan workflow files for actions
-        id: scan
-        run: bash .github/scripts/scan-actions.sh
-
-      - name: Resolve latest versions
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bash .github/scripts/resolve-latest.sh
-
-      - name: Compare current vs latest
-        id: compare
-        run: bash .github/scripts/compare-actions.sh
-
-      - name: Generate report
-        if: steps.compare.outputs.has_outdated == 'true'
-        run: bash .github/scripts/generate-report.sh
-
-      - name: Create or update security issue
-        if: steps.compare.outputs.has_outdated == 'true'
-        id: issue
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: bash .github/scripts/manage-issue.sh
-
-      - name: Apply updates to workflow files
-        if: steps.compare.outputs.has_outdated == 'true'
-        id: apply
-        run: bash .github/scripts/apply-updates.sh
-
-      - name: Configure SSH signing
-        if: steps.apply.outputs.changes_made == '1'
-        env:
-          SSH_SIGNING_KEY: ${{ secrets.SSH_SIGNING_KEY }}
-          SSH_PASSPHRASE: ${{ secrets.SSH_SIGNING_KEY_PASSPHRASE }}
-        run: |
-          mkdir -p ~/.ssh
-          printf '%s\n' "$SSH_SIGNING_KEY" > ~/.ssh/signing_key
-          chmod 600 ~/.ssh/signing_key
-          ssh-keygen -p -P "$SSH_PASSPHRASE" -N "" -f ~/.ssh/signing_key
-          git config user.name "nerdalytics"
-          git config user.email "97166791+nerdalytics@users.noreply.github.com"
-          git config gpg.format ssh
-          git config user.signingkey ~/.ssh/signing_key
-          git config commit.gpgsign true
-
-      - name: Create branch and commit
-        if: steps.apply.outputs.changes_made == '1'
-        id: commit
-        run: bash .github/scripts/commit-changes.sh
-
-      - name: Push and create PR
-        if: steps.commit.outputs.has_changes == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-          ISSUE_NUMBER: ${{ steps.issue.outputs.issue_number }}
-        run: bash .github/scripts/manage-pr.sh
-
-      - name: Close issue and PR if all up to date
-        if: steps.compare.outputs.has_outdated == 'false'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_REPO: ${{ github.repository }}
-        run: bash .github/scripts/close-if-current.sh
+      - uses: nerdalytics/check-action-versions@3c702505657a6f6bc0eafe3f65dc673dec7efb4a # v1
+        with:
+          committer-name: nerdalytics
+          committer-email: 97166791+nerdalytics@users.noreply.github.com
+          commit-prefix: 'chore(core):'
+          branch-name: automation/update-github-actions
+          pr-labels: 'security,dependencies'
+          issue-labels: 'security,dependencies'
+          signing-method: ssh
+          gh-pat: ${{ secrets.ACTION_UPDATER_PAT }}
+          signing-key: ${{ secrets.SSH_SIGNING_KEY }}
+          signing-passphrase: ${{ secrets.SSH_SIGNING_KEY_PASSPHRASE }}
