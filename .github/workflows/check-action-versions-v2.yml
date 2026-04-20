@@ -1,0 +1,27 @@
+name: Check Action Versions (v2 pilot)
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+on:
+  schedule:
+    - cron: '30 9 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    uses: nerdalytics/check-action-versions/.github/workflows/check-action-versions.yml@v1
+    with:
+      committer-name: nerdalytics
+      committer-email: 97166791+nerdalytics@users.noreply.github.com
+      commit-prefix: 'chore(core):'
+      branch-name: update-github-actions-v2
+      issue-title: 'Security: Outdated GitHub Actions detected (v2 pilot)'
+      pr-labels: 'security,dependencies'
+      issue-labels: 'security,dependencies'
+      signing-method: ssh
+    secrets:
+      GH_PAT: ${{ secrets.ACTION_UPDATER_PAT }}
+      SIGNING_KEY: ${{ secrets.SSH_SIGNING_KEY }}
+      SIGNING_PASSPHRASE: ${{ secrets.SSH_SIGNING_KEY_PASSPHRASE }}
