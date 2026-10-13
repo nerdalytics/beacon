@@ -4,8 +4,8 @@ description: Introduction to Beacon
 ---
 
 <script>
-import Version from '$lib/components/Version.svelte'
-import VersionLink from '$lib/components/VersionLink.svelte'
+import Version from '#lib/components/Version.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 Beacon is a reactive dependency graph runtime for Node.js. It tracks which values each function reads and re-runs that function when those values change.

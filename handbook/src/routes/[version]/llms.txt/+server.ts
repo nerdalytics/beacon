@@ -1,6 +1,6 @@
 import { base } from '$app/paths'
-import { getValidVersions, slugFromHref, validateVersion } from '$lib/llm-docs'
-import { getAllPages } from '$lib/navigation'
+import { getValidVersions, slugFromHref, validateVersion } from '#lib/llm-docs.ts'
+import { getAllPages } from '#lib/navigation.ts'
 import type { RequestHandler } from './$types'
 
 export const prerender = true

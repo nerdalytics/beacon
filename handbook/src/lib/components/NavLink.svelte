@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state'
-	import { resolveHref } from '$lib/resolve-href'
+	import { resolveHref } from '#lib/resolve-href.ts'
 
 	let { href, title, onclick }: { href: string; title: string; onclick?: () => void } = $props()
 

@@ -1,5 +1,5 @@
 import { base } from '$app/paths'
-import { versions } from '$lib/versions'
+import { versions } from '#lib/versions.ts'
 import type { RequestHandler } from './$types'
 
 export const prerender = true

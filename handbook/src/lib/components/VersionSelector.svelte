@@ -1,9 +1,9 @@
 <script lang="ts">
 	import { page } from '$app/state'
 	import { goto } from '$app/navigation'
-	import { versions } from '$lib/versions'
-	import { getAllPages, getVersionPrefix } from '$lib/navigation'
-	import { resolveHref } from '$lib/resolve-href'
+	import { versions } from '#lib/versions.ts'
+	import { getAllPages, getVersionPrefix } from '#lib/navigation.ts'
+	import { resolveHref } from '#lib/resolve-href.ts'
 
 	let activePrefix = $derived(getVersionPrefix(page.url.pathname))
 	let activeVersion = $derived(versions.find((v) => v.prefix === activePrefix) ?? versions.find((v) => v.current))

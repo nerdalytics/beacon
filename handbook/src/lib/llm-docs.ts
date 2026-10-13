@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { error } from '@sveltejs/kit'
-import { getAllPages } from '$lib/navigation'
-import { resolveVersionLabel, versions } from '$lib/versions'
+import { getAllPages } from '#lib/navigation.ts'
+import { resolveVersionLabel, versions } from '#lib/versions.ts'
 
 const FRONTMATTER_BLANKS_RE = /^(---[\s\S]*?---\n)\n+/
 const ROUTES_DIR: string = join(process.cwd(), 'src', 'routes')
