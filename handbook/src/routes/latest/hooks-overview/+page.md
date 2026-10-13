@@ -2,6 +2,10 @@
 title: Hooks Overview
 description: Zero-cost instrumentation for all four Beacon primitives
 ---
+<script>
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
+
 
 
 All four Beacon primitives — `state`, `effect`, `derive`, `batch` — accept an optional hooks parameter as their last argument. Hooks observe internal operations without affecting behavior.
@@ -288,4 +292,4 @@ const hooks = process.env.NODE_ENV === 'development'
 const $state = state(initial, hooks)
 ```
 
-See the [Hooks Catalog](/latest/hooks-catalog) for hook interface reference, `composeHook` documentation, and practical examples.
+See the <VersionLink path="/hooks-catalog">Hooks Catalog</VersionLink> for hook interface reference, `composeHook` documentation, and practical examples.

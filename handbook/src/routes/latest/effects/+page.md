@@ -2,6 +2,10 @@
 title: Effects
 description: Write side effects that auto-run when their dependencies change
 ---
+<script>
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
+
 
 
 `effect()` creates reactive functions that re-run automatically when their dependencies change. Effects bridge reactive state to side effects — logging, network requests, DOM updates, and so on.
@@ -16,7 +20,7 @@ type EffectName = string
 type Unsubscribe = () => void
 ```
 
-Returns a dispose function. Call it to stop the effect and clean up all subscriptions. See [Hooks](/latest/hooks-overview) for the optional hooks parameter.
+Returns a dispose function. Call it to stop the effect and clean up all subscriptions. See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
 
 ## Basic usage
 

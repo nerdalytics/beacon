@@ -2,6 +2,10 @@
 title: Batch
 description: Group multiple state updates into a single notification cycle
 ---
+<script>
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
+
 
 
 `batch()` collapses multiple state mutations into a single notification cycle. Without batch, each mutation triggers its own propagation — effects see intermediate states. With batch, all mutations apply first, then effects run once with the final state.
@@ -12,7 +16,7 @@ description: Group multiple state updates into a single notification cycle
 function batch<T>(fn: () => T, hooks?: BatchHooks): T
 ```
 
-Returns the value returned by `fn`. See [Hooks](/v2000.0.0/hooks-overview) for the optional hooks parameter.
+Returns the value returned by `fn`. See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
 
 ## Basic usage
 

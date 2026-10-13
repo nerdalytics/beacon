@@ -2,9 +2,13 @@
 title: Hooks API Reference
 description: Complete hook interface definitions for StateHooks, EffectHooks, DeriveHooks, and BatchHooks
 ---
+<script>
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
 
 
-Complete interface definitions for all hook types. For an introduction to hooks, see the [Hooks Overview](/v2000.0.0/hooks-overview).
+
+Complete interface definitions for all hook types. For an introduction to hooks, see the <VersionLink path="/hooks-overview">Hooks Overview</VersionLink>.
 
 ## Base types
 
