@@ -3,7 +3,7 @@ title: State
 description: Create and manage reactive objects with automatic dependency tracking
 ---
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 

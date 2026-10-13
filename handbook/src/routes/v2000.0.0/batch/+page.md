@@ -3,7 +3,7 @@ title: Batch
 description: Group multiple state updates into a single notification cycle
 ---
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 

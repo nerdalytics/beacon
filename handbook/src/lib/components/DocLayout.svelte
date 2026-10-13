@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { onMount, setContext } from 'svelte'
 	import { page } from '$app/state'
-	import { addCopyButtons } from '$lib/copy-code'
-	import { getAllPages, getVersionPrefix } from '$lib/navigation'
-	import { resolveHref } from '$lib/resolve-href'
-	import { resolveVersionLabel } from '$lib/versions'
+	import { addCopyButtons } from '#lib/copy-code'
+	import { getAllPages, getVersionPrefix } from '#lib/navigation'
+	import { resolveHref } from '#lib/resolve-href'
+	import { resolveVersionLabel } from '#lib/versions'
 	import TOC from './TOC.svelte'
 
 	let {

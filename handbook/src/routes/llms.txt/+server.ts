@@ -1,10 +1,10 @@
-import { base } from '$app/paths'
-import { versions } from '$lib/versions'
+import { versions } from '#lib/versions'
 import type { RequestHandler } from './$types'
 
 export const prerender = true
 
-export const GET: RequestHandler = () => {
+export const GET: RequestHandler = ({ url }) => {
+	const base = url.pathname.slice(0, -'/llms.txt'.length)
 	const versionLines = versions.map((v) => `- [${v.label}](${base}/${v.prefix.slice(1)}/llms.txt)`).join('\n')
 
 	const body = `# Beacon

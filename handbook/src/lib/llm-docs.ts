@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { error } from '@sveltejs/kit'
-import { getAllPages } from '$lib/navigation'
-import { resolveVersionLabel, versions } from '$lib/versions'
+import { getAllPages } from '#lib/navigation'
+import { resolveVersionLabel, versions } from '#lib/versions'
 
 const FRONTMATTER_BLANKS_RE = /^(---[\s\S]*?---\n)\n+/
 const ROUTES_DIR: string = join(process.cwd(), 'src', 'routes')
@@ -66,7 +66,7 @@ export function readPageMarkdown(version: string, page: string): string {
 		const raw = readFileSync(filePath, 'utf-8')
 		return stripSvelteArtifacts(raw, safeVersion)
 	} catch (err: unknown) {
-		if (err instanceof Error && 'code' in err && (err as NodeJS.ErrnoException).code === 'ENOENT') {
+		if (err instanceof Error && 'code' in err && (err as { code?: string }).code === 'ENOENT') {
 			error(404, 'Not found. See /llms.txt for available versions and pages.')
 		}
 		throw err

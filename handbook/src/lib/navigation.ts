@@ -1,4 +1,7 @@
-import { base } from '$app/paths'
+import { resolve } from '$app/paths'
+
+// kit 3 dropped the `base` export; resolve('/') is base + '/' on the client and the absolute base at server module init
+const base = resolve('/').slice(0, -1)
 
 const VERSION_PREFIX_RE = /^(\/v[\d.]+)/
 

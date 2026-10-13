@@ -4,7 +4,7 @@ description: Plain-text endpoints for referencing Beacon docs in LLM conversatio
 ---
 
 <script>
-import Version from '$lib/components/Version.svelte'
+import Version from '#lib/components/Version.svelte'
 </script>
 
 ## Overview

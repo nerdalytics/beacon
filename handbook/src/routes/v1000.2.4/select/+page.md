@@ -4,7 +4,7 @@ description: Subscribe to a computed slice of state
 ---
 
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 ## API

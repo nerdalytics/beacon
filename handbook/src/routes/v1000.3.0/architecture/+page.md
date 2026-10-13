@@ -4,7 +4,7 @@ description: How Beacon works internally
 ---
 
 <script>
-import Version from '$lib/components/Version.svelte'
+import Version from '#lib/components/Version.svelte'
 </script>
 
 Beacon <Version /> is ~544 lines of TypeScript, organized as standalone top-level functions. The `StateImpl` class from prior versions has been eliminated entirely. This page covers the internals.

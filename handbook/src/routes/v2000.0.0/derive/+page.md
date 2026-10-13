@@ -3,7 +3,7 @@ title: Derive
 description: Compute derived values that cache results and auto-update
 ---
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 
