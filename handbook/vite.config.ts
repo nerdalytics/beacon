@@ -9,7 +9,7 @@ import { createHighlighter } from 'shiki'
 import type { BundledLanguage, ThemeInput } from 'shiki'
 import { defineConfig, loadEnv } from 'vite'
 
-import beaconTheme from './src/lib/shiki-beacon-theme.json'
+import beaconTheme from './src/lib/shiki-beacon-theme.json' with { type: 'json' }
 
 // Singleton highlighter — created once, reused across all code blocks at build time
 const highlighterPromise = createHighlighter({

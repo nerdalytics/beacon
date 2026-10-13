@@ -20,7 +20,11 @@
 		"sourceMap": true,
 		"strict": true,
 		"moduleResolution": "bundler"
-	}
+	},
+	"include": [
+		"src",
+		"*.ts"
+	],
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// #lib resolves via the package.json "imports" field (Node subpath imports)
 	//
