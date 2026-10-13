@@ -14,7 +14,7 @@
 
 	let scrollContainer: HTMLElement | undefined = $state()
 
-	let isRootLanding = $derived(page.url.pathname === resolve('/') || page.url.pathname === resolveHref(''))
+	let isRootLanding = $derived(page.url.pathname === resolve('/'))
 	let isVersionLanding = $derived.by(() => {
 		const prefix = getVersionPrefix(page.url.pathname)
 		if (!prefix) return false
