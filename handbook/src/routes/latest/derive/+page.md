@@ -2,6 +2,10 @@
 title: Derive
 description: Compute derived values that cache results and auto-update
 ---
+<script>
+import VersionLink from '$lib/components/VersionLink.svelte'
+</script>
+
 
 
 `derive()` creates computed values that update automatically when their dependencies change. It memoizes the result and only recalculates when necessary.
@@ -20,7 +24,7 @@ type ComputedValue<T> = {
 - `value` — the cached computed result (read-only)
 - `reactive` — controls the internal effect lifecycle; set to `false` to dispose, `true` to recreate
 
-See [Hooks](/latest/hooks-overview) for the optional hooks parameter.
+See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
 
 ## Basic usage
 
