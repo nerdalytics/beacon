@@ -5,12 +5,13 @@
 
 declare let self: ServiceWorkerGlobalScope
 
-import { build, files, version } from '$service-worker'
+import { version } from '$app/env'
+import { assets, immutable } from '$app/manifest'
 
 const CACHE = `cache-${version}`
 const ASSETS: string[] = [
-	...build,
-	...files,
+	...immutable.map((f) => f.path),
+	...assets.map((f) => f.path),
 ]
 
 self.addEventListener('install', (event) => {

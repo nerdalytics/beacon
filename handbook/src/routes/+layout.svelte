@@ -6,9 +6,9 @@
 	import { page } from '$app/state'
 	import { untrack } from 'svelte'
 	import { onNavigate } from '$app/navigation'
-	import { resolveHref } from '#lib/resolve-href.ts'
-	import { getVersionPrefix } from '#lib/navigation.ts'
-	import { currentVersion } from '#lib/versions.ts'
+	import { resolveHref } from '#lib/resolve-href'
+	import { getVersionPrefix } from '#lib/navigation'
+	import { currentVersion } from '#lib/versions'
 
 	let { children } = $props()
 
@@ -75,7 +75,7 @@
 				>
 					{#if !isLanding}
 						<img
-							src={asset('/favicon.svg')}
+							src={asset('favicon.svg')}
 							alt=""
 							class="w-7 h-7"
 						/>

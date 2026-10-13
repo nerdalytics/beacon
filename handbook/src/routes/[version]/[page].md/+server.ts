@@ -1,5 +1,5 @@
-import { getValidVersions, readPageMarkdown, slugFromHref } from '#lib/llm-docs.ts'
-import { getAllPages } from '#lib/navigation.ts'
+import { getValidVersions, readPageMarkdown, slugFromHref } from '#lib/llm-docs'
+import { getAllPages } from '#lib/navigation'
 import type { RequestHandler } from './$types'
 
 export const prerender = true

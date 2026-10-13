@@ -1,6 +1,5 @@
-import { base } from '$app/paths'
-import { getValidVersions, slugFromHref, validateVersion } from '#lib/llm-docs.ts'
-import { getAllPages } from '#lib/navigation.ts'
+import { getValidVersions, slugFromHref, validateVersion } from '#lib/llm-docs'
+import { getAllPages } from '#lib/navigation'
 import type { RequestHandler } from './$types'
 
 export const prerender = true
@@ -15,12 +14,15 @@ export function entries(): {
 
 export const GET: RequestHandler = ({
 	params,
+	url,
 }: {
 	params: {
 		version: string
 	}
+	url: URL
 }) => {
 	const version = validateVersion(params.version)
+	const base = url.pathname.slice(0, -`/${version}/llms.txt`.length)
 	const pages = getAllPages(`/${version}`)
 
 	const pageLines = pages

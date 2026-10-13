@@ -11,7 +11,7 @@
 </svelte:head>
 
 <div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-10 lg:py-20 min-h-0 lg:min-h-[80vh] page-enter">
-	<img src={asset('/favicon.svg')} alt="Beacon logo" class="w-28 h-28 mb-3" style="view-transition-name: beacon-logo" />
+	<img src={asset('favicon.svg')} alt="Beacon logo" class="w-28 h-28 mb-3" style="view-transition-name: beacon-logo" />
 	<div class="mb-3 text-7xl font-extrabold beacon-gradient-text">
 		Beacon
 	</div>

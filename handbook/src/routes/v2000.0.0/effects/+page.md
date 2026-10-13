@@ -3,7 +3,7 @@ title: Effects
 description: Write side effects that auto-run when their dependencies change
 ---
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 

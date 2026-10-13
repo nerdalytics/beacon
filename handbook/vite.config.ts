@@ -1,19 +1,15 @@
-import { readFileSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import adapter from '@sveltejs/adapter-static'
 import { sveltekit } from '@sveltejs/kit/vite'
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
 import { escapeSvelte, mdsvex } from 'mdsvex'
+import type { MdsvexOptions } from 'mdsvex'
 import rehypeSlug from 'rehype-slug'
 import { createHighlighter } from 'shiki'
-import { defineConfig } from 'vite'
+import type { BundledLanguage, ThemeInput } from 'shiki'
+import { defineConfig, loadEnv } from 'vite'
 
-const __dirname = dirname(fileURLToPath(import.meta.url))
-
-const beaconTheme = JSON.parse(readFileSync('./src/lib/shiki-beacon-theme.json', 'utf-8'))
+import beaconTheme from './src/lib/shiki-beacon-theme.json'
 
 // Singleton highlighter — created once, reused across all code blocks at build time
 const highlighterPromise = createHighlighter({
@@ -27,12 +23,11 @@ const highlighterPromise = createHighlighter({
 		'css',
 	],
 	themes: [
-		beaconTheme,
+		beaconTheme as ThemeInput,
 	],
 })
 
-/** @type {import('mdsvex').MdsvexOptions} */
-const mdsvexOptions = {
+const mdsvexOptions: MdsvexOptions = {
 	extensions: [
 		'.md',
 	],
@@ -41,20 +36,20 @@ const mdsvexOptions = {
 			const highlighter = await highlighterPromise
 			const html = escapeSvelte(
 				highlighter.codeToHtml(code, {
-					lang,
+					lang: (lang ?? 'text') as BundledLanguage,
 					theme: 'beacon',
 				})
 			)
 			return `{@html \`${html}\`}`
 		},
 	},
-	layout: join(__dirname, './src/lib/components/DocLayout.svelte'),
+	layout: new URL('./src/lib/components/DocLayout.svelte', import.meta.url).pathname,
 	rehypePlugins: [
 		rehypeSlug,
 	],
 }
 
-export default defineConfig({
+export default defineConfig(({ command, mode }) => ({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
@@ -76,7 +71,7 @@ export default defineConfig({
 				'.md',
 			],
 			paths: {
-				base: process.argv.includes('dev') ? '' : process.env.BASE_PATH,
+				base: command === 'serve' ? '' : (loadEnv(mode, '.', '').BASE_PATH as `/${string}` | undefined),
 			},
 			preprocess: [
 				vitePreprocess(),
@@ -84,4 +79,4 @@ export default defineConfig({
 			],
 		}),
 	],
-})
+}))

@@ -3,7 +3,7 @@ title: Hooks Overview
 description: Zero-cost instrumentation for all four Beacon primitives
 ---
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 

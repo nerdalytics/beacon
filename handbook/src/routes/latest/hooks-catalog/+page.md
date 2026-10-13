@@ -3,7 +3,7 @@ title: Hooks Catalog
 description: Hook interfaces, composeHook utility, and patterns for writing your own hooks
 ---
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 

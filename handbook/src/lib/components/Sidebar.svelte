@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { page } from '$app/state'
-	import { getNavigation } from '#lib/navigation.ts'
+	import { getNavigation } from '#lib/navigation'
 	import NavLink from './NavLink.svelte'
 
 	let { open = false, onclose }: { open?: boolean; onclose?: () => void } = $props()

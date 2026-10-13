@@ -3,7 +3,7 @@ title: Hooks API Reference
 description: Complete hook interface definitions for StateHooks, EffectHooks, DeriveHooks, and BatchHooks
 ---
 <script>
-import VersionLink from '$lib/components/VersionLink.svelte'
+import VersionLink from '#lib/components/VersionLink.svelte'
 </script>
 
 

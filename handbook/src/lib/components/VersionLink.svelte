@@ -1,6 +1,6 @@
 <script>
 	import { getContext } from 'svelte'
-	import { resolveHref } from '#lib/resolve-href.ts'
+	import { resolveHref } from '#lib/resolve-href'
 
 	const { prefix } = getContext('version')
 
