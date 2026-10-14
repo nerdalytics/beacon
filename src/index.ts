@@ -54,6 +54,7 @@ let batchDepth = 0
 let isNotifying = false
 let isTrackingOnly = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
+const pendingMicroEffects: Set<EffectFunction> = new Set<EffectFunction>()
 const effectQueue: EffectFunction[] = []
 const deferredEffectCreations: EffectFunction[] = []
 let rerunTempDeps: Set<object> | null = null
@@ -123,6 +124,7 @@ type EffectFunction = {
 	__prevReads?: Map<object, Set<PropertyKey>> | undefined
 	__readList?: (object | PropertyKey)[] | undefined
 	__reads?: Map<object, Set<PropertyKey>> | undefined
+	__schedule?: EffectSchedule | undefined
 	effectName?: string
 }
 
@@ -288,7 +290,30 @@ function findSubscribers(target: object): Set<EffectFunction> | undefined {
 	return t[SUBSCRIBERS] ?? proxyCacheSubs.get(target)
 }
 
+function armMicrotaskFlush(): void {
+	if (microtaskFlushArmed) return
+	microtaskFlushArmed = true
+	queueMicrotask((): void => {
+		microtaskFlushArmed = false
+		if (pendingMicroEffects.size === 0) {
+			notifySettledIfQuiet()
+			return
+		}
+		for (const eff of pendingMicroEffects) pendingEffects.add(eff)
+		pendingMicroEffects.clear()
+		flushEffects()
+	})
+}
+
 function addPendingEffect(subscriber: EffectFunction): void {
+	if (subscriber.__schedule === 'microtask') {
+		const prevMicro = pendingMicroEffects.size
+		pendingMicroEffects.add(subscriber)
+		if (pendingMicroEffects.size === prevMicro) return
+		callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
+		armMicrotaskFlush()
+		return
+	}
 	const prevSize = pendingEffects.size
 	pendingEffects.add(subscriber)
 	if (pendingEffects.size === prevSize) return
@@ -297,7 +322,7 @@ function addPendingEffect(subscriber: EffectFunction): void {
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
 	const hooks = subscriber.__hooks
-	if (pendingEffects.has(subscriber) && !hooks?.onDependencyChange) return
+	if ((pendingEffects.has(subscriber) || pendingMicroEffects.has(subscriber)) && !hooks?.onDependencyChange) return
 	const set = subscriber.__reads?.get(target)
 	if (!set?.has(prop) && !set?.has(OWN_KEYS_SYMBOL)) return
 	addPendingEffect(subscriber)
@@ -369,6 +394,7 @@ function flushEffects(): void {
 
 function resetEffectTracking(eff: EffectFunction): void {
 	pendingEffects.delete(eff)
+	pendingMicroEffects.delete(eff)
 	eff.__deps = undefined
 	eff.__readList = undefined
 	eff.__reads = undefined
@@ -673,6 +699,8 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 
 function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	if (!currentEffect || !didEffectReadProp(currentEffect, rawTarget, prop)) return
+	// microtask-scheduled effects run outside any read window of the flush that scheduled them
+	if (currentEffect.__schedule === 'microtask') return
 	const parent = currentEffect.__parent
 	if (parent) return
 	const effectName = currentEffect.effectName
@@ -1141,7 +1169,7 @@ function registerChildEffect(eff: EffectFunction): void {
 }
 
 /** Run a function whenever its tracked dependencies change. Returns an {@linkcode Unsubscribe} disposal function. */
-export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe {
+export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks, options?: EffectOptions): Unsubscribe {
 	const onRun = composeHook(hooks?.onRun)
 	const onDispose = composeHook(hooks?.onDispose)
 	const onError = composeHook(hooks?.onError)
@@ -1157,6 +1185,10 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 
 	attachEffectHooks(runEffect, onDependencyAdd, onDependencyChange, onSchedule)
 	registerChildEffect(runEffect)
+
+	if (options?.schedule) {
+		runEffect.__schedule = options.schedule
+	}
 
 	if (name) {
 		runEffect.effectName = name
@@ -1186,6 +1218,7 @@ function flushDirtyTargets(): void {
 
 function clearBatchState(): void {
 	pendingEffects.clear()
+	pendingMicroEffects.clear()
 	deferredEffectCreations.length = 0
 	dirtyTargets.clear()
 }
