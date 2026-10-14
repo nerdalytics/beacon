@@ -23,6 +23,7 @@ interface NavConfig {
 	hasPerformance?: boolean
 	hasRecipes?: boolean
 	hasSelect?: boolean
+	hasSettle?: boolean
 	migration?: string
 }
 
@@ -35,6 +36,7 @@ const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
 		hasPerformance = false,
 		hasRecipes = false,
 		hasSelect = true,
+		hasSettle = false,
 		migration,
 	} = config
 
@@ -68,6 +70,13 @@ const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
 		guides.push({
 			href: `${prefix}/lens`,
 			title: 'Lens',
+		})
+	}
+
+	if (hasSettle) {
+		guides.push({
+			href: `${prefix}/settle`,
+			title: 'Settle',
 		})
 	}
 
@@ -189,6 +198,7 @@ const versionConfigs: [
 			hasPerformance: true,
 			hasRecipes: true,
 			hasSelect: false,
+			hasSettle: true,
 			migration: 'v1000.3.3 \u2192 v2000.0.0',
 		},
 	],
