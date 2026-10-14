@@ -69,7 +69,7 @@ export default defineConfig(({ command, mode }) => ({
 				'.md',
 			],
 			paths: {
-				base: command === 'serve' ? '' : (loadEnv(mode, '.', '').BASE_PATH as `/${string}` | undefined),
+				base: process.argv.includes('dev') ? '' : (loadEnv(mode, '.', '').BASE_PATH as `/${string}` | undefined),
 			},
 			preprocess: [
 				vitePreprocess(),
