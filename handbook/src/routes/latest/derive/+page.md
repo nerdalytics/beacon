@@ -435,3 +435,25 @@ test('derive supports disposal via reactive toggle', () => {
 5. **Cache external data** — don't refetch in derive functions
 6. **Use effects for side effects** — keep derives pure
 7. **Consider lifecycle** — short-lived derives should set `reactive = false` promptly
+
+## Async computations (v3000)
+
+`derive` accepts compute functions that return promises. Dependencies read before the first await are tracked as usual; the value updates when the promise settles.
+
+```typescript
+const user = derive(async () => {
+  const res = await fetch(`/api/users/${session.userId}`)
+  return (await res.json()) as User
+})
+
+effect(() => {
+  if (user.pending) return
+  render(user.value)
+})
+```
+
+While a recompute is in flight the computed value keeps its last settled result and `pending` is `true` (stale-while-pending). Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run on each flip.
+
+- **Superseded computations are discarded** — if a new computation starts before an earlier one settles, the earlier settlement writes nothing; the latest computation wins
+- **Rejections route to `onError`** — a rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
+- **Synchronous derives are unchanged** — a synchronous compute function still yields its value immediately, with `pending` always `false`

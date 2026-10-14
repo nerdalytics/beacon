@@ -393,3 +393,27 @@ test('effect tracks dependencies', () => {
   expect(calls).toEqual([0, 1]) // Not triggered after disposal
 })
 ```
+
+## Scheduling (v3000)
+
+Effects accept a `schedule` option. The default `'sync'` preserves v2000 execution timing exactly: the effect runs before the write call returns. `'microtask'` defers re-runs to a microtask, coalescing writes that happen across await boundaries into a single run.
+
+```typescript
+effect(
+  () => {
+    socket.send(JSON.stringify(snapshot($session)))
+  },
+  'socket-flush',
+  undefined,
+  { schedule: 'microtask' }
+)
+
+// two writes in the same turn, one effect run observing both
+$session.user = 'ada'
+$session.role = 'admin'
+```
+
+- **Same-turn coalescing** — multiple writes to observed properties within one microtask turn produce exactly one run, observing the final values
+- **Batch boundary precedence** — a microtask-scheduled effect notified inside `batch` runs after the outermost boundary exits, in a later microtask turn
+- **Guard scope** — the synchronous write-during-read infinite-loop guard applies unchanged to `'sync'` effects; a `'microtask'` effect that writes its own dependency re-runs on the following turn instead of throwing
+- **Observability** — the `onSchedule` hook fires at notification time for both schedules, before any deferred run
