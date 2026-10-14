@@ -9,9 +9,14 @@ async function turn(): Promise<void> {
 	await microtick()
 }
 
-describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void => {
+describe('Effect Scheduling', {
+	concurrency: false,
+	timeout: 2000,
+}, (): void => {
 	it('sync schedule (default) runs before the write returns', (): void => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let runs = 0
 		const stop = effect((): void => {
 			void s.n
@@ -24,7 +29,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 	})
 
 	it('microtask schedule defers past the write', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let runs = 0
 		const stop = effect(
 			(): void => {
@@ -33,7 +40,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 			},
 			undefined,
 			undefined,
-			{ schedule: 'microtask' }
+			{
+				schedule: 'microtask',
+			}
 		)
 		assert.equal(runs, 1)
 		s.n = 2
@@ -44,7 +53,10 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 	})
 
 	it('coalesces same-turn writes into one run observing final values', async (): Promise<void> => {
-		const s = state({ a: 1, b: 1 })
+		const s = state({
+			a: 1,
+			b: 1,
+		})
 		let runs = 0
 		let seen = 0
 		const stop = effect(
@@ -54,7 +66,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 			},
 			undefined,
 			undefined,
-			{ schedule: 'microtask' }
+			{
+				schedule: 'microtask',
+			}
 		)
 		assert.equal(runs, 1)
 		s.a = 2
@@ -66,7 +80,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 	})
 
 	it('batch boundary precedes the microtask run', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let runs = 0
 		const stop = effect(
 			(): void => {
@@ -75,7 +91,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 			},
 			undefined,
 			undefined,
-			{ schedule: 'microtask' }
+			{
+				schedule: 'microtask',
+			}
 		)
 		batch((): void => {
 			s.n = 2
@@ -89,7 +107,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 	})
 
 	it('sync infinite-loop guard unchanged', (): void => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		assert.throws((): void => {
 			effect((): void => {
 				s.n = s.n + 1
@@ -98,7 +118,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 	})
 
 	it('microtask effect writing its own dependency re-runs per turn without guard error', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let runs = 0
 		let first = true
 		const stop = effect(
@@ -110,7 +132,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 			},
 			undefined,
 			undefined,
-			{ schedule: 'microtask' }
+			{
+				schedule: 'microtask',
+			}
 		)
 		s.n = 2
 		await turn()
@@ -122,7 +146,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 	})
 
 	it('onSchedule fires at notification time for microtask effects', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let scheduled = 0
 		let runs = 0
 		const stop = effect(
@@ -136,7 +162,9 @@ describe('Effect Scheduling', { concurrency: false, timeout: 2000 }, (): void =>
 					scheduled++
 				},
 			},
-			{ schedule: 'microtask' }
+			{
+				schedule: 'microtask',
+			}
 		)
 		s.n = 2
 		assert.equal(scheduled, 1)

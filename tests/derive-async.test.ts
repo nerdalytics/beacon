@@ -15,7 +15,11 @@ function deferred<T>(): Deferred<T> {
 		resolve = res
 		reject = rej
 	})
-	return { promise, reject, resolve }
+	return {
+		promise,
+		reject,
+		resolve,
+	}
 }
 
 async function tick(): Promise<void> {
@@ -24,9 +28,14 @@ async function tick(): Promise<void> {
 	await Promise.resolve()
 }
 
-describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
+describe('Derive Async', {
+	concurrency: false,
+	timeout: 2000,
+}, (): void => {
 	it('settles value after the compute promise resolves', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		const d = deferred<number>()
 		const computed = derive((): Promise<number> => {
 			const n = s.n
@@ -42,7 +51,9 @@ describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
 	})
 
 	it('recomputes on dependency change and keeps the last value while pending', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let current = deferred<number>()
 		const computed = derive((): Promise<number> => {
 			const n = s.n
@@ -64,7 +75,9 @@ describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
 	})
 
 	it('exposes pending as a trackable dependency', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let current = deferred<number>()
 		const computed = derive((): Promise<number> => {
 			void s.n
@@ -80,13 +93,20 @@ describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
 		s.n = 2
 		current.resolve(8)
 		await tick()
-		assert.deepEqual(seen, [true, false, true, false])
+		assert.deepEqual(seen, [
+			true,
+			false,
+			true,
+			false,
+		])
 		stop()
 		computed.reactive = false
 	})
 
 	it('discards superseded settlements (latest wins)', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let current = deferred<string>()
 		const computed = derive((): Promise<string> => {
 			void s.n
@@ -113,7 +133,9 @@ describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
 
 	it('routes rejections to onError and keeps the last value', async (): Promise<void> => {
 		const errors: Error[] = []
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let current = deferred<string>()
 		let unhandled = false
 		const onUnhandled = (): void => {
@@ -126,7 +148,7 @@ describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
 				return current.promise
 			},
 			{
-				onError: (e): void => {
+				onError: (e: Error): void => {
 					errors.push(e)
 				},
 			}
@@ -148,7 +170,9 @@ describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
 	})
 
 	it('discards settlements that arrive after dispose', async (): Promise<void> => {
-		const s = state({ n: 1 })
+		const s = state({
+			n: 1,
+		})
 		let current = deferred<number>()
 		const computed = derive((): Promise<number> => {
 			void s.n
@@ -164,10 +188,42 @@ describe('Derive Async', { concurrency: false, timeout: 2000 }, (): void => {
 	})
 
 	it('keeps synchronous derive eager and not pending', (): void => {
-		const s = state({ n: 2 })
+		const s = state({
+			n: 2,
+		})
 		const computed = derive((): number => s.n * 2)
 		assert.equal(computed.value, 4)
 		assert.equal(computed.pending, false)
+		computed.reactive = false
+	})
+
+	it('discards rejections from superseded computations', async (): Promise<void> => {
+		const errors: Error[] = []
+		const s = state({
+			n: 1,
+		})
+		let current = deferred<number>()
+		const computed = derive(
+			(): Promise<number> => {
+				void s.n
+				return current.promise
+			},
+			{
+				onError: (e: Error): void => {
+					errors.push(e)
+				},
+			}
+		)
+		const stale = current
+		current = deferred<number>()
+		s.n = 2
+		stale.reject(new Error('stale boom'))
+		await tick()
+		await tick()
+		assert.equal(errors.length, 0)
+		current.resolve(3)
+		await tick()
+		assert.equal(computed.value, 3)
 		computed.reactive = false
 	})
 })

@@ -12,7 +12,10 @@ function deferred<T>(): Deferred<T> {
 	const promise = new Promise<T>((res): void => {
 		resolve = res
 	})
-	return { promise, resolve }
+	return {
+		promise,
+		resolve,
+	}
 }
 
 async function tick(): Promise<void> {
@@ -21,9 +24,14 @@ async function tick(): Promise<void> {
 	await Promise.resolve()
 }
 
-describe('Settle Observation', { concurrency: false, timeout: 2000 }, (): void => {
+describe('Settle Observation', {
+	concurrency: false,
+	timeout: 2000,
+}, (): void => {
 	it('until resolves after the watched state flips', async (): Promise<void> => {
-		const s = state({ ready: false })
+		const s = state({
+			ready: false,
+		})
 		const p = until((): boolean => s.ready)
 		let resolved = false
 		void p.then((): void => {
@@ -37,7 +45,9 @@ describe('Settle Observation', { concurrency: false, timeout: 2000 }, (): void =
 	})
 
 	it('until waits for a pending async derive to settle', async (): Promise<void> => {
-		const s = state({ n: 5 })
+		const s = state({
+			n: 5,
+		})
 		let current = deferred<number>()
 		const computed = derive((): Promise<number> => {
 			void s.n
@@ -62,32 +72,47 @@ describe('Settle Observation', { concurrency: false, timeout: 2000 }, (): void =
 	})
 
 	it('until rejects on timeout', async (): Promise<void> => {
-		const s = state({ ready: false })
-		await assert.rejects(until((): boolean => s.ready, { timeout: 20 }), /timed out/)
+		const s = state({
+			ready: false,
+		})
+		await assert.rejects(
+			until((): boolean => s.ready, {
+				timeout: 20,
+			}),
+			/timed out/
+		)
 	})
 
 	it('until rejects immediately for a pre-aborted signal', async (): Promise<void> => {
 		const controller = new AbortController()
 		controller.abort(new Error('stopped'))
-		const s = state({ ready: true })
-		await assert.rejects(until((): boolean => s.ready, { signal: controller.signal }), /stopped/)
-	})
-
-	it('until throws when called inside an effect', (): void => {
-		const s = state({ n: 1 })
-		assert.throws(
-			(): void => {
-				effect((): void => {
-					void s.n
-					until((): boolean => s.n > 0)
-				})
-			},
-			/reactive scope/
+		const s = state({
+			ready: true,
+		})
+		await assert.rejects(
+			until((): boolean => s.ready, {
+				signal: controller.signal,
+			}),
+			/stopped/
 		)
 	})
 
+	it('until throws when called inside an effect', (): void => {
+		const s = state({
+			n: 1,
+		})
+		assert.throws((): void => {
+			effect((): void => {
+				void s.n
+				until((): boolean => s.n > 0)
+			})
+		}, /reactive scope/)
+	})
+
 	it('until stops evaluating after it settles', async (): Promise<void> => {
-		const s = state({ n: 0 })
+		const s = state({
+			n: 0,
+		})
 		let evaluations = 0
 		const p = until((): boolean => {
 			evaluations++
@@ -104,7 +129,10 @@ describe('Settle Observation', { concurrency: false, timeout: 2000 }, (): void =
 	})
 
 	it('onSettled fires once per batched flush and stops after unsubscribe', async (): Promise<void> => {
-		const s = state({ a: 0, b: 0 })
+		const s = state({
+			a: 0,
+			b: 0,
+		})
 		const stopReader = effect((): void => {
 			void s.a
 			void s.b
@@ -124,5 +152,72 @@ describe('Settle Observation', { concurrency: false, timeout: 2000 }, (): void =
 		await tick()
 		assert.equal(calls, 1)
 		stopReader()
+	})
+
+	it('until rejects when the signal aborts mid-wait', async (): Promise<void> => {
+		const controller = new AbortController()
+		const s = state({
+			ready: false,
+		})
+		const p = until((): boolean => s.ready, {
+			signal: controller.signal,
+		})
+		controller.abort(new Error('changed mind'))
+		await assert.rejects(p, /changed mind/)
+	})
+
+	it('onSettled keeps notifying other callbacks when one throws', async (): Promise<void> => {
+		const s = state({
+			n: 0,
+		})
+		const stopReader = effect((): void => {
+			void s.n
+		})
+		let calls = 0
+		const stopThrower = onSettled((): void => {
+			throw new Error('cb boom')
+		})
+		const stop = onSettled((): void => {
+			calls++
+		})
+		s.n = 1
+		await tick()
+		assert.equal(calls, 1)
+		stopThrower()
+		stop()
+		stopReader()
+	})
+
+	it('until gates on pending derives read after settled ones', async (): Promise<void> => {
+		const s = state({
+			n: 1,
+		})
+		const settledCurrent = deferred<number>()
+		let pendingCurrent = deferred<number>()
+		const settledDerived = derive((): Promise<number> => {
+			void s.n
+			return settledCurrent.promise
+		})
+		const pendingDerived = derive((): Promise<number> => {
+			void s.n
+			return pendingCurrent.promise
+		})
+		settledCurrent.resolve(5)
+		pendingCurrent.resolve(7)
+		await tick()
+		pendingCurrent = deferred<number>()
+		s.n = 2
+		let resolved = false
+		const p = until((): boolean => (settledDerived.value ?? 0) > 0 && (pendingDerived.value ?? 0) > 0)
+		void p.then((): void => {
+			resolved = true
+		})
+		await tick()
+		assert.equal(resolved, false)
+		pendingCurrent.resolve(7)
+		const value = await p
+		assert.equal(value, true)
+		settledDerived.reactive = false
+		pendingDerived.reactive = false
 	})
 })
