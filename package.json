@@ -1,5 +1,5 @@
 {
-	"author": "Denny Trebbin (nerdalytics)",
+	"author": "nerdalytics",
 	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.",
 	"devDependencies": {
 		"@biomejs/biome": "2.4.11",
