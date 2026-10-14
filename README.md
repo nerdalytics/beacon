@@ -54,6 +54,38 @@ dispose();
 doubled.reactive = false;
 ```
 
+## Epoch 3 API (v3000)
+
+### Async derive and `pending`
+
+`derive` accepts async compute functions. While a computation is in flight the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
+
+```typescript
+const user = derive(async () => (await db.users.find(signal.id)) ?? null);
+effect(() => {
+  if (user.pending) return;
+  console.log(user.value);
+});
+```
+
+### `until`
+
+`until(predicate, { timeout?, signal? })` resolves with the predicate's value once a settled evaluation is truthy — safe to await inside request handlers. It throws when called inside a reactive scope and disposes itself on settle, timeout, or abort.
+
+```typescript
+await until(() => cache.warm, { timeout: 5000 });
+```
+
+### `onSettled`
+
+`onSettled(callback)` invokes the callback whenever the graph reaches quiescence after processing work (a flush or an async settlement). Returns an unsubscribe function.
+
+### Effect `schedule` option
+
+`effect(fn, name, hooks, { schedule: 'microtask' })` defers re-runs to a microtask, coalescing writes across await boundaries into one run. The default `'sync'` preserves v2000 timing exactly.
+
+**Migration note:** synchronous `derive` and default-schedule effects behave exactly as in v2000; the only consumer-visible changes are the new `pending` field on computed values and async compute support.
+
 ## Documentation
 
 Full documentation, API reference, and examples available at:
