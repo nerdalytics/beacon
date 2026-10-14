@@ -190,7 +190,7 @@ const versionConfigs: [
 	NavConfig,
 ][] = [
 	[
-		'/latest',
+		'/v3000.0.0',
 		{
 			hasDebugging: true,
 			hasHooks: true,
@@ -199,7 +199,7 @@ const versionConfigs: [
 			hasRecipes: true,
 			hasSelect: false,
 			hasSettle: true,
-			migration: 'v1000.3.3 \u2192 v2000.0.0',
+			migration: 'v2000.0.0 \u2192 v3000.0.0',
 		},
 	],
 	[
