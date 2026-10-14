@@ -63,6 +63,12 @@ let rerunReadIndex = 0
 let rerunStable = false
 let buildingReadList: (object | PropertyKey)[] | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
+const settledCallbacks: Set<SettledCallback> = new Set<SettledCallback>()
+let settleProcessed = false
+let flushProcessed = false
+let microtaskFlushArmed = false
+let untilEvaluating = false
+let untilSawPending = false
 
 // Proxy caching
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
@@ -349,11 +355,13 @@ function flushEffects(): void {
 	if (pendingEffects.size === 0) return
 	if (isNotifying) return
 	isNotifying = true
+	flushProcessed = true
 
 	try {
 		while (pendingEffects.size > 0) {
 			runPendingEffectBatch()
 		}
+		notifySettledIfQuiet()
 	} finally {
 		isNotifying = false
 	}
@@ -1197,6 +1205,7 @@ function flushBatchEffects(): void {
 	try {
 		runDeferredEffects()
 		if (pendingEffects.size > 0) flushEffects()
+		notifySettledIfQuiet()
 	} catch (err) {
 		clearBatchState()
 		throw err
@@ -1452,6 +1461,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 						result.then(
 							(value: T): void => {
 								if (gen !== generation) return
+								settleProcessed = true
 								batch((): void => {
 									writeDeriveValue(internalState, reactiveInternal, value)
 									setDerivePending(internalState, reactiveInternal, false)
@@ -1459,6 +1469,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 							},
 							(err: unknown): void => {
 								if (gen !== generation) return
+								settleProcessed = true
 								batch((): void => {
 									setDerivePending(internalState, reactiveInternal, false)
 								})
@@ -1492,6 +1503,10 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 	return new Proxy(internalState, {
 		get(target: typeof internalState, prop: PropertyKey): unknown {
 			if (prop === 'value') {
+				if (untilEvaluating) {
+					untilSawPending = untilSawPending || target.pending
+					if (reactiveInternal && currentEffect) void reactiveInternal.pending
+				}
 				const value = resolveDeriveValue(target, reactiveInternal)
 				callHookSafe(onCacheHit, value as T, !isComputing)
 				return value
@@ -1514,4 +1529,83 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 			return false
 		},
 	}) as ComputedValue<T>
+}
+
+function notifySettledIfQuiet(): void {
+	if (pendingEffects.size > 0 || effectQueue.length > 0 || microtaskFlushArmed) return
+	if (!flushProcessed && !settleProcessed) return
+	flushProcessed = false
+	settleProcessed = false
+	for (const callback of settledCallbacks) {
+		try {
+			callback()
+		} catch {}
+	}
+}
+
+/** Invoke a callback whenever the reactive graph reaches quiescence after processing work. Returns an unsubscribe. */
+export function onSettled(callback: SettledCallback): Unsubscribe {
+	settledCallbacks.add(callback)
+	return (): void => {
+		settledCallbacks.delete(callback)
+	}
+}
+
+/** Resolve with the predicate's value once a settled evaluation is truthy. Must not be called inside a reactive scope. */
+export function until<T>(predicate: () => T, options?: UntilOptions): Promise<T> {
+	if (currentEffect) {
+		throw new Error('until() must not be called inside a reactive scope')
+	}
+	const signal = options?.signal
+	const timeout = options?.timeout
+	if (signal?.aborted) {
+		return Promise.reject(signal.reason)
+	}
+	return new Promise<T>((resolve, reject): void => {
+		let done = false
+		let stop: Unsubscribe | null = null
+		let timer: ReturnType<typeof setTimeout> | undefined
+		const cleanup = (): void => {
+			if (timer !== undefined) clearTimeout(timer)
+			if (signal) signal.removeEventListener('abort', onAbort)
+			if (stop) {
+				const unsubscribe = stop
+				stop = null
+				unsubscribe()
+			}
+		}
+		const fail = (reason: unknown): void => {
+			if (done) return
+			done = true
+			cleanup()
+			reject(reason)
+		}
+		const onAbort = (): void => {
+			fail(signal?.reason)
+		}
+		if (signal) signal.addEventListener('abort', onAbort, { once: true })
+		if (timeout !== undefined) {
+			timer = setTimeout((): void => {
+				fail(new Error(`until() timed out after ${timeout}ms`))
+			}, timeout)
+		}
+		stop = effect((): void => {
+			if (done) return
+			untilSawPending = false
+			untilEvaluating = true
+			let value: T
+			try {
+				value = predicate()
+			} finally {
+				untilEvaluating = false
+			}
+			if (value && !untilSawPending) {
+				done = true
+				queueMicrotask((): void => {
+					cleanup()
+					resolve(value)
+				})
+			}
+		})
+	})
 }
