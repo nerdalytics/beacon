@@ -82,5 +82,5 @@
 	"sideEffects": false,
 	"type": "module",
 	"types": "dist/src/index.d.ts",
-	"version": "2000.0.0"
+	"version": "3000.0.0"
 }
