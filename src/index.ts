@@ -18,9 +18,27 @@ export type EffectName = string
 
 /** Value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
 export type ComputedValue<T> = {
+	readonly pending: boolean
 	readonly value: T | undefined | null
 	reactive: boolean
 }
+
+/** Scheduling strategy for {@linkcode effect}: run during the write, or on a later microtask. */
+export type EffectSchedule = 'microtask' | 'sync'
+
+/** Options for {@linkcode effect}. */
+export interface EffectOptions {
+	schedule?: EffectSchedule
+}
+
+/** Options for {@linkcode until}. */
+export interface UntilOptions {
+	signal?: AbortSignal
+	timeout?: number
+}
+
+/** Callback for {@linkcode onSettled}, invoked when the graph reaches quiescence. */
+export type SettledCallback = () => void
 
 type ProxyTarget = Record<PropertyKey, unknown>
 
@@ -1256,8 +1274,47 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 	return result
 }
 
+function isThenable(value: unknown): value is Promise<unknown> {
+	return typeof (value as { then?: unknown } | null | undefined)?.then === 'function'
+}
+
+function writeDeriveValue<T>(
+	internalState: {
+		lastValue: T | undefined | null
+	},
+	reactiveInternal: {
+		value: T | undefined | null
+	} | null,
+	newValue: T
+): void {
+	if (!Object.is(newValue, internalState.lastValue)) {
+		internalState.lastValue = newValue
+		if (reactiveInternal) {
+			reactiveInternal.value = newValue
+		}
+	}
+}
+
+function setDerivePending(
+	internalState: {
+		pending: boolean
+	},
+	reactiveInternal: {
+		pending: boolean
+	} | null,
+	pending: boolean
+): void {
+	if (internalState.pending === pending) return
+	// write through the proxy when present: a raw pre-write would make the proxy set a no-op and swallow notification
+	if (reactiveInternal) {
+		reactiveInternal.pending = pending
+	} else {
+		internalState.pending = pending
+	}
+}
+
 function runDeriveComputation<T>(
-	computeFn: () => T,
+	computeFn: () => T | Promise<T>,
 	internalState: {
 		lastValue: T | undefined | null
 	},
@@ -1271,15 +1328,13 @@ function runDeriveComputation<T>(
 				]
 		  >
 		| undefined
-): void {
+): T | Promise<T> {
 	callHookSafe(onCompute, internalState.lastValue as T | undefined)
 	const newValue = computeFn()
-	if (!Object.is(newValue, internalState.lastValue)) {
-		internalState.lastValue = newValue
-		if (reactiveInternal) {
-			reactiveInternal.value = newValue
-		}
+	if (!isThenable(newValue)) {
+		writeDeriveValue(internalState, reactiveInternal, newValue as T)
 	}
+	return newValue
 }
 
 function resolveDeriveValue<T>(
@@ -1308,11 +1363,13 @@ function toggleDeriveReactivity(
 }
 
 function runDeriveWithErrorHandling<T>(
-	computeFn: () => T,
+	computeFn: () => T | Promise<T>,
 	internalState: {
 		lastValue: T | undefined | null
+		pending: boolean
 	},
 	reactiveInternal: {
+		pending: boolean
 		value: T | undefined | null
 	} | null,
 	onCompute:
@@ -1329,10 +1386,14 @@ function runDeriveWithErrorHandling<T>(
 				]
 		  >
 		| undefined,
+	onAsync: (result: Promise<T>) => void,
 	cleanup: () => void
 ): void {
 	try {
-		runDeriveComputation(computeFn, internalState, reactiveInternal, onCompute)
+		const result = runDeriveComputation(computeFn, internalState, reactiveInternal, onCompute)
+		if (isThenable(result)) {
+			onAsync(result as Promise<T>)
+		}
 	} catch (err) {
 		callHookSafe(onError, err as Error)
 		throw err
@@ -1342,7 +1403,9 @@ function runDeriveWithErrorHandling<T>(
 }
 
 /** Eagerly compute a value from reactive dependencies. Returns a {@linkcode ComputedValue} — set `reactive` to `false` to dispose. */
-export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T> {
+export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
+export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
+export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T> {
 	const onCompute = composeHook(hooks?.onCompute)
 	const onCacheHit = composeHook(hooks?.onCacheHit)
 	const onDeriveDispose = composeHook(hooks?.onDispose)
@@ -1351,11 +1414,13 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 
 	const internalState = {
 		lastValue: undefined as T | undefined | null,
+		pending: false,
 		reactive: true,
 		value: undefined as T | undefined | null,
 	}
 
 	let dispose: Unsubscribe | null = null
+	let generation = 0
 	let isComputing = false
 	let reactiveInternal: typeof internalState | null = null
 
@@ -1375,9 +1440,36 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 				if (!internalState.reactive || isComputing) return
 
 				isComputing = true
-				runDeriveWithErrorHandling(computeFn, internalState, reactiveInternal, onCompute, onError, () => {
-					isComputing = false
-				})
+				runDeriveWithErrorHandling(
+					computeFn,
+					internalState,
+					reactiveInternal,
+					onCompute,
+					onError,
+					(result: Promise<T>): void => {
+						const gen = ++generation
+						setDerivePending(internalState, reactiveInternal, true)
+						result.then(
+							(value: T): void => {
+								if (gen !== generation) return
+								batch((): void => {
+									writeDeriveValue(internalState, reactiveInternal, value)
+									setDerivePending(internalState, reactiveInternal, false)
+								})
+							},
+							(err: unknown): void => {
+								if (gen !== generation) return
+								batch((): void => {
+									setDerivePending(internalState, reactiveInternal, false)
+								})
+								callHookSafe(onError, err as Error)
+							}
+						)
+					},
+					(): void => {
+						isComputing = false
+					}
+				)
 			},
 			undefined,
 			internalEffectHooks
@@ -1403,6 +1495,9 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 				const value = resolveDeriveValue(target, reactiveInternal)
 				callHookSafe(onCacheHit, value as T, !isComputing)
 				return value
+			}
+			if (prop === 'pending') {
+				return reactiveInternal && currentEffect ? reactiveInternal.pending : target.pending
 			}
 			if (prop === 'reactive') {
 				return target.reactive
