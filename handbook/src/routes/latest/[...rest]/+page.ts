@@ -26,7 +26,15 @@ export function entries(): {
 		'settle',
 		'state',
 	]
-	return pages.map((rest): { rest: string } => ({ rest }))
+	return pages.map(
+		(
+			rest
+		): {
+			rest: string
+		} => ({
+			rest,
+		})
+	)
 }
 
 export const load = ({

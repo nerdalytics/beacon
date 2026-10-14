@@ -24,7 +24,15 @@ export function entries(): {
 		'quick-start',
 		'settle',
 		'state',
-	].map((page): { page: string } => ({ page }))
+	].map(
+		(
+			page
+		): {
+			page: string
+		} => ({
+			page,
+		})
+	)
 }
 
 export const GET: RequestHandler = ({
