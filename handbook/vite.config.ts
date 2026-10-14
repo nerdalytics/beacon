@@ -2,11 +2,9 @@ import adapter from '@sveltejs/adapter-static'
 import { sveltekit } from '@sveltejs/kit/vite'
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte'
 import tailwindcss from '@tailwindcss/vite'
-import { escapeSvelte, mdsvex } from 'mdsvex'
-import type { MdsvexOptions } from 'mdsvex'
+import { escapeSvelte, type MdsvexOptions, mdsvex } from 'mdsvex'
 import rehypeSlug from 'rehype-slug'
-import { createHighlighter } from 'shiki'
-import type { BundledLanguage, ThemeInput } from 'shiki'
+import { type BundledLanguage, createHighlighter, type ThemeInput } from 'shiki'
 import { defineConfig, loadEnv } from 'vite'
 
 import beaconTheme from './src/lib/shiki-beacon-theme.json' with { type: 'json' }
@@ -32,7 +30,7 @@ const mdsvexOptions: MdsvexOptions = {
 		'.md',
 	],
 	highlight: {
-		highlighter: async (code, lang = 'text') => {
+		highlighter: async (code: string, lang: string | null = 'text') => {
 			const highlighter = await highlighterPromise
 			const html = escapeSvelte(
 				highlighter.codeToHtml(code, {
@@ -56,7 +54,7 @@ export default defineConfig(({ command, mode }) => ({
 			adapter: adapter({
 				fallback: '404.html',
 			}),
-			dynamicCompileOptions: ({ filename }) => {
+			dynamicCompileOptions: ({ filename }: { filename: string }) => {
 				if (filename.includes('node_modules')) return undefined
 				if (filename.endsWith('.md'))
 					return {

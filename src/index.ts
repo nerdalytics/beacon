@@ -1169,7 +1169,12 @@ function registerChildEffect(eff: EffectFunction): void {
 }
 
 /** Run a function whenever its tracked dependencies change. Returns an {@linkcode Unsubscribe} disposal function. */
-export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks, options?: EffectOptions): Unsubscribe {
+export function effect(
+	fn: EffectCallback,
+	name?: EffectName,
+	hooks?: EffectHooks,
+	options?: EffectOptions
+): Unsubscribe {
 	const onRun = composeHook(hooks?.onRun)
 	const onDispose = composeHook(hooks?.onDispose)
 	const onError = composeHook(hooks?.onError)
@@ -1317,7 +1322,16 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 }
 
 function isThenable(value: unknown): value is Promise<unknown> {
-	return typeof (value as { then?: unknown } | null | undefined)?.then === 'function'
+	return (
+		typeof (
+			value as
+				| {
+						then?: unknown
+				  }
+				| null
+				| undefined
+		)?.then === 'function'
+	)
 }
 
 function writeDeriveValue<T>(
@@ -1533,16 +1547,20 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 		createEffect()
 	}
 
+	const readValue = (): T | undefined | null => {
+		if (untilEvaluating) {
+			untilSawPending = untilSawPending || internalState.pending
+			if (reactiveInternal && currentEffect) void reactiveInternal.pending
+		}
+		const value = resolveDeriveValue(internalState, reactiveInternal)
+		callHookSafe(onCacheHit, value as T, !isComputing)
+		return value
+	}
+
 	return new Proxy(internalState, {
 		get(target: typeof internalState, prop: PropertyKey): unknown {
 			if (prop === 'value') {
-				if (untilEvaluating) {
-					untilSawPending = untilSawPending || target.pending
-					if (reactiveInternal && currentEffect) void reactiveInternal.pending
-				}
-				const value = resolveDeriveValue(target, reactiveInternal)
-				callHookSafe(onCacheHit, value as T, !isComputing)
-				return value
+				return readValue()
 			}
 			if (prop === 'pending') {
 				return reactiveInternal && currentEffect ? reactiveInternal.pending : target.pending
@@ -1584,61 +1602,72 @@ export function onSettled(callback: SettledCallback): Unsubscribe {
 	}
 }
 
+function runUntil<T>(
+	predicate: () => T,
+	options: UntilOptions | undefined,
+	resolve: (value: T) => void,
+	reject: (reason: unknown) => void
+): void {
+	const signal = options?.signal
+	const timeout = options?.timeout
+	let done = false
+	let stop: Unsubscribe = (): void => {}
+	let timer: ReturnType<typeof setTimeout> | undefined
+	const cleanup = (): void => {
+		if (timer !== undefined) clearTimeout(timer)
+		if (signal) signal.removeEventListener('abort', onAbort)
+		const unsubscribe = stop
+		stop = (): void => {}
+		unsubscribe()
+	}
+	const fail = (reason: unknown): void => {
+		if (done) return
+		done = true
+		cleanup()
+		reject(reason)
+	}
+	const onAbort = (): void => {
+		fail(signal?.reason)
+	}
+	if (signal)
+		signal.addEventListener('abort', onAbort, {
+			once: true,
+		})
+	if (timeout !== undefined) {
+		timer = setTimeout((): void => {
+			fail(new Error(`until() timed out after ${timeout}ms`))
+		}, timeout)
+	}
+	stop = effect((): void => {
+		if (done) return
+		untilSawPending = false
+		untilEvaluating = true
+		let value: T
+		try {
+			value = predicate()
+		} finally {
+			untilEvaluating = false
+		}
+		if (value && !untilSawPending) {
+			done = true
+			queueMicrotask((): void => {
+				cleanup()
+				resolve(value)
+			})
+		}
+	})
+}
+
 /** Resolve with the predicate's value once a settled evaluation is truthy. Must not be called inside a reactive scope. */
 export function until<T>(predicate: () => T, options?: UntilOptions): Promise<T> {
 	if (currentEffect) {
 		throw new Error('until() must not be called inside a reactive scope')
 	}
 	const signal = options?.signal
-	const timeout = options?.timeout
 	if (signal?.aborted) {
 		return Promise.reject(signal.reason)
 	}
 	return new Promise<T>((resolve, reject): void => {
-		let done = false
-		let stop: Unsubscribe | null = null
-		let timer: ReturnType<typeof setTimeout> | undefined
-		const cleanup = (): void => {
-			if (timer !== undefined) clearTimeout(timer)
-			if (signal) signal.removeEventListener('abort', onAbort)
-			if (stop) {
-				const unsubscribe = stop
-				stop = null
-				unsubscribe()
-			}
-		}
-		const fail = (reason: unknown): void => {
-			if (done) return
-			done = true
-			cleanup()
-			reject(reason)
-		}
-		const onAbort = (): void => {
-			fail(signal?.reason)
-		}
-		if (signal) signal.addEventListener('abort', onAbort, { once: true })
-		if (timeout !== undefined) {
-			timer = setTimeout((): void => {
-				fail(new Error(`until() timed out after ${timeout}ms`))
-			}, timeout)
-		}
-		stop = effect((): void => {
-			if (done) return
-			untilSawPending = false
-			untilEvaluating = true
-			let value: T
-			try {
-				value = predicate()
-			} finally {
-				untilEvaluating = false
-			}
-			if (value && !untilSawPending) {
-				done = true
-				queueMicrotask((): void => {
-					cleanup()
-					resolve(value)
-				})
-			}
-		})
+		runUntil(predicate, options, resolve, reject)
 	})
 }

@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types'
 
 export const prerender = true
 
-export const GET: RequestHandler = ({ url }) => {
+export const GET: RequestHandler = ({ url }: { url: URL }) => {
 	const base = url.pathname.slice(0, -'/llms.txt'.length)
 	const versionLines = versions.map((v) => `- [${v.label}](${base}/${v.prefix.slice(1)}/llms.txt)`).join('\n')
 

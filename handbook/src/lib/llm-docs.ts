@@ -66,7 +66,15 @@ export function readPageMarkdown(version: string, page: string): string {
 		const raw = readFileSync(filePath, 'utf-8')
 		return stripSvelteArtifacts(raw, safeVersion)
 	} catch (err: unknown) {
-		if (err instanceof Error && 'code' in err && (err as { code?: string }).code === 'ENOENT') {
+		if (
+			err instanceof Error &&
+			'code' in err &&
+			(
+				err as {
+					code?: string
+				}
+			).code === 'ENOENT'
+		) {
 			error(404, 'Not found. See /llms.txt for available versions and pages.')
 		}
 		throw err
