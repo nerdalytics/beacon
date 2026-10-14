@@ -85,3 +85,38 @@ export function readPageMarkdown(version: string, page: string): string {
 export function getValidVersions(): string[] {
 	return versions.map((v) => v.prefix.slice(1))
 }
+
+/** Render the llms.txt index body for a version prefix, with links rooted at base. */
+export function renderLlmsIndex(version: string, base: string): string {
+	const pages = getAllPages(`/${version}`)
+	const pageLines = pages
+		.map((p) => {
+			const slug = slugFromHref(p.href)
+			return `- [${p.title}](${base}/${version}/${slug}.md)`
+		})
+		.join('\n')
+
+	return `# Beacon — ${version}
+
+> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the signal level. When state changes, derived values and effects update automatically.
+
+## Pages
+
+${pageLines}
+
+## Full documentation
+
+- [All pages merged](${base}/${version}/llms-full.txt)
+`
+}
+
+/** Render the merged llms-full.txt body for a version prefix. */
+export function renderLlmsFull(version: string): string {
+	const pages = getAllPages(`/${version}`)
+	return pages
+		.map((p) => {
+			const slug = slugFromHref(p.href)
+			return readPageMarkdown(version, slug)
+		})
+		.join('\n\n---\n\n')
+}
