@@ -1147,20 +1147,8 @@ function computeDerive<T>(
 		pending: boolean
 		value: T | undefined | null
 	} | null,
-	onCompute:
-		| HookFunction<
-				[
-					T | undefined,
-				]
-		  >
-		| undefined,
-	onError:
-		| HookFunction<
-				[
-					Error,
-				]
-		  >
-		| undefined,
+	onCompute: HookFunction<[T | undefined]> | undefined,
+	onError: HookFunction<[Error]> | undefined,
 	onAsync: (result: Promise<T>) => void,
 	cleanup: () => void
 ): void {

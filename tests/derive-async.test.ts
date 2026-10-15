@@ -93,12 +93,7 @@ describe('Derive Async', {
 		s.n = 2
 		current.resolve(8)
 		await tick()
-		assert.deepEqual(seen, [
-			true,
-			false,
-			true,
-			false,
-		])
+		assert.deepEqual(seen, [true, false, true, false])
 		stop()
 		computed.reactive = false
 	})
