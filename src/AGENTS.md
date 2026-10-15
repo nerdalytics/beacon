@@ -43,6 +43,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | `proxyCache` | `object → object` | Reuse same Proxy for same target |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
 | `arrayMethodCache` | `object → Map<PropertyKey, CachedMethod>` | Cached wrapped mutating array methods per target |
+| `frozenHooksCache` | `object → StateHooks` | Hooks storage for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
 
 ## Symbols
 
@@ -164,8 +165,9 @@ scheduleSubscribersForTarget(target, prop)
 
 | Function | Purpose |
 |----------|---------|
-| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; no-op for frozen/sealed targets |
+| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; falls back to `storeHooksForFrozenTarget` otherwise |
 | `definePropertyOnTarget` | `Object.defineProperty` for `PROXY` and `HOOKS` symbols |
+| `storeHooksForFrozenTarget` | Writes hooks to `frozenHooksCache` for non-extensible targets |
 
 ### Utilities
 
