@@ -68,6 +68,8 @@ const settledCallbacks: Set<SettledCallback> = new Set<SettledCallback>()
 let settleProcessed = false
 let flushProcessed = false
 let microtaskFlushArmed = false
+let microtaskFlushing = false
+let effectErrorHandled = false
 let untilEvaluating = false
 let untilSawPending = false
 
@@ -274,7 +276,12 @@ function armMicrotaskFlush(): void {
 		}
 		for (const eff of pendingMicroEffects) pendingEffects.add(eff)
 		pendingMicroEffects.clear()
-		flushEffects()
+		microtaskFlushing = true
+		try {
+			flushEffects()
+		} finally {
+			microtaskFlushing = false
+		}
 	})
 }
 
@@ -319,6 +326,11 @@ function runEffectIfActive(effect: EffectFunction): void {
 		try {
 			effect()
 		} catch (err) {
+			// A microtask flush has no caller to rethrow to: onError already ran, otherwise report it
+			if (microtaskFlushing) {
+				if (!effectErrorHandled) console.error(err)
+				return
+			}
 			pendingEffects.clear()
 			throw err
 		}
@@ -921,6 +933,7 @@ function runEffectSafely(
 	} catch (err) {
 		clearRerunState()
 		cleanupEffectOnError(eff)
+		effectErrorHandled = onError !== undefined
 		callHookSafe(onError, err as Error, name)
 		throw err
 	} finally {

@@ -21,6 +21,8 @@ Global mutable state driving the reactive system:
 | `pendingEffects` | `Set<EffectFunction>` | Sync effects queued for execution |
 | `pendingMicroEffects` | `Set<EffectFunction>` | `schedule: 'microtask'` effects waiting for the next microtask flush |
 | `microtaskFlushArmed` | `boolean` | A microtask flush is already queued |
+| `microtaskFlushing` | `boolean` | Set while the microtask callback runs `flushEffects`; effect errors are reported instead of rethrown |
+| `effectErrorHandled` | `boolean` | Set by `runEffectSafely` on a throw: whether the effect had an `onError` hook |
 | `effectQueue` | `EffectFunction[]` | Reused array `runPendingEffectBatch` drains when more than one effect is pending |
 | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
 | `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
@@ -153,7 +155,7 @@ addPendingEffect(subscriber)
 | `armMicrotaskFlush` | Queues one microtask that moves `pendingMicroEffects` into `pendingEffects` and flushes (or only checks settle if none) |
 | `flushEffects` | Non-recursive while loop draining `pendingEffects`, then `notifySettledIfQuiet` |
 | `runPendingEffectBatch` | Single pending effect runs directly; otherwise copies into `effectQueue`, clears `pendingEffects`, runs each via `runEffectIfActive` |
-| `runEffectIfActive` | Guards against disposed effects (checks `effect.__deps`); clears `pendingEffects` if the effect throws |
+| `runEffectIfActive` | Guards against disposed effects (checks `effect.__deps`). On a throw: inside a microtask flush, `console.error` unless `onError` ran, then continue; otherwise clear `pendingEffects` and rethrow |
 
 ### Subscriber Storage
 

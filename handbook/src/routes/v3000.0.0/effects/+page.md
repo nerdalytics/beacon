@@ -422,3 +422,4 @@ $session.role = 'admin'
 - **Batch boundary precedence** — a microtask-scheduled effect notified inside `batch` runs after the outermost boundary exits, in a later microtask turn
 - **Guard scope** — the synchronous write-during-read infinite-loop guard applies unchanged to `'sync'` effects; a `'microtask'` effect that writes its own dependency re-runs on the following turn instead of throwing
 - **Observability** — the `onSchedule` hook fires at notification time for both schedules, before any deferred run
+- **Errors** — a throw during a microtask flush has no caller to reach, so it is not rethrown: the throwing effect is disposed and its `onError` hook fires (without `onError`, the error goes to `console.error`), and the other effects in that flush still run. This covers `'sync'` effects that a `'microtask'` effect's writes trigger. A `'microtask'` effect's first run is synchronous and still throws to the `effect()` caller

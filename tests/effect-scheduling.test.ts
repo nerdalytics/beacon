@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
-import { batch, effect, state } from '../src/index.ts'
+import { describe, it, type TestContext } from 'node:test'
+import { batch, effect, onSettled, state } from '../src/index.ts'
 
 const microtick = (): Promise<void> => new Promise((resolve): void => queueMicrotask(resolve))
 
@@ -171,5 +171,75 @@ describe('Effect Scheduling', {
 		assert.equal(runs, 1)
 		stop()
 		await turn()
+	})
+
+	it('routes a microtask effect error to onError and keeps flushing its siblings', async (): Promise<void> => {
+		const $s = state({
+			n: 0,
+		})
+		const errors: string[] = []
+		const seen: number[] = []
+		let settled = 0
+		const stopSettled = onSettled((): void => {
+			settled++
+		})
+		const stopFailing = effect(
+			(): void => {
+				if ($s.n > 0) throw new Error('boom')
+			},
+			'failing',
+			{
+				onError: (err: Error): void => {
+					errors.push(err.message)
+				},
+			},
+			{
+				schedule: 'microtask',
+			}
+		)
+		const stopSibling = effect(
+			(): void => {
+				seen.push($s.n)
+			},
+			'sibling',
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		$s.n = 1
+		await turn()
+		assert.deepEqual(errors, ['boom'])
+		assert.deepEqual(seen, [0, 1])
+		assert.equal(settled, 1)
+		$s.n = 2
+		await turn()
+		assert.deepEqual(errors, ['boom'])
+		assert.deepEqual(seen, [0, 1, 2])
+		stopFailing()
+		stopSibling()
+		stopSettled()
+	})
+
+	it('reports a microtask effect error without onError to console.error', async (t: TestContext): Promise<void> => {
+		const logged = t.mock.method(console, 'error', (): void => {})
+		const $s = state({
+			n: 0,
+		})
+		const stop = effect(
+			(): void => {
+				if ($s.n > 0) throw new Error('unhandled')
+			},
+			undefined,
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		$s.n = 1
+		await turn()
+		assert.equal(logged.mock.callCount(), 1)
+		assert.equal((logged.mock.calls[0]?.arguments[0] as Error).message, 'unhandled')
+		stop()
 	})
 })
