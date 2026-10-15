@@ -6,11 +6,9 @@ export const prerender = true
 export function entries(): {
 	version: string
 }[] {
-	return getValidVersions()
-		.filter((version) => version !== 'latest')
-		.map((version) => ({
-			version,
-		}))
+	return getValidVersions().map((version) => ({
+		version,
+	}))
 }
 
 export const GET: RequestHandler = ({

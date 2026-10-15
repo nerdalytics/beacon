@@ -9,10 +9,7 @@ import { version } from '$app/env'
 import { assets, immutable } from '$app/manifest'
 
 const CACHE = `cache-${version}`
-const ASSETS: string[] = [
-	...immutable.map((f) => f.path),
-	...assets.map((f) => f.path),
-]
+const ASSETS: string[] = [...immutable.map((f) => f.path), ...assets.map((f) => f.path)]
 
 self.addEventListener('install', (event) => {
 	event.waitUntil(

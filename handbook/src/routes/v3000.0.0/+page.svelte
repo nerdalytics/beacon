@@ -1,9 +1,18 @@
 <script lang="ts">
-	import { asset, resolve } from '$app/paths'
+	import { asset } from '$app/paths'
+	import { page } from '$app/state'
+	import { getVersionPrefix } from '#lib/navigation'
+	import { resolveHref } from '#lib/resolve-href'
+	import { resolveVersionLabel, versions } from '#lib/versions'
+
+	// Rendered at /v3000.0.0 and, via latest/+page.svelte, at /latest.
+	let prefix = $derived(getVersionPrefix(page.url.pathname) ?? '/v3000.0.0')
+	const pkgVersion = '3000.0.0'
+	let nodeBadge = $derived(versions.find((v) => v.prefix === prefix)?.badges.node)
 </script>
 
 <svelte:head>
-	<title>Beacon v3000.0.0 — Reactive dependency graph runtime for Node.js</title>
+	<title>Beacon {resolveVersionLabel(prefix)} — Reactive dependency graph runtime for Node.js</title>
 	<meta
 		name="description"
 		content="Zero-dependency reactive dependency graph runtime for Node.js backends. Automatic dependency tracking and efficient updates."
@@ -29,16 +38,16 @@
 		<a href="https://vlt.sh/">
 			<img src="https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white" alt="vlt" />
 		</a>
-		<a href="https://www.npmjs.com/package/@nerdalytics/beacon/v/2000.0.0">
-			<img src="https://flat.badgen.net/static/npm/v2000.0.0/blue" alt="npm v2000.0.0" />
+		<a href={`https://www.npmjs.com/package/@nerdalytics/beacon/v/${pkgVersion}`}>
+			<img src={`https://flat.badgen.net/static/npm/v${pkgVersion}/blue`} alt={`npm v${pkgVersion}`} />
 		</a>
-		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/2000.0.0">
-			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0" alt="Socket" />
+		<a href={`https://socket.dev/npm/package/@nerdalytics/beacon/overview/${pkgVersion}`}>
+			<img src={`https://badge.socket.dev/npm/package/@nerdalytics/beacon/${pkgVersion}`} alt="Socket" />
 		</a>
 	</div>
 	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
 		<a href="https://nodejs.org/">
-			<img src="https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white" alt="Node.js" />
+			<img src={nodeBadge} alt="Node.js" />
 		</a>
 		<a href="https://typescriptlang.org/">
 			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
@@ -72,7 +81,7 @@
 	</div>
 
 	<a
-		href={resolve('/v3000.0.0/introduction')}
+		href={resolveHref(`${prefix}/introduction`)}
 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
 	>
 		Get Started

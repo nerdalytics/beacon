@@ -11,24 +11,12 @@ import beaconTheme from './src/lib/shiki-beacon-theme.json' with { type: 'json' 
 
 // Singleton highlighter — created once, reused across all code blocks at build time
 const highlighterPromise = createHighlighter({
-	langs: [
-		'javascript',
-		'typescript',
-		'bash',
-		'json',
-		'svelte',
-		'html',
-		'css',
-	],
-	themes: [
-		beaconTheme as ThemeInput,
-	],
+	langs: ['javascript', 'typescript', 'bash', 'json', 'svelte', 'html', 'css'],
+	themes: [beaconTheme as ThemeInput],
 })
 
 const mdsvexOptions: MdsvexOptions = {
-	extensions: [
-		'.md',
-	],
+	extensions: ['.md'],
 	highlight: {
 		highlighter: async (code: string, lang: string | null = 'text') => {
 			const highlighter = await highlighterPromise
@@ -42,12 +30,10 @@ const mdsvexOptions: MdsvexOptions = {
 		},
 	},
 	layout: new URL('./src/lib/components/DocLayout.svelte', import.meta.url).pathname,
-	rehypePlugins: [
-		rehypeSlug,
-	],
+	rehypePlugins: [rehypeSlug],
 }
 
-export default defineConfig(({ command, mode }) => ({
+export default defineConfig(({ mode }) => ({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
@@ -64,17 +50,11 @@ export default defineConfig(({ command, mode }) => ({
 					runes: true,
 				}
 			},
-			extensions: [
-				'.svelte',
-				'.md',
-			],
+			extensions: ['.svelte', '.md'],
 			paths: {
 				base: process.argv.includes('dev') ? '' : (loadEnv(mode, '.', '').BASE_PATH as `/${string}` | undefined),
 			},
-			preprocess: [
-				vitePreprocess(),
-				mdsvex(mdsvexOptions),
-			],
+			preprocess: [vitePreprocess(), mdsvex(mdsvexOptions)],
 		}),
 	],
 }))

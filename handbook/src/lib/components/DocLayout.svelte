@@ -23,9 +23,9 @@
 		if (articleEl) addCopyButtons(articleEl)
 	})
 
-	let versionPrefix = $derived(getVersionPrefix(page.route.id ?? '') ?? '')
+	let versionPrefix = $derived(getVersionPrefix(page.url.pathname) ?? '')
 	let allPages = $derived(getAllPages(versionPrefix))
-	let currentIndex = $derived(allPages.findIndex((item) => item.href === page.route.id))
+	let currentIndex = $derived(allPages.findIndex((item) => page.url.pathname.endsWith(item.href)))
 	let prevPage = $derived(currentIndex > 0 ? allPages[currentIndex - 1] : null)
 	let nextPage = $derived(currentIndex < allPages.length - 1 ? allPages[currentIndex + 1] : null)
 

@@ -185,23 +185,21 @@ const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
 	return groups
 }
 
-const versionConfigs: [
-	string,
-	NavConfig,
-][] = [
-	[
-		'/v3000.0.0',
-		{
-			hasDebugging: true,
-			hasHooks: true,
-			hasLens: false,
-			hasPerformance: true,
-			hasRecipes: true,
-			hasSelect: false,
-			hasSettle: true,
-			migration: 'v2000.0.0 \u2192 v3000.0.0',
-		},
-	],
+// /latest serves the current version under its own URL; both prefixes share one nav config.
+const currentConfig: NavConfig = {
+	hasDebugging: true,
+	hasHooks: true,
+	hasLens: false,
+	hasPerformance: true,
+	hasRecipes: true,
+	hasSelect: false,
+	hasSettle: true,
+	migration: 'v2000.0.0 \u2192 v3000.0.0',
+}
+
+const versionConfigs: [string, NavConfig][] = [
+	['/latest', currentConfig],
+	['/v3000.0.0', currentConfig],
 	[
 		'/v2000.0.0',
 		{
@@ -221,69 +219,15 @@ const versionConfigs: [
 		},
 	],
 	[
-		'/v1000.3.2',
-		{
-			migration: 'v1000.3.1 \u2192 v1000.3.2',
-		},
-	],
-	[
-		'/v1000.3.1',
-		{
-			migration: 'v1000.3.0 \u2192 v1000.3.1',
-		},
-	],
-	[
-		'/v1000.3.0',
-		{
-			migration: 'v1000.2.5 \u2192 v1000.3.0',
-		},
-	],
-	[
 		'/v1000.2.5',
 		{
 			migration: 'v1000.2.4 \u2192 v1000.2.5',
 		},
 	],
 	[
-		'/v1000.2.4',
-		{
-			migration: 'v1000.2.3 \u2192 v1000.2.4',
-		},
-	],
-	[
-		'/v1000.2.3',
-		{
-			migration: 'v1000.2.2 \u2192 v1000.2.3',
-		},
-	],
-	[
-		'/v1000.2.2',
-		{
-			migration: 'v1000.2.1 \u2192 v1000.2.2',
-		},
-	],
-	[
-		'/v1000.2.1',
-		{
-			migration: 'v1000.2.0 \u2192 v1000.2.1',
-		},
-	],
-	[
-		'/v1000.2.0',
-		{
-			migration: 'v1000.1.1 \u2192 v1000.2.0',
-		},
-	],
-	[
 		'/v1000.1.1',
 		{
 			migration: 'v1000.1.0 \u2192 v1000.1.1',
-		},
-	],
-	[
-		'/v1000.1.0',
-		{
-			migration: 'v1000.0.0 \u2192 v1000.1.0',
 		},
 	],
 	[
@@ -304,10 +248,7 @@ const versionConfigs: [
 ]
 
 export const navigation: Record<string, NavGroup[]> = Object.fromEntries(
-	versionConfigs.map(([prefix, config]) => [
-		prefix,
-		buildNav(prefix, config),
-	])
+	versionConfigs.map(([prefix, config]) => [prefix, buildNav(prefix, config)])
 )
 
 /** Extract the version prefix from a URL path (e.g., "/beacon/v1.0.0/state" -> "/v1.0.0", "/beacon/latest/state" -> "/latest") */
