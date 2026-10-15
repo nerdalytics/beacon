@@ -11,7 +11,7 @@
 | `npm run test:integration` | Run integration tests |
 | `npm run test:behavior` | Run behavior/edge-case tests |
 | `npm run test:coverage` | Run tests with coverage reporting |
-| `npm run build` | Build LTS dist (tsc + uglify) |
+| `npm run build` | Build dist (tsc + esbuild) |
 | `npm run format` | Format with Biome |
 | `npm run lint` | Lint with Biome |
 | `npm run check` | Run all Biome checks |
@@ -52,14 +52,14 @@ Scopes: `state`, `derive`, `effect`, `batch`, `core`, `api`, `assets`
 
 ## Tooling
 
-- **Runtime**: Node.js >= 22.0.0 (mise-managed)
+- **Runtime**: Node.js >= 24.0.0 (mise-managed); CI tests 24.x, 26.x and latest
 - **TypeScript**: strict mode, ESNext target, NodeNext modules
 - **Linter/Formatter**: Biome — tabs, 120 line width, LF, single quotes, semicolons asNeeded, trailing commas es5, bracket spacing on, arrow parens always
 - **Key lint rules**: `noExplicitAny: error`, `useExplicitType: error`, `noConsole: error` (allow: error/warn/dir/info/debug/table/time/timeEnd/timeLog/trace), `noAccumulatingSpread: error`, `useSortedKeys: on`, `useSortedProperties: on`, `useConsistentArrayType: shorthand`
 - **Tests**: Native Node.js test runner (`node --test`), no external framework
 - **Coverage**: 100% branches, 100% functions, 90% lines (configured in `node.config.json`)
-- **Build**: `tsc -p tsconfig.lts.json` → `esbuild` → `dist/src/index.min.js`
-- **CI**: GitHub Actions — build on Node 24, test LTS on Node 22, publish to npm + JSR on trunk push (gated by version change)
+- **Build**: `tsc -p tsconfig.build.json` → `esbuild` → `dist/src/index.min.js`
+- **CI**: GitHub Actions — build on Node 24, test on Node 24/26/latest, publish to npm + JSR on trunk push (gated by version change)
 
 ## .gitignore
 
@@ -83,8 +83,9 @@ Zero-cost instrumentation. All four primitives accept an optional hooks paramete
 |src/:{AGENTS.md,index.ts,types.ts}
 |src/hooks/:{AGENTS.md,index.ts,compose.ts}
 |tests/:{AGENTS.md}
-|scripts/:{benchmark.ts,naiv-benchmark.ts,run-lts-tests.js}
-|.github/workflows/:{build-test-publish.yml,deploy-handbook.yml,update-dependencies-cache.yml}
+|scripts/:{benchmark.ts}
+|.github/:{dependabot.yml}
+|.github/workflows/:{build-test-publish.yml,deploy-handbook.yml,issue-gate.yml,runtime-compat.yml}
 |.github/scripts/:{check-version.sh,check-version-sync.sh}
 |assets/:{beacon-logo-v2.svg,beacon-logo.svg}
 <!--— BEACON-END —>
