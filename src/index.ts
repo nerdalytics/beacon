@@ -80,7 +80,6 @@ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'un
 // Function type for cached methods
 type CachedMethod = (...args: unknown[]) => unknown
 const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
-const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 
 // Hooks consulted on the hot path; stored on the effect only when at least one is set
 type EffectInternalHooks = {
@@ -655,12 +654,6 @@ function performWrite<T>(
 	return true
 }
 
-function storeHooksForFrozenTarget(target: ProxyTarget, hooks: StateHooks | undefined): void {
-	if (hooks) {
-		frozenHooksCache.set(target, hooks)
-	}
-}
-
 function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: StateHooks | undefined): void {
 	Object.defineProperty(target, PROXY, {
 		configurable: true,
@@ -679,15 +672,10 @@ function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: Stat
 }
 
 function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: StateHooks | undefined): void {
+	if (!Object.isExtensible(target)) return
 	try {
-		if (Object.isExtensible(target)) {
-			definePropertyOnTarget(target, proxy, hooks)
-		} else {
-			storeHooksForFrozenTarget(target, hooks)
-		}
-	} catch {
-		storeHooksForFrozenTarget(target, hooks)
-	}
+		definePropertyOnTarget(target, proxy, hooks)
+	} catch {}
 }
 
 const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {

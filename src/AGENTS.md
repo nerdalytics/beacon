@@ -42,8 +42,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 |---------|------|---------|
 | `proxyCache` | `object → object` | Reuse same Proxy for same target |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
-| `frozenMethodCache` | `object → Map<PropertyKey, CachedMethod>` | Cached wrapped array methods for frozen objects |
-| `frozenHooksCache` | `object → StateHooks` | Hooks storage for frozen/sealed targets |
+| `arrayMethodCache` | `object → Map<PropertyKey, CachedMethod>` | Cached wrapped mutating array methods per target |
 
 ## Symbols
 
@@ -52,8 +51,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
 | `SUBSCRIBERS` | Stores subscriber Set on target objects |
 | `PROXY` | Stores Proxy reference on target objects |
-| `HOOKS` | Stores StateHooks on target objects for nested propagation |
-| `CACHED_METHODS` | Stores cached array method wrappers |
+| `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
 
 ## Internal Function Architecture
 
@@ -79,8 +77,7 @@ Handler helpers:
 | `resolveValue` | Wraps nested objects via `wrapNestedObject` → `state()` |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
 | `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
-| `createCachedArrayMethod` | Caches wrapped method on extensible targets via `CACHED_METHODS` symbol |
-| `getCachedMethodFromWeakMap` | Caches wrapped method for frozen targets via `frozenMethodCache` |
+| `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
 | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects) |
 | `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check) |
@@ -167,9 +164,8 @@ scheduleSubscribersForTarget(target, prop)
 
 | Function | Purpose |
 |----------|---------|
-| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on target (extensible) or WeakMap (frozen) |
+| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; no-op for frozen/sealed targets |
 | `definePropertyOnTarget` | `Object.defineProperty` for `PROXY` and `HOOKS` symbols |
-| `storeHooksForFrozenTarget` | Falls back to `frozenHooksCache` WeakMap |
 
 ### Utilities
 
