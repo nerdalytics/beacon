@@ -13,11 +13,16 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 ## API
 
 ```typescript
-function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe
+function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks, options?: EffectOptions): Unsubscribe
 
 type EffectCallback = () => void
 type EffectName = string
 type Unsubscribe = () => void
+type EffectSchedule = 'microtask' | 'sync'
+
+interface EffectOptions {
+  schedule?: EffectSchedule
+}
 ```
 
 Returns a dispose function. Call it to stop the effect and clean up all subscriptions. See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.

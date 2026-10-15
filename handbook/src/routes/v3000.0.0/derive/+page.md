@@ -13,15 +13,18 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 ## API
 
 ```typescript
+function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
 function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
 
 type ComputedValue<T> = {
+  readonly pending: boolean
   readonly value: T | undefined | null
   reactive: boolean
 }
 ```
 
 - `value` — the cached computed result (read-only)
+- `pending` — `true` while an async compute is in flight; always `false` for synchronous derives (read-only)
 - `reactive` — controls the internal effect lifecycle; set to `false` to dispose, `true` to recreate
 
 See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
