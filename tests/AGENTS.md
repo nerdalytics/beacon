@@ -10,9 +10,10 @@ Native Node.js test runner (`node --test`). No external test framework.
 | Hooks | `{primitive}-hooks.test.ts` | `state-hooks`, `effect-hooks`, `derive-hooks`, `batch-hooks` |
 | Hooks Utility | `hooks-{utility}.test.ts` | `hooks-compose` |
 | Integration | `{feature1}-{feature2}.test.ts` | `state-effect`, `state-derive`, `batch-integration` |
-| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup` |
+| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation` |
+| Property-based | `property-{invariant}.test.ts` | `property-cleanup`, `property-proxy-identity` (fast-check; see `PROPERTY_BASED_TESTING.md`) |
 
-Template: `template.test.ts` — excluded via `--test-skip-pattern="COMPONENT NAME"`
+`npm test` passes `--test-skip-pattern="COMPONENT NAME"`, which skips any test named `COMPONENT NAME` (a placeholder name; no template file is checked in).
 
 ## Test Structure
 
@@ -28,7 +29,7 @@ describe('Feature Name', { concurrency: true, timeout: 1000 }, () => {
 })
 ```
 
-All test suites use `{ concurrency: true, timeout: 1000 }`.
+Default suite options are `{ concurrency: true, timeout: 1000 }`. Exceptions: `cyclic-dependency` runs with `concurrency: false`; `derive-async`, `effect-scheduling` and `settle-observation` use `{ concurrency: false, timeout: 2000 }`; `property-*` suites raise `timeout` to 30000.
 
 ## Naming Conventions
 
@@ -72,11 +73,9 @@ $computed.reactive = false
 
 | Command | Scope |
 |---------|-------|
-| `npm test` | All tests |
-| `npm run test:core` | Core API tests (`*-core.test.ts`) |
-| `npm run test:integration` | Integration tests (`state-*.test.ts`, `batch-integration`) |
-| `npm run test:behavior` | Behavior tests (infinite-loop, cyclic-dependency, cleanup) |
-| `npm run test:coverage` | All tests with coverage |
+| `npm test` | All tests (`tests/**/*.ts`) |
+| `npm run test:coverage` | All tests with coverage, lcov written to `lcov.info` |
+| `node --test tests/<file>.test.ts` | One file (there are no per-category scripts) |
 
 ## Coverage Targets
 
@@ -95,12 +94,8 @@ Test hooks instrumentation for each primitive. Each file verifies backward compa
 |------|-------|--------|
 | `state-hooks.test.ts` | 12 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, array methods, multiple hooks |
 | `effect-hooks.test.ts` | 8 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
-| `derive-hooks.test.ts` | 7 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
+| `derive-hooks.test.ts` | 8 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
 | `batch-hooks.test.ts` | 6 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
 | `hooks-compose.test.ts` | 7 | `composeHook` utility — undefined, single, array, forwarding, error isolation |
 
-<!--— BEACON-START —>[Tests Index]
-|root: ./tests
-|IMPORTANT: Follow naming conventions and always dispose effects/derives in tests
-|.:{state-core.test.ts,effect-core.test.ts,derive-core.test.ts,batch-core.test.ts,state-derive.test.ts,state-effect.test.ts,batch-integration.test.ts,cleanup.test.ts,cyclic-dependency.test.ts,infinite-loop.test.ts,state-hooks.test.ts,effect-hooks.test.ts,derive-hooks.test.ts,batch-hooks.test.ts,hooks-compose.test.ts,property-*.test.ts,PROPERTY_BASED_TESTING.md}
-<!--— BEACON-END —>
+<!-- BEACON-START -->[Tests Index]|root: ./tests|IMPORTANT: Follow naming conventions and always dispose effects/derives in tests|.:{*.test.ts,PROPERTY_BASED_TESTING.md,biome.json}<!-- BEACON-END -->

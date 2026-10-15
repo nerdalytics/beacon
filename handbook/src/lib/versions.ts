@@ -7,7 +7,7 @@ export interface Version {
 	prefix: string
 }
 
-/** Route directory whose pages /latest serves. Must match the glob in routes/latest/[...rest]/+page.ts. */
+/** Route directory whose pages /latest serves. Must match the glob in routes/latest/[page=slug]/+page.ts. */
 export const latestSource = 'v3000.0.0'
 
 export const versions: Version[] = [
