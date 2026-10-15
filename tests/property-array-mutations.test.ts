@@ -198,24 +198,15 @@ describe('Property-Based: Array Mutations', {
 	it('produces same contents as a plain array after arbitrary mutations', (): void => {
 		fc.assert(
 			fc.property(initialArrayArb, opsArb, (initial: number[], ops: ArrayOp[]): void => {
-				const $reactive = state([
-					...initial,
-				])
-				const plain = [
-					...initial,
-				]
+				const $reactive = state([...initial])
+				const plain = [...initial]
 
 				for (const op of ops) {
 					applyOp($reactive, op)
 					applyOp(plain, op)
 				}
 
-				assert.deepStrictEqual(
-					[
-						...$reactive,
-					],
-					plain
-				)
+				assert.deepStrictEqual([...$reactive], plain)
 				assert.strictEqual($reactive.length, plain.length)
 			}),
 			{
@@ -227,23 +218,14 @@ describe('Property-Based: Array Mutations', {
 	it('returns same values from mutating methods as a plain array', (): void => {
 		fc.assert(
 			fc.property(initialArrayArb, valueReturningOpArb, (initial: number[], op: ValueReturningOp): void => {
-				const $reactive = state([
-					...initial,
-				])
-				const plain = [
-					...initial,
-				]
+				const $reactive = state([...initial])
+				const plain = [...initial]
 
 				const reactiveResult = applyOpWithReturn($reactive, op)
 				const plainResult = applyOpWithReturn(plain, op)
 
 				assert.deepStrictEqual(reactiveResult, plainResult)
-				assert.deepStrictEqual(
-					[
-						...$reactive,
-					],
-					plain
-				)
+				assert.deepStrictEqual([...$reactive], plain)
 			}),
 			{
 				numRuns: 300,
@@ -254,12 +236,8 @@ describe('Property-Based: Array Mutations', {
 	it('fires effect at most once per batch of mutations', (): void => {
 		fc.assert(
 			fc.property(initialArrayArb, opsArb, (initial: number[], ops: ArrayOp[]): void => {
-				const $arr = state([
-					...initial,
-				])
-				const plain = [
-					...initial,
-				]
+				const $arr = state([...initial])
+				const plain = [...initial]
 				let effectRuns = 0
 
 				const dispose = effect((): void => {
@@ -278,12 +256,7 @@ describe('Property-Based: Array Mutations', {
 				})
 
 				assert.ok(effectRuns <= 1, `Effect ran ${effectRuns} times inside batch of ${ops.length} operations`)
-				assert.deepStrictEqual(
-					[
-						...$arr,
-					],
-					plain
-				)
+				assert.deepStrictEqual([...$arr], plain)
 
 				dispose()
 			}),

@@ -150,44 +150,26 @@ describe('State-Effect Integration', {
 			results.push(`${$state.user.name} is ${$state.user.age}`)
 		})
 
-		assert.deepStrictEqual(results, [
-			'Alice is 30',
-		])
+		assert.deepStrictEqual(results, ['Alice is 30'])
 
 		$state.user.name = 'Bob'
-		assert.deepStrictEqual(results, [
-			'Alice is 30',
-			'Bob is 30',
-		])
+		assert.deepStrictEqual(results, ['Alice is 30', 'Bob is 30'])
 
 		$state.user.age = 31
-		assert.deepStrictEqual(results, [
-			'Alice is 30',
-			'Bob is 30',
-			'Bob is 31',
-		])
+		assert.deepStrictEqual(results, ['Alice is 30', 'Bob is 30', 'Bob is 31'])
 
 		$state.user = {
 			age: 25,
 			name: 'Charlie',
 		}
-		assert.deepStrictEqual(results, [
-			'Alice is 30',
-			'Bob is 30',
-			'Bob is 31',
-			'Charlie is 25',
-		])
+		assert.deepStrictEqual(results, ['Alice is 30', 'Bob is 30', 'Bob is 31', 'Charlie is 25'])
 
 		dispose()
 	})
 
 	it('tracks array changes', (): void => {
 		const $items = state({
-			list: [
-				1,
-				2,
-				3,
-			],
+			list: [1, 2, 3],
 		})
 		const results: number[] = []
 
@@ -195,62 +177,24 @@ describe('State-Effect Integration', {
 			results.push($items.list.length)
 		})
 
-		assert.deepStrictEqual(
-			results,
-			[
-				3,
-			]
-		)
+		assert.deepStrictEqual(results, [3])
 
 		$items.list.push(4)
-		assert.deepStrictEqual(
-			results,
-			[
-				3,
-				4,
-			]
-		)
+		assert.deepStrictEqual(results, [3, 4])
 
 		$items.list.pop()
 		$items.list.pop()
-		assert.deepStrictEqual(
-			results,
-			[
-				3,
-				4,
-				3,
-				2,
-			]
-		)
+		assert.deepStrictEqual(results, [3, 4, 3, 2])
 
-		$items.list = [
-			10,
-			20,
-			30,
-			40,
-			50,
-		]
-		assert.deepStrictEqual(
-			results,
-			[
-				3,
-				4,
-				3,
-				2,
-				5,
-			]
-		)
+		$items.list = [10, 20, 30, 40, 50]
+		assert.deepStrictEqual(results, [3, 4, 3, 2, 5])
 
 		dispose()
 	})
 
 	it('tracks specific array indices', (): void => {
 		const $list = state({
-			items: [
-				1,
-				2,
-				3,
-			],
+			items: [1, 2, 3],
 		})
 		let index0Count = 0
 		let index1Count = 0
@@ -296,32 +240,17 @@ describe('State-Effect Integration', {
 			keys.push(Object.keys($obj).join(','))
 		})
 
-		assert.deepStrictEqual(keys, [
-			'a,b,c',
-		])
+		assert.deepStrictEqual(keys, ['a,b,c'])
 
 		delete $obj.b
-		assert.deepStrictEqual(keys, [
-			'a,b,c',
-			'a,c',
-		])
+		assert.deepStrictEqual(keys, ['a,b,c', 'a,c'])
 
 		$obj.d = 4
-		assert.deepStrictEqual(keys, [
-			'a,b,c',
-			'a,c',
-			'a,c,d',
-		])
+		assert.deepStrictEqual(keys, ['a,b,c', 'a,c', 'a,c,d'])
 
 		delete $obj.a
 		delete $obj.c
-		assert.deepStrictEqual(keys, [
-			'a,b,c',
-			'a,c',
-			'a,c,d',
-			'c,d',
-			'd',
-		])
+		assert.deepStrictEqual(keys, ['a,b,c', 'a,c', 'a,c,d', 'c,d', 'd'])
 
 		dispose()
 	})
@@ -336,33 +265,13 @@ describe('State-Effect Integration', {
 			results.push($state.value)
 		})
 
-		assert.deepStrictEqual(
-			results,
-			[
-				0,
-			]
-		)
+		assert.deepStrictEqual(results, [0])
 
 		for (let i = 1; i <= 10; i++) {
 			$state.value = i
 		}
 
-		assert.deepStrictEqual(
-			results,
-			[
-				0,
-				1,
-				2,
-				3,
-				4,
-				5,
-				6,
-				7,
-				8,
-				9,
-				10,
-			]
-		)
+		assert.deepStrictEqual(results, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
 		dispose()
 	})

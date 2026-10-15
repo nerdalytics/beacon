@@ -8,11 +8,7 @@
 	"license": "MIT",
 	"name": "@nerdalytics/beacon",
 	"publish": {
-		"include": [
-			"LICENSE",
-			"README.md",
-			"src/**/*.ts"
-		]
+		"include": ["LICENSE", "README.md", "src/**/*.ts"]
 	},
 	"version": "3000.0.0"
 }

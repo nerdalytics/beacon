@@ -75,23 +75,19 @@ let untilSawPending = false
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
 
-const MUTATING_ARRAY_METHODS: Set<string> = new Set([
-	'push',
-	'pop',
-	'shift',
-	'unshift',
-	'splice',
-	'sort',
-	'reverse',
-])
-
-// Symbol for cached methods
-const CACHED_METHODS: unique symbol = Symbol('[[cachedMethods]]')
+const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
 
 // Function type for cached methods
 type CachedMethod = (...args: unknown[]) => unknown
-const frozenMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
+const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+
+// Hooks consulted on the hot path; stored on the effect only when at least one is set
+type EffectInternalHooks = {
+	onDependencyAdd?: HookFunction<[object, PropertyKey, string | undefined]> | undefined
+	onDependencyChange?: HookFunction<[object, PropertyKey]> | undefined
+	onSchedule?: HookFunction<[string | undefined]> | undefined
+}
 
 // Effect function type
 type EffectFunction = {
@@ -99,26 +95,7 @@ type EffectFunction = {
 	__active?: boolean
 	__children?: Set<EffectFunction> | undefined
 	__deps?: Set<object> | undefined
-	__hooks?: {
-		onDependencyAdd?: HookFunction<
-			[
-				object,
-				PropertyKey,
-				string | undefined,
-			]
-		>
-		onDependencyChange?: HookFunction<
-			[
-				object,
-				PropertyKey,
-			]
-		>
-		onSchedule?: HookFunction<
-			[
-				string | undefined,
-			]
-		>
-	}
+	__hooks?: EffectInternalHooks
 	__parent?: EffectFunction | undefined
 	__prevDeps?: Set<object> | undefined
 	__prevReads?: Map<object, Set<PropertyKey>> | undefined
@@ -137,15 +114,11 @@ type ProxyObject = ProxyTarget & {
 	[PROXY]?: object
 }
 
-type CachedMethodsObject = ProxyTarget & {
-	[CACHED_METHODS]?: Record<PropertyKey, CachedMethod>
-}
-
-function getCachedMethodFromWeakMap(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
-	let cache = frozenMethodCache.get(target)
+function wrapArrayMethod(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
+	let cache = arrayMethodCache.get(target)
 	if (!cache) {
 		cache = new Map<PropertyKey, CachedMethod>()
-		frozenMethodCache.set(target, cache)
+		arrayMethodCache.set(target, cache)
 	}
 
 	let wrapped = cache.get(prop)
@@ -329,20 +302,13 @@ function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, 
 	if (hooks?.onDependencyChange) callHookSafe(hooks.onDependencyChange, target, prop)
 }
 
-function scheduleSubscriber(subscriber: EffectFunction, target: object, prop: PropertyKey | undefined): void {
-	if (prop === undefined) {
-		addPendingEffect(subscriber)
-	} else {
-		scheduleSubscriberWithProp(subscriber, target, prop)
-	}
-}
-
 function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void {
 	const subs = findSubscribers(target)
 	if (!subs?.size) return
 
 	for (const subscriber of subs) {
-		scheduleSubscriber(subscriber, target, prop)
+		if (prop === undefined) addPendingEffect(subscriber)
+		else scheduleSubscriberWithProp(subscriber, target, prop)
 	}
 	if (batchDepth === 0 && !isNotifying) flushEffects()
 }
@@ -494,15 +460,7 @@ function depsMatch(
 
 // Proxy handler functions
 function createDeleteHandler<T>(
-	onDelete:
-		| HookFunction<
-				[
-					PropertyKey,
-					boolean,
-					T,
-				]
-		  >
-		| undefined
+	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['deleteProperty']> {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		const had = Object.hasOwn(rawTarget, prop)
@@ -537,25 +495,6 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	}
 }
 
-function getOrCreateMethodCache(rawTarget: ProxyTarget): Record<PropertyKey, CachedMethod> | null {
-	const rawTargetWithCache = rawTarget as CachedMethodsObject
-	const existing = rawTargetWithCache[CACHED_METHODS]
-	if (existing) return existing
-
-	const cache = Object.create(null) as Record<PropertyKey, CachedMethod>
-	try {
-		Object.defineProperty(rawTarget, CACHED_METHODS, {
-			configurable: true,
-			enumerable: false,
-			value: cache,
-			writable: false,
-		})
-	} catch {
-		return null
-	}
-	return cache
-}
-
 function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): CachedMethod | undefined {
 	if (
 		!Array.isArray(rawTarget) ||
@@ -564,43 +503,11 @@ function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value:
 		typeof value !== 'function'
 	)
 		return undefined
-
-	if (!Object.isExtensible(rawTarget)) {
-		return getCachedMethodFromWeakMap(rawTarget, prop, value as CachedMethod)
-	}
-
-	const cache = getOrCreateMethodCache(rawTarget)
-	if (!cache) return getCachedMethodFromWeakMap(rawTarget, prop, value as CachedMethod)
-
-	return createCachedArrayMethod(rawTarget, cache, prop, value as CachedMethod)
-}
-
-function createCachedArrayMethod(
-	rawTarget: ProxyTarget,
-	cache: Record<PropertyKey, CachedMethod>,
-	prop: PropertyKey,
-	value: CachedMethod
-): CachedMethod {
-	if (!cache[prop]) {
-		cache[prop] = (...args: unknown[]): unknown => {
-			const result = value.apply(rawTarget, args)
-			scheduleSubscribersForTarget(rawTarget)
-			return result
-		}
-	}
-	return cache[prop] as CachedMethod
+	return wrapArrayMethod(rawTarget, prop, value as CachedMethod)
 }
 
 function createGetHandler<T>(
-	onRead:
-		| HookFunction<
-				[
-					PropertyKey,
-					unknown,
-					T,
-				]
-		  >
-		| undefined,
+	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
 	hooks: StateHooks<T> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['get']> {
 	if (!onRead && !hooks) {
@@ -630,15 +537,7 @@ function createGetHandler<T>(
 }
 
 function createHasHandler<T>(
-	onHas:
-		| HookFunction<
-				[
-					PropertyKey,
-					boolean,
-					T,
-				]
-		  >
-		| undefined
+	onHas: HookFunction<[PropertyKey, boolean, T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['has']> {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		trackDependency(rawTarget, prop)
@@ -649,14 +548,7 @@ function createHasHandler<T>(
 }
 
 function createOwnKeysHandler<T>(
-	onOwnKeys:
-		| HookFunction<
-				[
-					PropertyKey[],
-					T,
-				]
-		  >
-		| undefined
+	onOwnKeys: HookFunction<[PropertyKey[], T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['ownKeys']> {
 	return (rawTarget: ProxyTarget): (string | symbol)[] => {
 		trackDependency(rawTarget, OWN_KEYS_SYMBOL)
@@ -711,16 +603,7 @@ function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
 }
 
 function createSetHandler<T>(
-	onWrite:
-		| HookFunction<
-				[
-					PropertyKey,
-					unknown,
-					unknown,
-					T,
-				]
-		  >
-		| undefined
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['set']> {
 	if (!onWrite) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
@@ -754,16 +637,7 @@ function performWrite<T>(
 	rawTarget: ProxyTarget,
 	prop: PropertyKey,
 	value: unknown,
-	onWrite:
-		| HookFunction<
-				[
-					PropertyKey,
-					unknown,
-					unknown,
-					T,
-				]
-		  >
-		| undefined
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): boolean {
 	checkInfiniteLoop(rawTarget, prop)
 
@@ -890,16 +764,6 @@ function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newD
 	}
 }
 
-function areDepsStable(
-	newDeps: Set<object> | undefined,
-	newReads: Map<object, Set<PropertyKey>> | undefined,
-	prevDeps: Set<object>,
-	prevReads: Map<object, Set<PropertyKey>>
-): boolean {
-	if (!newDeps || !newReads) return false
-	return depsMatch(prevDeps, newDeps, prevReads, newReads)
-}
-
 function tryRestoreStableDeps(
 	eff: EffectFunction,
 	prevDeps: Set<object> | undefined,
@@ -908,7 +772,7 @@ function tryRestoreStableDeps(
 	newReads: Map<object, Set<PropertyKey>> | undefined
 ): boolean {
 	if (!prevDeps || !prevReads || !newDeps || !newReads) return false
-	if (!areDepsStable(newDeps, newReads, prevDeps, prevReads)) return false
+	if (!depsMatch(prevDeps, newDeps, prevReads, newReads)) return false
 	eff.__reads = prevReads
 	eff.__deps = prevDeps
 	return true
@@ -945,79 +809,6 @@ function cleanupEffectOnError(eff: EffectFunction): void {
 	removeEffectFromSubscribers(eff, eff.__prevDeps)
 	removeEffectFromSubscribers(eff, eff.__deps)
 	resetEffectTracking(eff)
-}
-
-function attachEffectHooks(
-	eff: EffectFunction,
-	onDependencyAdd:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-					string | undefined,
-				]
-		  >
-		| undefined,
-	onDependencyChange:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-				]
-		  >
-		| undefined,
-	onSchedule:
-		| HookFunction<
-				[
-					string | undefined,
-				]
-		  >
-		| undefined
-): void {
-	if (!onDependencyAdd && !onSchedule && !onDependencyChange) return
-	eff.__hooks = buildEffectHooksMap(onDependencyAdd, onDependencyChange, onSchedule)
-}
-
-function buildEffectHooksMap(
-	onDependencyAdd:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-					string | undefined,
-				]
-		  >
-		| undefined,
-	onDependencyChange:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-				]
-		  >
-		| undefined,
-	onSchedule:
-		| HookFunction<
-				[
-					string | undefined,
-				]
-		  >
-		| undefined
-): NonNullable<EffectFunction['__hooks']> {
-	const map: NonNullable<EffectFunction['__hooks']> = Object.create(null)
-	if (onDependencyAdd) map.onDependencyAdd = onDependencyAdd
-	if (onDependencyChange) map.onDependencyChange = onDependencyChange
-	if (onSchedule) map.onSchedule = onSchedule
-	return map
-}
-
-function promoteTempToGlobal(
-	eff: EffectFunction,
-	tempDeps: Set<object>,
-	tempReads: Map<object, Set<PropertyKey>>
-): void {
-	eff.__deps = tempDeps
-	eff.__reads = tempReads
 }
 
 function clearRerunState(): void {
@@ -1061,7 +852,8 @@ function handleRerunResult(
 			clearRerunState()
 			return true
 		}
-		promoteTempToGlobal(eff, rerunTempDeps, rerunTempReads)
+		eff.__deps = rerunTempDeps
+		eff.__reads = rerunTempReads
 		eff.__readList = undefined
 	}
 
@@ -1074,13 +866,7 @@ function executeEffectBody(
 	fn: EffectCallback,
 	prevDeps: Set<object> | undefined,
 	prevReads: Map<object, Set<PropertyKey>> | undefined,
-	onRun:
-		| HookFunction<
-				[
-					EffectName | undefined,
-				]
-		  >
-		| undefined,
+	onRun: HookFunction<[EffectName | undefined]> | undefined,
 	name: EffectName | undefined
 ): void {
 	const isFirstRun = !prevDeps
@@ -1124,21 +910,8 @@ function executeEffectBody(
 function runEffectSafely(
 	eff: EffectFunction,
 	fn: EffectCallback,
-	onRun:
-		| HookFunction<
-				[
-					EffectName | undefined,
-				]
-		  >
-		| undefined,
-	onError:
-		| HookFunction<
-				[
-					Error,
-					EffectName | undefined,
-				]
-		  >
-		| undefined,
+	onRun: HookFunction<[EffectName | undefined]> | undefined,
+	onError: HookFunction<[Error, EffectName | undefined]> | undefined,
 	name: EffectName | undefined
 ): void {
 	const prev = currentEffect
@@ -1188,7 +961,9 @@ export function effect(
 		runEffectSafely(runEffect, fn, onRun, onError, name)
 	}
 
-	attachEffectHooks(runEffect, onDependencyAdd, onDependencyChange, onSchedule)
+	if (onDependencyAdd || onDependencyChange || onSchedule) {
+		runEffect.__hooks = { onDependencyAdd, onDependencyChange, onSchedule }
+	}
 	registerChildEffect(runEffect)
 
 	if (options?.schedule) {
@@ -1252,14 +1027,7 @@ function flushBatchEffects(): void {
 
 function handleBatchError(
 	err: unknown,
-	onBatchError:
-		| HookFunction<
-				[
-					Error,
-					number,
-				]
-		  >
-		| undefined,
+	onBatchError: HookFunction<[Error, number]> | undefined,
 	entryDepth: number
 ): void {
 	batchDepth--
@@ -1369,56 +1137,7 @@ function setDerivePending(
 	}
 }
 
-function runDeriveComputation<T>(
-	computeFn: () => T | Promise<T>,
-	internalState: {
-		lastValue: T | undefined | null
-	},
-	reactiveInternal: {
-		value: T | undefined | null
-	} | null,
-	onCompute:
-		| HookFunction<
-				[
-					T | undefined,
-				]
-		  >
-		| undefined
-): T | Promise<T> {
-	callHookSafe(onCompute, internalState.lastValue as T | undefined)
-	const newValue = computeFn()
-	if (!isThenable(newValue)) {
-		writeDeriveValue(internalState, reactiveInternal, newValue as T)
-	}
-	return newValue
-}
-
-function resolveDeriveValue<T>(
-	target: {
-		value: T | undefined | null
-	},
-	reactiveInternal: {
-		value: T | undefined | null
-	} | null
-): T | undefined | null {
-	return reactiveInternal && currentEffect ? reactiveInternal.value : target.value
-}
-
-function toggleDeriveReactivity(
-	value: boolean,
-	wasReactive: boolean,
-	hasDispose: boolean,
-	createEffect: () => void,
-	disposeEffect: () => void
-): void {
-	if (value && !wasReactive && !hasDispose) {
-		createEffect()
-	} else if (!value && wasReactive && hasDispose) {
-		disposeEffect()
-	}
-}
-
-function runDeriveWithErrorHandling<T>(
+function computeDerive<T>(
 	computeFn: () => T | Promise<T>,
 	internalState: {
 		lastValue: T | undefined | null
@@ -1446,9 +1165,12 @@ function runDeriveWithErrorHandling<T>(
 	cleanup: () => void
 ): void {
 	try {
-		const result = runDeriveComputation(computeFn, internalState, reactiveInternal, onCompute)
-		if (isThenable(result)) {
-			onAsync(result as Promise<T>)
+		callHookSafe(onCompute, internalState.lastValue as T | undefined)
+		const newValue = computeFn()
+		if (isThenable(newValue)) {
+			onAsync(newValue as Promise<T>)
+		} else {
+			writeDeriveValue(internalState, reactiveInternal, newValue as T)
 		}
 	} catch (err) {
 		callHookSafe(onError, err as Error)
@@ -1496,7 +1218,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 				if (!internalState.reactive || isComputing) return
 
 				isComputing = true
-				runDeriveWithErrorHandling(
+				computeDerive(
 					computeFn,
 					internalState,
 					reactiveInternal,
@@ -1552,7 +1274,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 			untilSawPending = untilSawPending || internalState.pending
 			if (reactiveInternal && currentEffect) void reactiveInternal.pending
 		}
-		const value = resolveDeriveValue(internalState, reactiveInternal)
+		const value = reactiveInternal && currentEffect ? reactiveInternal.value : internalState.value
 		callHookSafe(onCacheHit, value as T, !isComputing)
 		return value
 	}
@@ -1574,7 +1296,8 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 			if (prop === 'reactive') {
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
-				toggleDeriveReactivity(value as boolean, wasReactive, !!dispose, createEffect, disposeEffect)
+				if (value && !wasReactive && !dispose) createEffect()
+				else if (!value && wasReactive && dispose) disposeEffect()
 				return true
 			}
 			return false

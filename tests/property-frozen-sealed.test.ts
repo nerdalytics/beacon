@@ -292,9 +292,7 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
 				}),
 				intArb,
 				(arr: number[], pushValue: number): void => {
-					const sealed = Object.seal([
-						...arr,
-					])
+					const sealed = Object.seal([...arr])
 					const $s = state(sealed)
 
 					const dispose = effect((): void => {
