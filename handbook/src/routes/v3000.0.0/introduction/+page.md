@@ -10,19 +10,24 @@ Beacon is a reactive state management library for Node.js backends. It tracks wh
 
 Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. No manual subscriptions. No event names. No selectors.
 
-Four primitives cover the entire API:
+Four primitives cover the reactive graph:
 
 - **`state(obj)`** — wraps an object in a reactive Proxy
 - **`effect(fn)`** — runs a function and re-runs it when its dependencies change
 - **`derive(fn)`** — computes a value that stays in sync with its dependencies
 - **`batch(fn)`** — groups multiple state changes into a single update cycle
 
+Two settle points bridge imperative code into the graph:
+
+- **`until(predicate)`** — resolves once a settled evaluation of the predicate is truthy
+- **`onSettled(callback)`** — runs the callback whenever the graph reaches quiescence
+
 That's the whole library.
 
 ## Design constraints
 
 - Zero dependencies
-- ~10kb minified
+- ~9kb minified, ~4kb gzipped
 - Single-file core
 - TypeScript-first with full type inference
 - Deep reactivity — nested objects are automatically wrapped
