@@ -155,7 +155,7 @@ addPendingEffect(subscriber)
 | `armMicrotaskFlush` | Queues one microtask that moves `pendingMicroEffects` into `pendingEffects` and flushes (or only checks settle if none) |
 | `flushEffects` | Non-recursive while loop draining `pendingEffects`, then `notifySettledIfQuiet` |
 | `runPendingEffectBatch` | Single pending effect runs directly; otherwise copies into `effectQueue`, clears `pendingEffects`, runs each via `runEffectIfActive` |
-| `runEffectIfActive` | Guards against disposed effects (checks `effect.__deps`). On a throw: inside a microtask flush, `console.error` unless `onError` ran, then continue; otherwise clear `pendingEffects` and rethrow |
+| `runEffectIfActive` | Guards against disposed effects (checks `effect.__deps`). On a throw: inside a microtask flush, `console.error` unless `onError` ran, then continue; otherwise clear `pendingEffects` and `effectQueue` and rethrow |
 
 ### Subscriber Storage
 

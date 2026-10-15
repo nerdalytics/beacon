@@ -332,6 +332,7 @@ function runEffectIfActive(effect: EffectFunction): void {
 				return
 			}
 			pendingEffects.clear()
+			effectQueue.length = 0
 			throw err
 		}
 	}

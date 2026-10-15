@@ -220,4 +220,49 @@ describe('Settle Observation', {
 		settledDerived.reactive = false
 		pendingDerived.reactive = false
 	})
+
+	it('drains the flush queue after a throwing multi-effect flush', (): void => {
+		const $s = state({
+			k: 0,
+			m: 0,
+			n: 0,
+		})
+		let staleRuns = 0
+		let settled = 0
+		const stopFailing = effect((): void => {
+			if ($s.n > 0) throw new Error('boom')
+		})
+		const stopStale = effect((): void => {
+			void $s.n
+			staleRuns++
+		})
+		const stopK = effect((): void => {
+			void $s.k
+		})
+		const stopM1 = effect((): void => {
+			void $s.m
+		})
+		const stopM2 = effect((): void => {
+			void $s.m
+		})
+		const stopSettled = onSettled((): void => {
+			settled++
+		})
+		assert.throws((): void => {
+			$s.n = 1
+		}, /boom/)
+		assert.equal(staleRuns, 1)
+		settled = 0
+		$s.k = 1
+		assert.equal(settled, 1)
+		$s.m = 1
+		assert.equal(staleRuns, 1)
+		assert.equal(settled, 2)
+		stopFailing()
+		stopStale()
+		stopK()
+		stopM1()
+		stopM2()
+		stopSettled()
+	})
 })
