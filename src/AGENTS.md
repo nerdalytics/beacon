@@ -193,7 +193,7 @@ addPendingEffect(subscriber)
 | `onSettled()` | Public API — adds a callback to `settledCallbacks`, returns an unsubscribe |
 | `notifySettledIfQuiet` | Calls settled callbacks (errors swallowed) when nothing is pending or armed and work happened since the last call |
 | `until()` | Public API — throws inside a reactive scope, rejects at once on an aborted signal, else wraps `runUntil` in a Promise |
-| `runUntil` | Runs the predicate in an effect; resolves on a microtask once it is truthy and no read derive was pending; `timeout`/`signal` reject; disposes its effect on resolve or reject |
+| `runUntil` | Runs the predicate in an effect; resolves on a microtask once it is truthy and no read derive was pending; `timeout`/`signal` reject; a throwing predicate rejects with its error on a microtask instead of propagating to the writer; disposes its effect, timer and abort listener on resolve or reject |
 
 ### Proxy Setup
 

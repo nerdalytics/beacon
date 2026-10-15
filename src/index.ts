@@ -1370,6 +1370,14 @@ function runUntil<T>(
 		let value: T
 		try {
 			value = predicate()
+		} catch (err) {
+			// The error belongs to the awaiter, not the writer; settle on a microtask so `stop` is assigned on a first-run throw
+			done = true
+			queueMicrotask((): void => {
+				cleanup()
+				reject(err)
+			})
+			return
 		} finally {
 			untilEvaluating = false
 		}

@@ -25,7 +25,8 @@ Behavior:
 
 1. **Settled reads only** — while an async computation the predicate depends on is pending, evaluations do not resolve the promise; resolution waits for the settle
 2. **Reactive scope prohibition** — calling `until` inside an effect or computation throws; use an effect for reactive responses
-3. **Self-disposal** — on resolve, timeout, or abort the internal subscription is disposed; no listener outlives the promise
+3. **Self-disposal** — on resolve, rejection, timeout, or abort the internal subscription, timer, and abort listener are released; none outlives the promise
+4. **Throwing predicate** — if an evaluation throws, the promise rejects with that error; the write that triggered the evaluation does not throw
 
 ### Options
 

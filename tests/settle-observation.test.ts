@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { getEventListeners } from 'node:events'
+import { describe, it, type TestContext } from 'node:test'
 import { batch, derive, effect, onSettled, state, until } from '../src/index.ts'
 
 interface Deferred<T> {
@@ -22,6 +23,10 @@ async function tick(): Promise<void> {
 	await Promise.resolve()
 	await Promise.resolve()
 	await Promise.resolve()
+}
+
+function activeTimers(): number {
+	return process.getActiveResourcesInfo().filter((resource: string): boolean => resource === 'Timeout').length
 }
 
 describe('Settle Observation', {
@@ -264,5 +269,102 @@ describe('Settle Observation', {
 		stopM1()
 		stopM2()
 		stopSettled()
+	})
+	it('until rejects with the error a re-run predicate throws and clears its timer', async (): Promise<void> => {
+		const $s = state({
+			n: 0,
+		})
+		const timersBefore = activeTimers()
+		let evaluations = 0
+		let outcome = 'pending'
+		void until(
+			(): boolean => {
+				evaluations++
+				if ($s.n === 1) throw new Error('boom')
+				return $s.n === 2
+			},
+			{
+				timeout: 1500,
+			}
+		).then(
+			(): void => {
+				outcome = 'resolved'
+			},
+			(err: Error): void => {
+				outcome = err.message
+			}
+		)
+		assert.equal(activeTimers(), timersBefore + 1)
+		assert.doesNotThrow((): void => {
+			$s.n = 1
+		})
+		await tick()
+		assert.equal(outcome, 'boom')
+		assert.equal(activeTimers(), timersBefore)
+		$s.n = 2
+		assert.equal(evaluations, 2)
+	})
+
+	it('until rejects with the error a first-run predicate throws and releases its listener and timer', async (): Promise<void> => {
+		const $s = state({
+			n: 0,
+		})
+		const controller = new AbortController()
+		const timersBefore = activeTimers()
+		let evaluations = 0
+		const p = until(
+			(): boolean => {
+				evaluations++
+				if ($s.n === 0) throw new Error('boom')
+				return true
+			},
+			{
+				signal: controller.signal,
+				timeout: 1500,
+			}
+		)
+		await assert.rejects(p, /boom/)
+		assert.equal(getEventListeners(controller.signal, 'abort').length, 0)
+		assert.equal(activeTimers(), timersBefore)
+		$s.n = 1
+		assert.equal(evaluations, 1)
+	})
+
+	it('until rejects with the error a predicate throws in a microtask flush', async (t: TestContext): Promise<void> => {
+		const logged = t.mock.method(console, 'error', (): void => {})
+		const $s = state({
+			n: 0,
+		})
+		const $trigger = state({
+			go: 0,
+		})
+		const stopWriter = effect(
+			(): void => {
+				$s.n = $trigger.go
+			},
+			undefined,
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		let outcome = 'pending'
+		void until((): boolean => {
+			if ($s.n === 1) throw new Error('boom')
+			return $s.n === 2
+		}).then(
+			(): void => {
+				outcome = 'resolved'
+			},
+			(err: Error): void => {
+				outcome = err.message
+			}
+		)
+		$trigger.go = 1
+		await tick()
+		await tick()
+		assert.equal(outcome, 'boom')
+		assert.equal(logged.mock.callCount(), 0)
+		stopWriter()
 	})
 })
