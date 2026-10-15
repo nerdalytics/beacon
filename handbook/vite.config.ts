@@ -33,7 +33,7 @@ const mdsvexOptions: MdsvexOptions = {
 	rehypePlugins: [rehypeSlug],
 }
 
-export default defineConfig(({ mode }) => ({
+export default defineConfig(({ command, isPreview, mode }) => ({
 	plugins: [
 		tailwindcss(),
 		sveltekit({
@@ -52,7 +52,7 @@ export default defineConfig(({ mode }) => ({
 			},
 			extensions: ['.svelte', '.md'],
 			paths: {
-				base: process.argv.includes('dev') ? '' : (loadEnv(mode, '.', '').BASE_PATH as `/${string}` | undefined),
+				base: command === 'serve' && !isPreview ? '' : (loadEnv(mode, '.', '').BASE_PATH as `/${string}` | undefined),
 			},
 			preprocess: [vitePreprocess(), mdsvex(mdsvexOptions)],
 		}),
