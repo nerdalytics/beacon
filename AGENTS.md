@@ -74,8 +74,7 @@ Zero-cost instrumentation. All four primitives accept an optional hooks paramete
 | File | Purpose |
 |------|---------|
 | `CONTRIBUTING.md` | Contribution guidelines, development setup, release process |
-| `HOOKS_CATALOG.md` | Planned hook implementations (roadmap) |
-| `HOOKS_TODO.md` | Hooks implementation roadmap |
+| `HOOKS_TODO.md` | Status-tracked hooks roadmap and catalog |
 
 <!--— BEACON-START —>[Beacon Index]
 |root: .

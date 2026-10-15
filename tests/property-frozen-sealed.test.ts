@@ -7,9 +7,10 @@ import { batch, derive, effect, state } from '../src/index.ts'
  * Property-based tests for frozen and sealed object reactivity.
  *
  * When Object.isExtensible(target) is false, Beacon falls back to WeakMap
- * storage for subscribers (proxyCacheSubs), hooks (frozenHooksCache), and
- * array method caches (frozenMethodCache). These tests verify that the
- * WeakMap fallback paths work correctly.
+ * storage for subscribers (proxyCacheSubs). Array method wrappers always
+ * live in arrayMethodCache, and frozenHooksCache is written but never read;
+ * hooks fire through the handler closure. These tests verify that the
+ * subscriber fallback path works correctly.
  *
  * Key behavior notes:
  * - The set handler fast path (outside effects/batches) checks only

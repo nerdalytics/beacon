@@ -51,8 +51,8 @@ The core `index.ts` imports `composeHook` from this module.
 ## Design Constraints
 
 - All hook invocations wrapped in try-catch — never propagate to core
-- State hooks propagate to nested objects via `HOOKS` symbol
-- Frozen/sealed objects store hooks in `frozenHooksCache` WeakMap
+- State hooks propagate to nested objects by closure: the get handler passes the parent's hooks to `state(value, hooks)` when wrapping a nested object. The `HOOKS` symbol is defined on extensible targets but never read
+- Non-extensible targets get their hooks stored in `frozenHooksCache`; nothing reads it (see `HOOKS_TODO.md` item C1)
 - All hooks fire synchronously during their respective operations
 - Types defined in `../types.ts`, not in this module
 
