@@ -457,6 +457,7 @@ effect(() => {
 
 While a recompute is in flight the computed value keeps its last settled result and `pending` is `true` (stale-while-pending). Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run on each flip.
 
-- **Superseded computations are discarded** — if a new computation starts before an earlier one settles, the earlier settlement writes nothing; the latest computation wins
+- **Superseded computations are discarded** — if a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing and a superseded rejection does not call `onError`; the latest computation wins
 - **Rejections route to `onError`** — a rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
 - **Synchronous derives are unchanged** — a synchronous compute function still yields its value immediately, with `pending` always `false`
+- **Disposing discards in-flight computations** — setting `reactive` to `false` clears `pending`; a settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`

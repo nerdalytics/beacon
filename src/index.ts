@@ -1181,6 +1181,7 @@ function computeDerive<T>(
 			onAsync(newValue as Promise<T>)
 		} else {
 			writeDeriveValue(internalState, reactiveInternal, newValue as T)
+			setDerivePending(internalState, reactiveInternal, false)
 		}
 	} catch (err) {
 		callHookSafe(onError, err as Error)
@@ -1235,11 +1236,12 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 					onCompute,
 					onError,
 					(result: Promise<T>): void => {
+						// a newer computation bumps generation; a sync result or dispose clears pending; either discards this settle
 						const gen = ++generation
 						setDerivePending(internalState, reactiveInternal, true)
 						result.then(
 							(value: T): void => {
-								if (gen !== generation) return
+								if (gen !== generation || !internalState.pending) return
 								settleProcessed = true
 								batch((): void => {
 									writeDeriveValue(internalState, reactiveInternal, value)
@@ -1247,7 +1249,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 								})
 							},
 							(err: unknown): void => {
-								if (gen !== generation) return
+								if (gen !== generation || !internalState.pending) return
 								settleProcessed = true
 								batch((): void => {
 									setDerivePending(internalState, reactiveInternal, false)
@@ -1271,6 +1273,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 			callHookSafe(onDeriveDispose)
 			dispose()
 			dispose = null
+			setDerivePending(internalState, reactiveInternal, false)
 			reactiveInternal = null
 		}
 	}

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { derive, effect, state } from '../src/index.ts'
+import { derive, effect, onSettled, state, until } from '../src/index.ts'
 
 interface Deferred<T> {
 	promise: Promise<T>
@@ -176,6 +176,7 @@ describe('Derive Async', {
 		current = deferred<number>()
 		s.n = 2
 		computed.reactive = false
+		assert.equal(computed.pending, false)
 		current.resolve(9)
 		await tick()
 		assert.equal(computed.pending, false)
@@ -220,5 +221,104 @@ describe('Derive Async', {
 		await tick()
 		assert.equal(computed.value, 3)
 		computed.reactive = false
+	})
+
+	it('lets a synchronous recompute supersede an in-flight computation', async (): Promise<void> => {
+		const s = state({
+			mode: 'slow',
+		})
+		const slow = deferred<string>()
+		const computed = derive((): string | Promise<string> => (s.mode === 'slow' ? slow.promise : 'fast-sync'))
+		const pendingSeen: boolean[] = []
+		const valueSeen: unknown[] = []
+		const stopPending = effect((): void => {
+			pendingSeen.push(computed.pending)
+		})
+		const stopValue = effect((): void => {
+			valueSeen.push(computed.value)
+		})
+		s.mode = 'fast'
+		assert.equal(computed.pending, false)
+		assert.equal(computed.value, 'fast-sync')
+		assert.deepEqual(pendingSeen, [true, false])
+		slow.resolve('stale-async')
+		await tick()
+		assert.equal(computed.pending, false)
+		assert.equal(computed.value, 'fast-sync')
+		assert.deepEqual(pendingSeen, [true, false])
+		assert.deepEqual(valueSeen, [undefined, 'fast-sync'])
+		stopPending()
+		stopValue()
+		computed.reactive = false
+	})
+
+	it('discards a rejection superseded by a synchronous recompute', async (): Promise<void> => {
+		const errors: Error[] = []
+		const s = state({
+			mode: 'slow',
+		})
+		const slow = deferred<string>()
+		const computed = derive((): string | Promise<string> => (s.mode === 'slow' ? slow.promise : 'fast-sync'), {
+			onError: (e: Error): void => {
+				errors.push(e)
+			},
+		})
+		s.mode = 'fast'
+		slow.reject(new Error('stale boom'))
+		await tick()
+		await tick()
+		assert.equal(errors.length, 0)
+		assert.equal(computed.value, 'fast-sync')
+		assert.equal(computed.pending, false)
+		computed.reactive = false
+	})
+
+	it('resolves until() on a synchronous result that supersedes an in-flight computation', async (): Promise<void> => {
+		const s = state({
+			mode: 'slow',
+		})
+		const slow = deferred<string>()
+		const computed = derive((): string | Promise<string> => (s.mode === 'slow' ? slow.promise : 'fast-sync'))
+		const waiting = until((): boolean => computed.value === 'fast-sync', {
+			timeout: 200,
+		})
+		s.mode = 'fast'
+		assert.equal(await waiting, true)
+		slow.resolve('stale-async')
+		await tick()
+		assert.equal(computed.value, 'fast-sync')
+		computed.reactive = false
+	})
+
+	it('shows a re-enabled result equal to a settlement discarded after dispose', async (): Promise<void> => {
+		const s = state({
+			mode: 'slow',
+		})
+		const slow = deferred<string>()
+		const computed = derive((): string | Promise<string> => (s.mode === 'slow' ? slow.promise : 'late'))
+		computed.reactive = false
+		s.mode = 'fast'
+		slow.resolve('late')
+		await tick()
+		assert.equal(computed.value, undefined)
+		computed.reactive = true
+		assert.equal(computed.value, 'late')
+		assert.equal(computed.pending, false)
+		computed.reactive = false
+	})
+
+	it('does not notify onSettled for a settlement that arrives after dispose', async (): Promise<void> => {
+		const slow = deferred<number>()
+		const computed = derive((): Promise<number> => slow.promise)
+		computed.reactive = false
+		await tick()
+		let settled = 0
+		const off = onSettled((): void => {
+			settled++
+		})
+		slow.resolve(1)
+		await tick()
+		off()
+		assert.equal(settled, 0)
 	})
 })

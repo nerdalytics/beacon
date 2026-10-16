@@ -228,7 +228,7 @@ addPendingEffect(subscriber)
 
 Creates an internal `state()` + `effect()` pair. Returns a Proxy over `internalState` with custom get/set traps. `value` and `pending` read through the reactive internal when inside an effect (for dependency propagation) or from the raw target otherwise. The `reactive` property controls the effect lifecycle (false → dispose, true → recreate); every other property reads `undefined` and rejects writes.
 
-Async compute: a thenable result sets `pending = true` and bumps a `generation` counter. On settle, only the latest generation writes: it sets `settleProcessed` and, inside a `batch`, writes the value (on resolve) and clears `pending`. A rejection also fires `onError`.
+Async compute: a thenable result sets `pending = true` and bumps a `generation` counter. A synchronous result clears `pending`, and so does dispose. On settle, only the latest generation writes, and only while `pending` is still `true` (a later sync result or a dispose discards the settle, including `onError`): it sets `settleProcessed` and, inside a `batch`, writes the value (on resolve) and clears `pending`. A rejection also fires `onError`.
 
 ## Modification Guidelines
 
