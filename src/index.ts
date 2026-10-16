@@ -69,6 +69,8 @@ let settleProcessed = false
 let flushProcessed = false
 let microtaskFlushArmed = false
 let microtaskFlushing = false
+// Consecutive microtask flushes each armed by the one before it, with no macrotask in between
+let microtaskFlushChain = 0
 let effectErrorHandled = false
 let untilEvaluating = false
 let untilSawPending = false
@@ -84,6 +86,7 @@ type CachedMethod = (...args: unknown[]) => unknown
 const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 const MAX_SETTLE_CYCLES = 100
+const MAX_MICROTASK_FLUSH_CHAIN = 100
 
 // Hooks consulted on the hot path; stored on the effect only when at least one is set
 type EffectInternalHooks = {
@@ -269,8 +272,18 @@ function findSubscribers(target: object): Set<EffectFunction> | undefined {
 function armMicrotaskFlush(): void {
 	if (microtaskFlushArmed) return
 	microtaskFlushArmed = true
+	microtaskFlushChain = microtaskFlushing ? microtaskFlushChain + 1 : 0
 	queueMicrotask((): void => {
 		microtaskFlushArmed = false
+		if (microtaskFlushChain >= MAX_MICROTASK_FLUSH_CHAIN) {
+			pendingMicroEffects.clear()
+			console.error(
+				new Error(
+					`Infinite loop detected: microtask effects kept rescheduling themselves for ${MAX_MICROTASK_FLUSH_CHAIN} flushes`
+				)
+			)
+			return
+		}
 		for (const eff of pendingMicroEffects) pendingEffects.add(eff)
 		pendingMicroEffects.clear()
 		microtaskFlushing = true
@@ -612,7 +625,7 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 
 function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	if (!currentEffect || !didEffectReadProp(currentEffect, rawTarget, prop)) return
-	// microtask-scheduled effects run outside any read window of the flush that scheduled them
+	// microtask effects re-run on a later microtask; MAX_MICROTASK_FLUSH_CHAIN bounds a self-feeding chain
 	if (currentEffect.__schedule === 'microtask') return
 	const parent = currentEffect.__parent
 	if (parent) return

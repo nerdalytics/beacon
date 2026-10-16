@@ -9,6 +9,11 @@ async function turn(): Promise<void> {
 	await microtick()
 }
 
+const macrotask = (): Promise<void> => new Promise((resolve): void => void setTimeout(resolve, 0))
+
+// Bounds a runaway effect so a missing guard fails the test instead of hanging it
+const RUN_CAP = 1000
+
 describe('Effect Scheduling', {
 	concurrency: false,
 	timeout: 2000,
@@ -142,6 +147,135 @@ describe('Effect Scheduling', {
 		await turn()
 		assert.equal(runs, 3)
 		assert.equal(s.n, 3)
+		stop()
+	})
+
+	it('drops a self-writing microtask effect after 100 chained flushes', async (t: TestContext): Promise<void> => {
+		const logged = t.mock.method(console, 'error', (): void => {})
+		const $s = state({
+			n: 0,
+		})
+		let runs = 0
+		const stop = effect(
+			(): void => {
+				runs++
+				if (runs >= RUN_CAP) stop()
+				else $s.n = $s.n + 1
+			},
+			'spin',
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		await macrotask()
+		assert.equal(runs, 101)
+		assert.equal(logged.mock.callCount(), 1)
+		assert.match((logged.mock.calls[0]?.arguments[0] as Error).message, /Infinite loop detected: microtask/)
+		$s.n = 0
+		await macrotask()
+		assert.equal(runs, 201)
+		assert.equal(logged.mock.callCount(), 2)
+		stop()
+	})
+
+	it('drops a microtask cross-effect cycle after 100 chained flushes', async (t: TestContext): Promise<void> => {
+		const logged = t.mock.method(console, 'error', (): void => {})
+		const $s = state({
+			x: 0,
+			y: 0,
+		})
+		let runsA = 0
+		let runsB = 0
+		const stopA = effect(
+			(): void => {
+				runsA++
+				if (runsA >= RUN_CAP) stopA()
+				else $s.y = $s.x + 1
+			},
+			'A',
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		const stopB = effect(
+			(): void => {
+				runsB++
+				if (runsB >= RUN_CAP) stopB()
+				else $s.x = $s.y + 1
+			},
+			'B',
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		await macrotask()
+		assert.equal(runsA, 51)
+		assert.equal(runsB, 51)
+		assert.equal(logged.mock.callCount(), 1)
+		stopA()
+		stopB()
+	})
+
+	it('drops a microtask effect woken by every onSettled write after 100 chained flushes', async (t: TestContext): Promise<void> => {
+		const logged = t.mock.method(console, 'error', (): void => {})
+		const $s = state({
+			n: 0,
+		})
+		let runs = 0
+		let settles = 0
+		const stop = effect(
+			(): void => {
+				void $s.n
+				runs++
+				if (runs >= RUN_CAP) stop()
+			},
+			'reader',
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		const stopSettled = onSettled((): void => {
+			settles++
+			$s.n = $s.n + 1
+		})
+		$s.n = 1
+		await macrotask()
+		assert.equal(runs, 101)
+		assert.equal(settles, 100)
+		assert.equal(logged.mock.callCount(), 1)
+		stopSettled()
+		stop()
+	})
+
+	it('lets a converging microtask self-write settle without error', async (t: TestContext): Promise<void> => {
+		const logged = t.mock.method(console, 'error', (): void => {})
+		const $s = state({
+			n: 500,
+		})
+		let runs = 0
+		const stop = effect(
+			(): void => {
+				runs++
+				if (runs >= RUN_CAP) stop()
+				else if ($s.n > 100) $s.n = 100
+			},
+			'clamp',
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		await macrotask()
+		assert.equal(runs, 2)
+		$s.n = 700
+		await macrotask()
+		assert.equal(runs, 4)
+		assert.equal($s.n, 100)
+		assert.equal(logged.mock.callCount(), 0)
 		stop()
 	})
 
