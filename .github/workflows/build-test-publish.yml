@@ -18,12 +18,8 @@ jobs:
           node-version: 24.x
           cache: npm
       - run: npm ci
-      - name: Setup Biome
-        uses: biomejs/setup-biome@4c91541eaada48f67d7dbd7833600ce162b68f51 # v2.7.1
-        with:
-          version: latest
       - name: Check linting & code formatting
-        run: biome check
+        run: npm run check
       - name: Build project
         run: npm run build
       - name: Check version sync (package.json ↔ jsr.json)
