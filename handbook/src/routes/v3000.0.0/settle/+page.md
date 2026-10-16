@@ -69,6 +69,11 @@ batch(() => {
 stop()
 ```
 
+Behavior:
+
+1. **Writes inside a callback** — a callback's state writes, including writes inside `batch()`, apply at once; the effects they schedule run after every callback has returned and before the flush that notified returns. Callbacks are then invoked again for that cycle. A write that schedules no effect starts no new cycle
+2. **Runaway callbacks** — if callbacks still schedule effects after 100 notifications in one flush, the remaining effects are dropped and an `Infinite loop detected` error is thrown to the code that started the flush; a microtask flush reports it with `console.error`, an async settlement as an unhandled rejection. The example above reaches this limit if an effect reads `metrics.flushes`
+
 ## See also
 
 - <VersionLink path="/derive">Derive</VersionLink> — async computations whose settlements trigger quiescence

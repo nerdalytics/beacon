@@ -83,6 +83,7 @@ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'un
 type CachedMethod = (...args: unknown[]) => unknown
 const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+const MAX_SETTLE_CYCLES = 100
 
 // Hooks consulted on the hot path; stored on the effect only when at least one is set
 type EffectInternalHooks = {
@@ -270,15 +271,12 @@ function armMicrotaskFlush(): void {
 	microtaskFlushArmed = true
 	queueMicrotask((): void => {
 		microtaskFlushArmed = false
-		if (pendingMicroEffects.size === 0) {
-			notifySettledIfQuiet()
-			return
-		}
 		for (const eff of pendingMicroEffects) pendingEffects.add(eff)
 		pendingMicroEffects.clear()
 		microtaskFlushing = true
 		try {
 			flushEffects()
+			notifySettledOutsideFlush()
 		} finally {
 			microtaskFlushing = false
 		}
@@ -359,13 +357,23 @@ function flushEffects(): void {
 	if (pendingEffects.size === 0) return
 	if (isNotifying) return
 	isNotifying = true
-	flushProcessed = true
 
 	try {
-		while (pendingEffects.size > 0) {
-			runPendingEffectBatch()
+		// A cycle after the first drains effects scheduled by onSettled callbacks, then notifies again
+		for (let cycle = 0; cycle < MAX_SETTLE_CYCLES; cycle++) {
+			flushProcessed = true
+			while (pendingEffects.size > 0) {
+				runPendingEffectBatch()
+			}
+			notifySettledIfQuiet()
+			if (pendingEffects.size === 0) return
 		}
-		notifySettledIfQuiet()
+		pendingEffects.clear()
+		const err = new Error(
+			`Infinite loop detected: onSettled callbacks kept scheduling effects for ${MAX_SETTLE_CYCLES} notifications`
+		)
+		if (!microtaskFlushing) throw err
+		console.error(err)
 	} finally {
 		isNotifying = false
 	}
@@ -1032,7 +1040,7 @@ function flushBatchEffects(): void {
 	try {
 		runDeferredEffects()
 		if (pendingEffects.size > 0) flushEffects()
-		notifySettledIfQuiet()
+		notifySettledOutsideFlush()
 	} catch (err) {
 		clearBatchState()
 		throw err
@@ -1317,6 +1325,18 @@ function notifySettledIfQuiet(): void {
 			callback()
 		} catch {}
 	}
+}
+
+// Callback writes queue while isNotifying is set; outside a flush they are flushed once every callback has returned
+function notifySettledOutsideFlush(): void {
+	if (isNotifying) {
+		notifySettledIfQuiet()
+		return
+	}
+	isNotifying = true
+	notifySettledIfQuiet()
+	isNotifying = false
+	flushEffects()
 }
 
 /** Invoke a callback whenever the reactive graph reaches quiescence after processing work. Returns an unsubscribe. */

@@ -367,4 +367,219 @@ describe('Settle Observation', {
 		assert.equal(logged.mock.callCount(), 0)
 		stopWriter()
 	})
+
+	it('runs effects for a callback write and notifies again after them', (): void => {
+		const $s = state({
+			a: 0,
+			b: 0,
+		})
+		const seen: string[] = []
+		const stopReader = effect((): void => {
+			seen.push(`${$s.a},${$s.b}`)
+		})
+		let settled = 0
+		const stop = onSettled((): void => {
+			settled++
+			if ($s.a === 1 && $s.b === 0) $s.b = 99
+		})
+		$s.a = 1
+		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
+		assert.equal(settled, 2)
+		stop()
+		stopReader()
+	})
+
+	it('runs effects for a callback write after a batch', (): void => {
+		const $s = state({
+			a: 0,
+			b: 0,
+		})
+		const seen: string[] = []
+		const stopReader = effect((): void => {
+			seen.push(`${$s.a},${$s.b}`)
+		})
+		let settled = 0
+		const stop = onSettled((): void => {
+			settled++
+			if ($s.a === 1 && $s.b === 0) $s.b = 99
+		})
+		batch((): void => {
+			$s.a = 1
+		})
+		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
+		assert.equal(settled, 2)
+		stop()
+		stopReader()
+	})
+
+	it('runs effects for a callback write in a microtask flush', async (): Promise<void> => {
+		const $trigger = state({
+			go: 0,
+		})
+		const $s = state({
+			a: 0,
+			b: 0,
+		})
+		const stopWriter = effect(
+			(): void => {
+				$s.a = $trigger.go
+			},
+			undefined,
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		const seen: string[] = []
+		const stopReader = effect((): void => {
+			seen.push(`${$s.a},${$s.b}`)
+		})
+		let settled = 0
+		const stop = onSettled((): void => {
+			settled++
+			if ($s.a === 1 && $s.b === 0) $s.b = 99
+		})
+		$trigger.go = 1
+		await tick()
+		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
+		assert.equal(settled, 2)
+		stop()
+		stopReader()
+		stopWriter()
+	})
+
+	it('runs effects for a callback write after the callbacks when an async settle has no readers', async (): Promise<void> => {
+		const $s = state({
+			b: 0,
+		})
+		const current = deferred<number>()
+		const computed = derive((): Promise<number> => current.promise)
+		const log: string[] = []
+		const stopReader = effect((): void => {
+			log.push(`effect b=${$s.b}`)
+		})
+		let settled = 0
+		const stop = onSettled((): void => {
+			const call = ++settled
+			log.push(`enter ${call}`)
+			if (call === 1) $s.b = 99
+			log.push(`exit ${call}`)
+		})
+		current.resolve(5)
+		await tick()
+		assert.deepEqual(log, ['effect b=0', 'enter 1', 'exit 1', 'effect b=99', 'enter 2', 'exit 2'])
+		stop()
+		stopReader()
+		computed.reactive = false
+	})
+
+	it('runs effects for a batch inside a callback once the callbacks return', (): void => {
+		const $s = state({
+			a: 0,
+			b: 0,
+		})
+		const log: string[] = []
+		const stopReader = effect((): void => {
+			log.push(`effect ${$s.a},${$s.b}`)
+		})
+		let settled = 0
+		const stop = onSettled((): void => {
+			settled++
+			if ($s.b !== 0) return
+			batch((): void => {
+				$s.b = 99
+			})
+			log.push('batch returned')
+		})
+		$s.a = 1
+		assert.deepEqual(log, ['effect 0,0', 'effect 1,0', 'batch returned', 'effect 1,99'])
+		assert.equal(settled, 2)
+		stop()
+		stopReader()
+	})
+
+	it('until resolves on a write made inside an onSettled callback', async (): Promise<void> => {
+		const $s = state({
+			a: 0,
+			b: 0,
+		})
+		const stopReader = effect((): void => {
+			void $s.a
+		})
+		const stop = onSettled((): void => {
+			if ($s.a === 1) $s.b = 99
+		})
+		const p = until((): boolean => $s.b === 99, {
+			timeout: 200,
+		})
+		$s.a = 1
+		assert.equal(await p, true)
+		stop()
+		stopReader()
+	})
+
+	it('throws when onSettled callbacks keep scheduling effects', (): void => {
+		const $s = state({
+			a: 0,
+			n: 0,
+		})
+		let runs = 0
+		const stopReader = effect((): void => {
+			void $s.a
+			void $s.n
+			runs++
+		})
+		let settled = 0
+		const stop = onSettled((): void => {
+			settled++
+			$s.n++
+		})
+		assert.throws((): void => {
+			$s.a = 1
+		}, /Infinite loop detected: onSettled callbacks kept scheduling effects/)
+		assert.equal(settled, 100)
+		assert.equal(runs, 101)
+		stop()
+		$s.a = 2
+		assert.equal(runs, 102)
+		stopReader()
+	})
+
+	it('reports a runaway onSettled callback in a microtask flush', async (t: TestContext): Promise<void> => {
+		const logged = t.mock.method(console, 'error', (): void => {})
+		const $trigger = state({
+			go: 0,
+		})
+		const $s = state({
+			a: 0,
+			n: 0,
+		})
+		const stopWriter = effect(
+			(): void => {
+				$s.a = $trigger.go
+			},
+			undefined,
+			undefined,
+			{
+				schedule: 'microtask',
+			}
+		)
+		const stopReader = effect((): void => {
+			void $s.a
+			void $s.n
+		})
+		let settled = 0
+		const stop = onSettled((): void => {
+			settled++
+			$s.n++
+		})
+		$trigger.go = 1
+		await tick()
+		assert.equal(settled, 100)
+		assert.equal(logged.mock.callCount(), 1)
+		assert.match(String(logged.mock.calls[0]?.arguments[0]), /Infinite loop detected: onSettled/)
+		stop()
+		stopReader()
+		stopWriter()
+	})
 })
