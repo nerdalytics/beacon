@@ -78,6 +78,13 @@ let untilSawPending = false
 // Proxy caching
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
+// Effects by the property they read, per subscriber Set. It may hold stale entries: scheduling re-checks __reads,
+// so it only has to be a superset of the true readers. Kept off the Set: an own property there cost ~8% on
+// single-subscriber writes in the benchmark suite
+const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<EffectFunction>>> = new WeakMap<
+	Set<EffectFunction>,
+	Map<PropertyKey, Set<EffectFunction>>
+>()
 
 const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
 
@@ -87,6 +94,8 @@ const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new We
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 const MAX_SETTLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
+// Up to this many subscribers a scan is cheaper than the per-property index lookups
+const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
 
 // Hooks consulted on the hot path; stored on the effect only when at least one is set
 type EffectInternalHooks = {
@@ -164,8 +173,32 @@ function getSubscribers(target: object): Set<EffectFunction> {
 	if (fallbackSubs) return fallbackSubs
 
 	const subscriberSet = new Set<EffectFunction>()
+	subscribersByProp.set(subscriberSet, new Map<PropertyKey, Set<EffectFunction>>())
 	storeSubscriberSet(target, subscriberSet)
 	return subscriberSet
+}
+
+// Every subscriber Set comes from getSubscribers, which registers its index
+function propIndexOf(subs: Set<EffectFunction>): Map<PropertyKey, Set<EffectFunction>> {
+	return subscribersByProp.get(subs) as Map<PropertyKey, Set<EffectFunction>>
+}
+
+function indexRead(subs: Set<EffectFunction>, eff: EffectFunction, prop: PropertyKey): void {
+	const byProp = propIndexOf(subs)
+	let readers = byProp.get(prop)
+	if (!readers) {
+		readers = new Set<EffectFunction>()
+		byProp.set(prop, readers)
+	}
+	readers.add(eff)
+}
+
+function unindexRead(subs: Set<EffectFunction>, eff: EffectFunction, prop: PropertyKey): void {
+	const byProp = propIndexOf(subs)
+	const readers = byProp.get(prop)
+	if (!readers) return
+	readers.delete(eff)
+	if (readers.size === 0) byProp.delete(prop)
 }
 
 function replayReadListToTempCollections(list: (object | PropertyKey)[], endIndex: number): void {
@@ -329,11 +362,28 @@ function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void 
 	const subs = findSubscribers(target)
 	if (!subs?.size) return
 
-	for (const subscriber of subs) {
-		if (prop === undefined) addPendingEffect(subscriber)
-		else scheduleSubscriberWithProp(subscriber, target, prop)
+	if (prop === undefined) {
+		for (const subscriber of subs) addPendingEffect(subscriber)
+	} else if (subs.size <= INDEXED_SCHEDULE_MIN_SUBSCRIBERS) {
+		for (const subscriber of subs) scheduleSubscriberWithProp(subscriber, target, prop)
+	} else {
+		schedulePropReaders(subs, target, prop)
 	}
 	if (batchDepth === 0 && !isNotifying) flushEffects()
+}
+
+// Only effects that read prop, or enumerated the keys, can match; every other subscriber is skipped
+function schedulePropReaders(subs: Set<EffectFunction>, target: object, prop: PropertyKey): void {
+	const byProp = propIndexOf(subs)
+	const readers = byProp.get(prop)
+	if (readers) {
+		for (const subscriber of readers) scheduleSubscriberWithProp(subscriber, target, prop)
+	}
+	const keyReaders = byProp.get(OWN_KEYS_SYMBOL)
+	if (!keyReaders) return
+	for (const subscriber of keyReaders) {
+		if (!readers?.has(subscriber)) scheduleSubscriberWithProp(subscriber, target, prop)
+	}
 }
 
 // Flush all pending effects
@@ -408,7 +458,7 @@ function resetEffectTracking(eff: EffectFunction): void {
 }
 
 function cleanupEffect(effect: EffectFunction): void {
-	removeEffectFromSubscribers(effect, effect.__deps)
+	removeEffectFromSubscribers(effect, effect.__deps, effect.__reads)
 	resetEffectTracking(effect)
 }
 
@@ -530,6 +580,7 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	} else {
 		const subs = getSubscribers(rawTarget)
 		subs.add(currentEffect)
+		indexRead(subs, currentEffect, prop)
 		recordEffectRead(currentEffect, rawTarget, prop, false)
 	}
 }
@@ -832,21 +883,49 @@ function updateEffectSubscriptions(
 	if (prevDeps) {
 		removeStaleSubscribers(eff, prevDeps, newDeps)
 		registerNewSubscribers(eff, prevDeps, newDeps)
+		if (prevReads) reindexReads(eff, prevReads, newReads)
 	}
 	eff.__prevDeps = newDeps
 	eff.__prevReads = newReads
 }
 
-function removeEffectFromSubscribers(eff: EffectFunction, deps: Set<object> | undefined): void {
+function reindexReads(
+	eff: EffectFunction,
+	prevReads: Map<object, Set<PropertyKey>>,
+	newReads: Map<object, Set<PropertyKey>>
+): void {
+	for (const [target, props] of prevReads) {
+		const subs = getSubscribers(target)
+		const kept = newReads.get(target)
+		for (const prop of props) {
+			if (!kept?.has(prop)) unindexRead(subs, eff, prop)
+		}
+	}
+	for (const [target, props] of newReads) {
+		const subs = getSubscribers(target)
+		for (const prop of props) indexRead(subs, eff, prop)
+	}
+}
+
+function removeEffectFromSubscribers(
+	eff: EffectFunction,
+	deps: Set<object> | undefined,
+	reads: Map<object, Set<PropertyKey>> | undefined
+): void {
 	if (!deps) return
 	for (const dep of deps) {
-		findSubscribers(dep)?.delete(eff)
+		const subs = getSubscribers(dep)
+		subs.delete(eff)
+		const props = reads?.get(dep)
+		if (props) {
+			for (const prop of props) unindexRead(subs, eff, prop)
+		}
 	}
 }
 
 function cleanupEffectOnError(eff: EffectFunction): void {
-	removeEffectFromSubscribers(eff, eff.__prevDeps)
-	removeEffectFromSubscribers(eff, eff.__deps)
+	removeEffectFromSubscribers(eff, eff.__prevDeps, eff.__prevReads)
+	removeEffectFromSubscribers(eff, eff.__deps, eff.__reads)
 	resetEffectTracking(eff)
 }
 

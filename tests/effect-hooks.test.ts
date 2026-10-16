@@ -133,4 +133,37 @@ describe('Effect Hooks', {
 		assert.strictEqual(ran, true)
 		dispose()
 	})
+
+	it('fires onDependencyChange once when the effect reads the key and enumerates the keys', () => {
+		const changes: PropertyKey[] = []
+		const $s = state<Record<string, number>>({
+			a: 0,
+			b: 0,
+			c: 0,
+			d: 0,
+			e: 0,
+		})
+		// Enough other subscribers that $s schedules through its per-property index
+		const bystanders = ['b', 'c', 'd', 'e'].map((key: string) =>
+			effect(() => {
+				void $s[key]
+			})
+		)
+		const dispose = effect(
+			() => {
+				void $s.a
+				void Object.keys($s)
+			},
+			undefined,
+			{
+				onDependencyChange: (_target: object, prop: PropertyKey) => {
+					changes.push(prop)
+				},
+			}
+		)
+		$s.a = 1
+		assert.deepStrictEqual(changes, ['a'])
+		dispose()
+		for (const stop of bystanders) stop()
+	})
 })
