@@ -171,7 +171,9 @@ describe('Effect Scheduling', {
 		await macrotask()
 		assert.equal(runs, 101)
 		assert.equal(logged.mock.callCount(), 1)
-		assert.match((logged.mock.calls[0]?.arguments[0] as Error).message, /Infinite loop detected: microtask/)
+		const [firstCall] = logged.mock.calls
+		assert.ok(firstCall)
+		assert.match((firstCall.arguments[0] as Error).message, /Infinite loop detected: microtask/)
 		$s.n = 0
 		await macrotask()
 		assert.equal(runs, 201)
@@ -373,7 +375,9 @@ describe('Effect Scheduling', {
 		$s.n = 1
 		await turn()
 		assert.equal(logged.mock.callCount(), 1)
-		assert.equal((logged.mock.calls[0]?.arguments[0] as Error).message, 'unhandled')
+		const [firstCall] = logged.mock.calls
+		assert.ok(firstCall)
+		assert.equal((firstCall.arguments[0] as Error).message, 'unhandled')
 		stop()
 	})
 })
