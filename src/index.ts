@@ -313,7 +313,12 @@ function addPendingEffect(subscriber: EffectFunction): void {
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
 	const hooks = subscriber.__hooks
-	if ((pendingEffects.has(subscriber) || pendingMicroEffects.has(subscriber)) && !hooks?.onDependencyChange) return
+	// runs per subscriber on every write: the size check skips a lookup that only microtask effects can hit
+	if (
+		(pendingEffects.has(subscriber) || (pendingMicroEffects.size > 0 && pendingMicroEffects.has(subscriber))) &&
+		!hooks?.onDependencyChange
+	)
+		return
 	const set = subscriber.__reads?.get(target)
 	if (!set?.has(prop) && !set?.has(OWN_KEYS_SYMBOL)) return
 	addPendingEffect(subscriber)
@@ -1125,16 +1130,9 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 }
 
 function isThenable(value: unknown): value is Promise<unknown> {
-	return (
-		typeof (
-			value as
-				| {
-						then?: unknown
-				  }
-				| null
-				| undefined
-		)?.then === 'function'
-	)
+	// Promise resolution only treats objects and functions as thenables; primitives skip the .then lookup
+	if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return false
+	return typeof (value as { then?: unknown }).then === 'function'
 }
 
 function writeDeriveValue<T>(
@@ -1336,6 +1334,8 @@ function notifySettledIfQuiet(): void {
 	if (!flushProcessed && !settleProcessed) return
 	flushProcessed = false
 	settleProcessed = false
+	// runs on every flush: skip creating an iterator when nothing listens
+	if (settledCallbacks.size === 0) return
 	for (const callback of settledCallbacks) {
 		try {
 			callback()
