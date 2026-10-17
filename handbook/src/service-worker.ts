@@ -6,16 +6,19 @@
 declare let self: ServiceWorkerGlobalScope
 
 import { version } from '$app/env'
-import { assets, immutable } from '$app/manifest'
+import { assets, immutable, prerendered } from '$app/manifest'
 
 const CACHE = `cache-${version}`
-const ASSETS: string[] = [...immutable.map((f) => f.path), ...assets.map((f) => f.path)]
+// cache: 'reload' skips the browser's HTTP cache, so precached pages are never stale copies from an earlier deploy.
+const PRECACHE = [...immutable, ...assets, ...prerendered].map(
+	(f) => new Request(new URL(f.path.replace(/^\//, ''), self.registration.scope).href, { cache: 'reload' })
+)
 
 self.addEventListener('install', (event) => {
 	event.waitUntil(
 		caches
 			.open(CACHE)
-			.then((cache) => cache.addAll(ASSETS))
+			.then((cache) => cache.addAll(PRECACHE))
 			.then(() => self.skipWaiting())
 	)
 })
@@ -34,17 +37,23 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
 	if (event.request.method !== 'GET') return
 
-	event.respondWith(
-		caches.match(event.request).then((cached) => {
-			if (cached) return cached
+	// The version check must always reach the server, or a stale worker would hide a new build.
+	if (new URL(event.request.url).pathname.endsWith('/_app/version.json')) {
+		event.respondWith(fetch(event.request, { cache: 'no-store' }))
+		return
+	}
 
-			return fetch(event.request).then((response) => {
-				if (response.status === 200) {
-					const clone = response.clone()
-					caches.open(CACHE).then((cache) => cache.put(event.request, clone))
-				}
-				return response
-			})
-		})
-	)
+	event.respondWith(cacheFirst(event.request))
 })
+
+async function cacheFirst(request: Request): Promise<Response> {
+	const cached = await caches.match(request)
+	if (cached) return cached
+
+	const response = await fetch(request)
+	if (response.status === 200) {
+		const cache = await caches.open(CACHE)
+		await cache.put(request, response.clone())
+	}
+	return response
+}
