@@ -25,31 +25,20 @@ describe('Derive Hooks', {
 				prevValues.push(prev)
 			},
 		})
-		assert.deepStrictEqual(prevValues, [
-			undefined,
-		])
+		assert.deepStrictEqual(prevValues, [undefined])
 		$s.count = 2
-		assert.deepStrictEqual(prevValues, [
-			undefined,
-			10,
-		])
+		assert.deepStrictEqual(prevValues, [undefined, 10])
 		$d.reactive = false
 	})
 
 	it('fires onCacheHit distinguishing fresh vs cached', () => {
-		const hits: [
-			unknown,
-			boolean,
-		][] = []
+		const hits: [unknown, boolean][] = []
 		const $s = state({
 			count: 1,
 		})
 		const $d = derive(() => $s.count * 10, {
 			onCacheHit: (value: unknown, cacheHit: boolean) => {
-				hits.push([
-					value,
-					cacheHit,
-				])
+				hits.push([value, cacheHit])
 			},
 		})
 		const _v1 = $d.value
@@ -94,19 +83,13 @@ describe('Derive Hooks', {
 	})
 
 	it('fires onDependencyChange when upstream state changes', () => {
-		const changes: [
-			object,
-			PropertyKey,
-		][] = []
+		const changes: [object, PropertyKey][] = []
 		const $s = state({
 			count: 0,
 		})
 		const $d = derive(() => $s.count * 2, {
 			onDependencyChange: (target: object, prop: PropertyKey) => {
-				changes.push([
-					target,
-					prop,
-				])
+				changes.push([target, prop])
 			},
 		})
 		$s.count = 5

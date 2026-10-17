@@ -1,0 +1,89 @@
+<script lang="ts">
+	import { asset } from '$app/paths'
+	import { page } from '$app/state'
+	import { getVersionPrefix } from '#lib/navigation'
+	import { resolveHref } from '#lib/resolve-href'
+	import { resolveVersionLabel, versions } from '#lib/versions'
+
+	// Rendered at /v2001.0.0 and, via latest/+page.svelte, at /latest.
+	let prefix = $derived(getVersionPrefix(page.url.pathname) ?? '/v2001.0.0')
+	const pkgVersion = '2001.0.0'
+	let nodeBadge = $derived(versions.find((v) => v.prefix === prefix)?.badges.node)
+</script>
+
+<svelte:head>
+	<title>Beacon {resolveVersionLabel(prefix)} — Reactive dependency graph runtime for Node.js</title>
+	<meta
+		name="description"
+		content="Zero-dependency reactive dependency graph runtime for Node.js backends. Automatic dependency tracking and efficient updates."
+	/>
+</svelte:head>
+
+<div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-10 lg:py-20 min-h-0 lg:min-h-[80vh] page-enter">
+	<img src={asset('favicon.svg')} alt="Beacon logo" class="w-28 h-28 mb-3"  />
+	<div class="mb-3 text-7xl font-extrabold beacon-gradient-text">
+		Beacon
+	</div>
+
+	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
+		<a href="https://yarnpkg.com/">
+			<img src="https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white" alt="yarn" />
+		</a>
+		<a href="https://pnpm.io/">
+			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
+		</a>
+		<a href="https://jsr.io/@nerdalytics/beacon">
+			<img src="https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black" alt="jsr" />
+		</a>
+		<a href="https://vlt.sh/">
+			<img src="https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white" alt="vlt" />
+		</a>
+		<a href={`https://www.npmjs.com/package/@nerdalytics/beacon/v/${pkgVersion}`}>
+			<img src={`https://flat.badgen.net/static/npm/v${pkgVersion}/blue`} alt={`npm v${pkgVersion}`} />
+		</a>
+		<a href={`https://socket.dev/npm/package/@nerdalytics/beacon/overview/${pkgVersion}`}>
+			<img src={`https://badge.socket.dev/npm/package/@nerdalytics/beacon/${pkgVersion}`} alt="Socket" />
+		</a>
+	</div>
+	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
+		<a href="https://nodejs.org/">
+			<img src={nodeBadge} alt="Node.js" />
+		</a>
+		<a href="https://typescriptlang.org/">
+			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+		</a>
+		<a href="https://biomejs.dev/">
+			<img src="https://img.shields.io/badge/Biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white" alt="Biome" />
+		</a>
+		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
+			<img src="https://img.shields.io/badge/MIT-blue?style=for-the-badge" alt="MIT License" />
+		</a>
+	</div>
+
+	<p class="text-lg text-text-muted max-w-lg mb-8 font-serif leading-relaxed">
+		Reactive dependency graph runtime for Node.js
+	</p>
+
+	<div
+		class="mb-8 w-full max-w-md text-left rounded-lg border border-navy-border bg-navy-light p-5 text-sm font-mono leading-relaxed"
+	>
+		<div class="text-lime mb-1">// reactive in three lines</div>
+		<div>
+			<span class="text-teal">const</span> $app = <span class="text-blue-mid">state</span>({'{'}
+			count: <span class="text-[#e8a46e]">0</span> {'}'})
+		</div>
+		<div>
+			<span class="text-blue-mid">effect</span>(() =&gt; <span class="text-blue-mid">console</span>.<span class="text-blue-mid">log</span>($app.count))
+		</div>
+		<div>
+			$app.count++ <span class="text-lime">// logs: 1</span>
+		</div>
+	</div>
+
+	<a
+		href={resolveHref(`${prefix}/introduction`)}
+		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
+	>
+		Get Started
+	</a>
+</div>

@@ -1,9 +1,6 @@
 {
 	"extends": "//",
 	"linter": {
-		"domains": {
-			"react": "all"
-		},
 		"rules": {
 			"complexity": {
 				"noExcessiveCognitiveComplexity": {

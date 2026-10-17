@@ -51,7 +51,7 @@
 !package.json
 !tsconfig.json
 !jsr.json
-!tsconfig.lts.json
+!tsconfig.build.json
 
 # Allow markdown anywhere
 !**/*.md

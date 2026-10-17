@@ -2,20 +2,15 @@
 	"$schema": "https://json.schemastore.org/tsconfig",
 	"compilerOptions": {
 		"allowImportingTsExtensions": true,
-
 		"allowJs": false,
 		"allowUnreachableCode": false,
-
 		"exactOptionalPropertyTypes": true,
 		"forceConsistentCasingInFileNames": true,
 		"isolatedModules": true,
-		"lib": [
-			"ESNext"
-		],
+		"lib": ["ESNext"],
 		"module": "NodeNext",
 		"moduleDetection": "force",
 		"moduleResolution": "NodeNext",
-
 		"noEmit": true,
 		"noFallthroughCasesInSwitch": true,
 		"noImplicitAny": true,
@@ -30,11 +25,8 @@
 		"skipLibCheck": true,
 		"strictFunctionTypes": true,
 		"target": "ESNext",
-		"types": [
-			"node"
-		],
+		"types": ["node"],
 		"useDefineForClassFields": true,
-
 		"verbatimModuleSyntax": true
 	},
 	"exclude": [
@@ -46,12 +38,8 @@
 		"package.json",
 		"scripts",
 		"temp",
-		"tests/template.test.ts",
-		"tsconfig.json",
-		"tsconfig.lts.json"
+		"tsconfig.build.json",
+		"tsconfig.json"
 	],
-	"include": [
-		"**/*.ts",
-		"**/*.json"
-	]
+	"include": ["**/*.ts", "**/*.json"]
 }

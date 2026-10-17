@@ -2,9 +2,10 @@
 	import '../app.css'
 	import Sidebar from '#lib/components/Sidebar.svelte'
 	import VersionSelector from '#lib/components/VersionSelector.svelte'
+	import { version } from '$app/env'
 	import { asset, resolve } from '$app/paths'
-	import { page } from '$app/state'
-	import { untrack } from 'svelte'
+	import { page, updated } from '$app/state'
+	import { onMount, untrack } from 'svelte'
 	import { onNavigate } from '$app/navigation'
 	import { resolveHref } from '#lib/resolve-href'
 	import { getVersionPrefix } from '#lib/navigation'
@@ -14,12 +15,34 @@
 
 	let scrollContainer: HTMLElement | undefined = $state()
 
-	let isRootLanding = $derived(page.url.pathname === resolve('/'))
+	// A new build makes `updated.current` true. A stale worker never checks on its own, so ask the browser to fetch the worker script again,
+	// then poll until the new worker controls this page. A one-off event missed the switch in testing, so polling is the reliable trigger.
+	$effect(() => {
+		if (!updated.current || !('serviceWorker' in navigator)) return
+		navigator.serviceWorker.getRegistration().then((registration) => registration?.update())
+		const timer = setInterval(reloadIfNewWorkerControls, 1000)
+		return () => clearInterval(timer)
+	})
+
+	// Activation deletes every cache but the active worker's, so one cache left and matching the server means the new worker controls this page.
+	async function reloadIfNewWorkerControls() {
+		const registration = await navigator.serviceWorker.getRegistration()
+		if (!registration) return
+		const keys = await caches.keys()
+		const { version: serverVersion } = await fetch(new URL('_app/version.json', registration.scope), { cache: 'no-store' }).then((r) => r.json())
+		if (keys.length === 1 && keys[0] === `cache-${serverVersion}` && serverVersion !== version) location.reload()
+	}
+
+	onMount(() => {
+		if (!('serviceWorker' in navigator)) return
+		updated.check()
+	})
+
+	// Compare against the URL, not resolve(): on the server resolve() returns a relative path, so SSR rendered the sidebar and the client removed it.
+	let isRootLanding = $derived(page.route.id === '/')
 	let isVersionLanding = $derived.by(() => {
 		const prefix = getVersionPrefix(page.url.pathname)
-		if (!prefix) return false
-		const path = page.url.pathname.replace(resolveHref(prefix), '')
-		return path === '' || path === '/'
+		return prefix !== undefined && page.url.pathname.replace(/\/$/, '').endsWith(prefix)
 	})
 	let isLanding = $derived(isRootLanding || isVersionLanding)
 	let activePrefix = $derived(getVersionPrefix(page.url.pathname))

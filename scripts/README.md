@@ -14,16 +14,6 @@ Comprehensive performance benchmarking for Beacon.
 npm run benchmark
 ```
 
-### [`run-lts-tests.js`][2]
-Tests compiled code on Node.js LTS versions.
-- Prepares TypeScript test files for JS compatibility
-- Handles import path adjustments
-- Runs tests on compiled code
-
-```bash
-npm run test:lts
-```
-
 ---
 
 ## License
@@ -36,6 +26,5 @@ This project is licensed under the MIT License. See the [LICENSE][4] file for de
 
 <!-- Links collection -->
 [1]: ./benchmark.ts
-[2]: ./run-lts-tests.js
 
 [4]: ./LICENSE

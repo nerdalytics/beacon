@@ -28,11 +28,7 @@ describe('State Hooks', {
 						name: string
 					}
 				) => {
-					calls.push([
-						prop,
-						value,
-						target,
-					])
+					calls.push([prop, value, target])
 				},
 			}
 		)
@@ -57,12 +53,7 @@ describe('State Hooks', {
 						count: number
 					}
 				) => {
-					calls.push([
-						prop,
-						oldValue,
-						newValue,
-						target,
-					])
+					calls.push([prop, oldValue, newValue, target])
 				},
 			}
 		)
@@ -97,11 +88,7 @@ describe('State Hooks', {
 			} as Record<string, unknown>,
 			{
 				onDelete: (prop: PropertyKey, hadProperty: boolean, target: Record<string, unknown>) => {
-					calls.push([
-						prop,
-						hadProperty,
-						target,
-					])
+					calls.push([prop, hadProperty, target])
 				},
 			}
 		)
@@ -125,11 +112,7 @@ describe('State Hooks', {
 						name: string
 					}
 				) => {
-					calls.push([
-						prop,
-						exists,
-						target,
-					])
+					calls.push([prop, exists, target])
 				},
 			}
 		)
@@ -155,10 +138,7 @@ describe('State Hooks', {
 						b: number
 					}
 				) => {
-					calls.push([
-						keys,
-						target,
-					])
+					calls.push([keys, target])
 				},
 			}
 		)
@@ -186,21 +166,14 @@ describe('State Hooks', {
 		)
 		$s.user.name = 'Bob'
 		$s.user.settings.theme = 'light'
-		assert.deepStrictEqual(writes, [
-			'name',
-			'theme',
-		])
+		assert.deepStrictEqual(writes, ['name', 'theme'])
 	})
 
 	it('fires onRead when array mutating methods are accessed', () => {
 		const reads: string[] = []
 		const $s = state(
 			{
-				items: [
-					1,
-					2,
-					3,
-				],
+				items: [1, 2, 3],
 			},
 			{
 				onRead: (prop: PropertyKey) => {
@@ -216,11 +189,7 @@ describe('State Hooks', {
 		const writes: string[] = []
 		const $s = state(
 			{
-				items: [
-					1,
-					2,
-					3,
-				],
+				items: [1, 2, 3],
 			},
 			{
 				onWrite: (prop: PropertyKey) => {
@@ -268,13 +237,6 @@ describe('State Hooks', {
 			}
 		)
 		$s.count = 1
-		assert.deepStrictEqual(
-			calls,
-			[
-				1,
-				2,
-				3,
-			]
-		)
+		assert.deepStrictEqual(calls, [1, 2, 3])
 	})
 })

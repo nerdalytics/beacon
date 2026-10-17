@@ -24,9 +24,7 @@ describe('composeHook', {
 
 	it('returns the element for a single-element array', () => {
 		const fn = (): void => {}
-		const result = composeHook([
-			fn,
-		])
+		const result = composeHook([fn])
 		assert.strictEqual(result, fn)
 	})
 
@@ -41,21 +39,10 @@ describe('composeHook', {
 		const fn3 = (): void => {
 			calls.push(3)
 		}
-		const composed = composeHook([
-			fn1,
-			fn2,
-			fn3,
-		])
+		const composed = composeHook([fn1, fn2, fn3])
 		assert.notStrictEqual(composed, undefined)
 		composed?.()
-		assert.deepStrictEqual(
-			calls,
-			[
-				1,
-				2,
-				3,
-			]
-		)
+		assert.deepStrictEqual(calls, [1, 2, 3])
 	})
 
 	it('forwards arguments to all hooks', () => {
@@ -66,25 +53,11 @@ describe('composeHook', {
 		const fn2 = (...args: unknown[]): void => {
 			received.push(args)
 		}
-		const composed = composeHook<
-			[
-				string,
-				number,
-			]
-		>([
-			fn1,
-			fn2,
-		])
+		const composed = composeHook<[string, number]>([fn1, fn2])
 		composed?.('hello', 42)
 		assert.deepStrictEqual(received, [
-			[
-				'hello',
-				42,
-			],
-			[
-				'hello',
-				42,
-			],
+			['hello', 42],
+			['hello', 42],
 		])
 	})
 
@@ -99,18 +72,8 @@ describe('composeHook', {
 		const fn3 = (): void => {
 			calls.push(3)
 		}
-		const composed = composeHook([
-			fn1,
-			fn2,
-			fn3,
-		])
+		const composed = composeHook([fn1, fn2, fn3])
 		composed?.()
-		assert.deepStrictEqual(
-			calls,
-			[
-				1,
-				3,
-			]
-		)
+		assert.deepStrictEqual(calls, [1, 3])
 	})
 })

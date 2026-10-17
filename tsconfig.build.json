@@ -1,0 +1,16 @@
+{
+	"$schema": "https://json.schemastore.org/tsconfig",
+	"compilerOptions": {
+		"allowImportingTsExtensions": false,
+		"declaration": true,
+		"lib": ["ES2024"],
+		"noEmit": false,
+		"outDir": "./dist",
+		"removeComments": true,
+		"rootDir": "./",
+		"sourceMap": true,
+		"target": "ES2024"
+	},
+	"extends": "./tsconfig.json",
+	"include": ["src/**/*.ts"]
+}

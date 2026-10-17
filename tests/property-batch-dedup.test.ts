@@ -33,13 +33,7 @@ interface PropWrite {
 
 // --- Arbitraries ---
 
-const propKeys: PropKey[] = [
-	'a',
-	'b',
-	'c',
-	'd',
-	'e',
-]
+const propKeys: PropKey[] = ['a', 'b', 'c', 'd', 'e']
 
 const intArb: fc.Arbitrary<number> = fc.integer({
 	max: 1000,
@@ -246,12 +240,7 @@ describe('Property-Based: Batch Deduplication', {
 					batch(fn)
 
 					// Effect must NOT have run during nested batches
-					assert.deepStrictEqual(
-						midBatchRuns,
-						[
-							0,
-						]
-					)
+					assert.deepStrictEqual(midBatchRuns, [0])
 					// Effect runs exactly once after outermost batch completes
 					assert.strictEqual(runs, 1)
 					assert.strictEqual($s.value, updated)

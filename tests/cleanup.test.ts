@@ -216,28 +216,17 @@ describe('Cleanup', {
 			results.push(`e3:${$state.value}`)
 		})
 
-		assert.deepStrictEqual(results, [
-			'e1:0',
-			'e2:0',
-			'e3:0',
-		])
+		assert.deepStrictEqual(results, ['e1:0', 'e2:0', 'e3:0'])
 
 		results.length = 0
 		$state.value = 1
-		assert.deepStrictEqual(results, [
-			'e1:1',
-			'e2:1',
-			'e3:1',
-		])
+		assert.deepStrictEqual(results, ['e1:1', 'e2:1', 'e3:1'])
 
 		dispose2()
 
 		results.length = 0
 		$state.value = 2
-		assert.deepStrictEqual(results, [
-			'e1:2',
-			'e3:2',
-		])
+		assert.deepStrictEqual(results, ['e1:2', 'e3:2'])
 
 		dispose1()
 		dispose3()

@@ -51,11 +51,7 @@ describe('State Core', {
 	})
 
 	it('creates reactive state for arrays', () => {
-		const $items = state([
-			1,
-			2,
-			3,
-		])
+		const $items = state([1, 2, 3])
 
 		assert.strictEqual($items.length, 3)
 		assert.strictEqual($items[0], 1)
@@ -106,60 +102,19 @@ describe('State Core', {
 	})
 
 	it('handles array mutations', () => {
-		const $list = state([
-			1,
-			2,
-			3,
-			4,
-			5,
-		])
+		const $list = state([1, 2, 3, 4, 5])
 
 		$list.splice(1, 2)
-		assert.deepStrictEqual(
-			[
-				...$list,
-			],
-			[
-				1,
-				4,
-				5,
-			]
-		)
+		assert.deepStrictEqual([...$list], [1, 4, 5])
 
 		$list.reverse()
-		assert.deepStrictEqual(
-			[
-				...$list,
-			],
-			[
-				5,
-				4,
-				1,
-			]
-		)
+		assert.deepStrictEqual([...$list], [5, 4, 1])
 
 		$list.sort()
-		assert.deepStrictEqual(
-			[
-				...$list,
-			],
-			[
-				1,
-				4,
-				5,
-			]
-		)
+		assert.deepStrictEqual([...$list], [1, 4, 5])
 
 		$list.length = 2
-		assert.deepStrictEqual(
-			[
-				...$list,
-			],
-			[
-				1,
-				4,
-			]
-		)
+		assert.deepStrictEqual([...$list], [1, 4])
 	})
 
 	it('builds objects dynamically', () => {

@@ -37,9 +37,7 @@ describe('Cyclic Dependencies', {
 		const aValues: number[] = []
 		const bValues: number[] = []
 		// Use a non-empty array with known index 0
-		const executionCount = [
-			0,
-		]
+		const executionCount = [0]
 
 		// Set up effects that create the cycle:
 		// A changes → update B → B changes → update A → ...
@@ -75,22 +73,8 @@ describe('Cyclic Dependencies', {
 		assert.strictEqual($signalA.value, 5, 'signalA should stabilize at 5')
 		assert.strictEqual($signalB.value, 10, 'signalB should stabilize at 10')
 
-		assert.deepStrictEqual(
-			aValues,
-			[
-				1,
-				5,
-			],
-			'A values should match expected history'
-		)
-		assert.deepStrictEqual(
-			bValues,
-			[
-				2,
-				10,
-			],
-			'B values should match expected history'
-		)
+		assert.deepStrictEqual(aValues, [1, 5], 'A values should match expected history')
+		assert.deepStrictEqual(bValues, [2, 10], 'B values should match expected history')
 
 		// For this specific test case, we consider it "stabilized" because:
 		// 1. We know the exact expected values

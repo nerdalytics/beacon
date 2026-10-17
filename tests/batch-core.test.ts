@@ -95,14 +95,7 @@ describe('Batch Core', {
 			order.push(3)
 		})
 
-		assert.deepStrictEqual(
-			order,
-			[
-				1,
-				2,
-				3,
-			]
-		)
+		assert.deepStrictEqual(order, [1, 2, 3])
 	})
 
 	it('handles complex return types', (): void => {
@@ -120,19 +113,8 @@ describe('Batch Core', {
 			b: 2,
 		})
 
-		const arr = batch((): number[] => [
-			1,
-			2,
-			3,
-		])
-		assert.deepStrictEqual(
-			arr,
-			[
-				1,
-				2,
-				3,
-			]
-		)
+		const arr = batch((): number[] => [1, 2, 3])
+		assert.deepStrictEqual(arr, [1, 2, 3])
 
 		const fn = batch((): (() => string) => (): string => 'function result')
 		assert.strictEqual(fn(), 'function result')

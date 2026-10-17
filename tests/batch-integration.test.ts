@@ -92,12 +92,7 @@ describe('Batch Integration', {
 			results.push($state.value)
 		})
 
-		assert.deepStrictEqual(
-			results,
-			[
-				0,
-			]
-		)
+		assert.deepStrictEqual(results, [0])
 
 		batch((): void => {
 			$state.value = 1
@@ -115,24 +110,14 @@ describe('Batch Integration', {
 			$state.value = 5
 		})
 
-		assert.deepStrictEqual(
-			results,
-			[
-				0,
-				5,
-			]
-		)
+		assert.deepStrictEqual(results, [0, 5])
 
 		dispose()
 	})
 
 	it('batches array operations', (): void => {
 		const $items = state({
-			list: [
-				1,
-				2,
-				3,
-			],
+			list: [1, 2, 3],
 		})
 		let effectCount = 0
 
@@ -151,16 +136,7 @@ describe('Batch Integration', {
 		})
 
 		assert.strictEqual(effectCount, 2)
-		assert.deepStrictEqual(
-			$items.list,
-			[
-				1,
-				2,
-				3,
-				4,
-				5,
-			]
-		)
+		assert.deepStrictEqual($items.list, [1, 2, 3, 4, 5])
 
 		dispose()
 	})
@@ -183,12 +159,7 @@ describe('Batch Integration', {
 			dispose()
 		})
 
-		assert.deepStrictEqual(
-			results,
-			[
-				2,
-			]
-		)
+		assert.deepStrictEqual(results, [2])
 	})
 
 	it('batches multiple state objects', (): void => {
@@ -210,9 +181,7 @@ describe('Batch Integration', {
 			results.push(`${$user.name}/${$settings.theme}/${$app.version}`)
 		})
 
-		assert.deepStrictEqual(results, [
-			'Alice/dark/1.0',
-		])
+		assert.deepStrictEqual(results, ['Alice/dark/1.0'])
 
 		batch((): void => {
 			$user.name = 'Bob'
@@ -223,10 +192,7 @@ describe('Batch Integration', {
 			$app.loaded = true
 		})
 
-		assert.deepStrictEqual(results, [
-			'Alice/dark/1.0',
-			'Bob/light/2.0',
-		])
+		assert.deepStrictEqual(results, ['Alice/dark/1.0', 'Bob/light/2.0'])
 
 		dispose()
 	})

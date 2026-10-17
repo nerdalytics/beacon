@@ -39,25 +39,21 @@ Normalizes `SingleOrArray<HookFunction<Args>> | undefined` into a single functio
 
 ## Integration with Core
 
-Hooks are injected via optional last parameter on each API function:
+Hooks are injected via an optional parameter on each API function (last, except `effect`, where `options` follows):
 
 - `state(initial, hooks?: StateHooks<T>)`
-- `effect(fn, name?, hooks?: EffectHooks)`
+- `effect(fn, name?, hooks?: EffectHooks, options?: EffectOptions)`
 - `derive(computeFn, hooks?: DeriveHooks<T>)`
 - `batch(fn, hooks?: BatchHooks)`
 
-The core `index.ts` imports `composeHook` from this module.
+The core `index.ts` imports `composeHook` from `./hooks/compose.ts`. Published as the `./hooks` subpath export (`package.json`, `jsr.json`).
 
 ## Design Constraints
 
 - All hook invocations wrapped in try-catch — never propagate to core
-- State hooks propagate to nested objects via `HOOKS` symbol
-- Frozen/sealed objects store hooks in `frozenHooksCache` WeakMap
+- State hooks propagate to nested objects by closure: the get handler passes the parent's hooks to `state(value, hooks)` when wrapping a nested object. The `HOOKS` symbol is defined on extensible targets but never read
+- Non-extensible targets get their hooks stored in `frozenHooksCache`; nothing reads it (see `HOOKS_TODO.md` item C1)
 - All hooks fire synchronously during their respective operations
 - Types defined in `../types.ts`, not in this module
 
-<!--— BEACON-START —>[Hooks Module Index]
-|root: ./src/hooks
-|IMPORTANT: Hook types live in ../types.ts. This module only re-exports and composes.
-|.:{index.ts,compose.ts}
-<!--— BEACON-END —>
+<!-- BEACON-START -->[Hooks Module Index]|root: ./src/hooks|IMPORTANT: Hook types live in ../types.ts. This module only re-exports and composes.|.:{index.ts,compose.ts}<!-- BEACON-END -->

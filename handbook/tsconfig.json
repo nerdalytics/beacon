@@ -25,6 +25,9 @@
 		"src",
 		"*.ts"
 	],
+	"exclude": [
+		"src/service-worker.ts"
+	],
 	// Path aliases are handled by https://svelte.dev/docs/kit/configuration#alias
 	// #lib resolves via the package.json "imports" field (Node subpath imports)
 	//

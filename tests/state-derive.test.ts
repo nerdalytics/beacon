@@ -105,13 +105,7 @@ describe('State-Derive Integration', {
 
 	it('derives from arrays', (): void => {
 		const $items = state({
-			list: [
-				1,
-				2,
-				3,
-				4,
-				5,
-			],
+			list: [1, 2, 3, 4, 5],
 		})
 
 		const $sum = derive((): number => $items.list.reduce((a: number, b: number): number => a + b, 0))
@@ -124,41 +118,19 @@ describe('State-Derive Integration', {
 		assert.strictEqual($sum.value, 15)
 		assert.strictEqual($count.value, 5)
 		assert.strictEqual($avg.value, 3)
-		assert.deepStrictEqual(
-			$evens.value,
-			[
-				2,
-				4,
-			]
-		)
+		assert.deepStrictEqual($evens.value, [2, 4])
 
 		$items.list.push(6)
 		assert.strictEqual($sum.value, 21)
 		assert.strictEqual($count.value, 6)
 		assert.strictEqual($avg.value, 3.5)
-		assert.deepStrictEqual(
-			$evens.value,
-			[
-				2,
-				4,
-				6,
-			]
-		)
+		assert.deepStrictEqual($evens.value, [2, 4, 6])
 
-		$items.list = [
-			10,
-			20,
-		]
+		$items.list = [10, 20]
 		assert.strictEqual($sum.value, 30)
 		assert.strictEqual($count.value, 2)
 		assert.strictEqual($avg.value, 15)
-		assert.deepStrictEqual(
-			$evens.value,
-			[
-				10,
-				20,
-			]
-		)
+		assert.deepStrictEqual($evens.value, [10, 20])
 	})
 
 	it('derives from nested objects', (): void => {
@@ -223,9 +195,7 @@ describe('State-Derive Integration', {
 				items = items.filter((item: Item): boolean => item.name.includes($data.filter))
 			}
 
-			const sorted = [
-				...items,
-			].sort((a: Item, b: Item): number => {
+			const sorted = [...items].sort((a: Item, b: Item): number => {
 				if ($data.sortBy === 'name') {
 					return a.name.localeCompare(b.name)
 				} else {
@@ -238,41 +208,25 @@ describe('State-Derive Integration', {
 
 		assert.deepStrictEqual(
 			($filtered.value as Item[]).map((i: Item): string => i.name),
-			[
-				'apple',
-				'apricot',
-				'banana',
-				'cherry',
-			]
+			['apple', 'apricot', 'banana', 'cherry']
 		)
 
 		$data.filter = 'ap'
 		assert.deepStrictEqual(
 			($filtered.value as Item[]).map((i: Item): string => i.name),
-			[
-				'apple',
-				'apricot',
-			]
+			['apple', 'apricot']
 		)
 
 		$data.sortBy = 'price'
 		assert.deepStrictEqual(
 			($filtered.value as Item[]).map((i: Item): string => i.name),
-			[
-				'apple',
-				'apricot',
-			]
+			['apple', 'apricot']
 		)
 
 		$data.filter = ''
 		assert.deepStrictEqual(
 			($filtered.value as Item[]).map((i: Item): string => i.name),
-			[
-				'banana',
-				'apple',
-				'apricot',
-				'cherry',
-			]
+			['banana', 'apple', 'apricot', 'cherry']
 		)
 	})
 
