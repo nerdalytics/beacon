@@ -9,9 +9,10 @@ import { version } from '$app/env'
 import { assets, immutable, prerendered } from '$app/manifest'
 
 const CACHE = `cache-${version}`
+const LEADING_SLASH = /^\//
 // cache: 'reload' skips the browser's HTTP cache, so precached pages are never stale copies from an earlier deploy.
 const PRECACHE = [...immutable, ...assets, ...prerendered].map(
-	(f) => new Request(new URL(f.path.replace(/^\//, ''), self.registration.scope).href, { cache: 'reload' })
+	(f) => new Request(new URL(f.path.replace(LEADING_SLASH, ''), self.registration.scope).href, { cache: 'reload' })
 )
 
 self.addEventListener('install', (event) => {
