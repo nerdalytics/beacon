@@ -10,5 +10,5 @@
 	"publish": {
 		"include": ["LICENSE", "README.md", "src/**/*.ts"]
 	},
-	"version": "3000.0.0"
+	"version": "2001.0.0"
 }

@@ -69,6 +69,6 @@
 	},
 	"sideEffects": false,
 	"type": "module",
-	"version": "3000.0.0",
+	"version": "2001.0.0",
 	"types": "dist/src/index.d.ts"
 }
