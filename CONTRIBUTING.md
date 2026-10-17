@@ -25,7 +25,7 @@ npm install
 
 3. Build the project:
 ```bash
-npm run build:lts
+npm run build
 ```
 
 4. Run tests to verify setup:

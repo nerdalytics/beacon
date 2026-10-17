@@ -16,7 +16,6 @@
 			"**/*.js",
 			"**/*.ts",
 			"!package-lock.json",
-			"!**/tests/template.test.ts",
 			"!**/dist/**/*",
 			"!**/temp/**/*",
 			"!**/node_modules/**/*",
@@ -28,7 +27,7 @@
 	"formatter": {
 		"bracketSpacing": true,
 		"enabled": true,
-		"expand": "always",
+		"expand": "auto",
 		"formatWithErrors": false,
 		"indentStyle": "tab",
 		"lineEnding": "lf",
@@ -77,8 +76,7 @@
 				"noNodejsModules": {
 					"level": "off"
 				},
-				"noUnusedVariables": "warn",
-				"useExhaustiveDependencies": "error"
+				"noUnusedVariables": "warn"
 			},
 			"nursery": {
 				"useExplicitType": "error"
@@ -104,18 +102,7 @@
 				"noConsole": {
 					"level": "error",
 					"options": {
-						"allow": [
-							"error",
-							"warn",
-							"dir",
-							"info",
-							"debug",
-							"table",
-							"time",
-							"timeEnd",
-							"timeLog",
-							"trace"
-						]
+						"allow": ["error", "warn", "dir", "info", "debug", "table", "time", "timeEnd", "timeLog", "trace"]
 					}
 				},
 				"noExplicitAny": "error"
@@ -131,9 +118,7 @@
 					}
 				}
 			},
-			"includes": [
-				"package.json"
-			]
+			"includes": ["package.json"]
 		}
 	],
 	"vcs": {

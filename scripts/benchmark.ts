@@ -523,12 +523,8 @@ for (let cycle = 0; cycle < RUN_COUNT; cycle++) {
 			for (const h of result.heapDeltas) existing.heapDeltas.push(h)
 		} else {
 			accumulated.set(name, {
-				heapDeltas: [
-					...result.heapDeltas,
-				],
-				times: [
-					...result.times,
-				],
+				heapDeltas: [...result.heapDeltas],
+				times: [...result.times],
 			})
 		}
 	}

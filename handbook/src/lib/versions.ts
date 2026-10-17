@@ -7,26 +7,37 @@ export interface Version {
 	prefix: string
 }
 
+/** Route directory whose pages /latest serves. Must match the glob in routes/latest/[page=slug]/+page.ts. */
+export const latestSource = 'v2001.0.0'
+
 export const versions: Version[] = [
 	{
 		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+			node: 'https://img.shields.io/badge/node-%3E%3D24.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
 		},
-		current: false,
+		current: true,
 		label: 'latest',
 		prefix: '/latest',
 	},
 	{
 		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D22.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+			node: 'https://img.shields.io/badge/node-%3E%3D24.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
 		},
-		current: true,
+		current: false,
+		label: 'v2001.0.0',
+		prefix: '/v2001.0.0',
+	},
+	{
+		badges: {
+			node: 'https://img.shields.io/badge/node-%3E%3D22.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
+		},
+		current: false,
 		label: 'v2000.0.0',
 		prefix: '/v2000.0.0',
 	},
 	{
 		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
 		},
 		current: false,
 		label: 'v1000.3.3',
@@ -34,31 +45,7 @@ export const versions: Version[] = [
 	},
 	{
 		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.3.2',
-		prefix: '/v1000.3.2',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.3.1',
-		prefix: '/v1000.3.1',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.3.0',
-		prefix: '/v1000.3.0',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
 		},
 		current: false,
 		label: 'v1000.2.5',
@@ -66,47 +53,7 @@ export const versions: Version[] = [
 	},
 	{
 		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.2.4',
-		prefix: '/v1000.2.4',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.2.3',
-		prefix: '/v1000.2.3',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.2.2',
-		prefix: '/v1000.2.2',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.2.1',
-		prefix: '/v1000.2.1',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.2.0',
-		prefix: '/v1000.2.0',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
 		},
 		current: false,
 		label: 'v1000.1.1',
@@ -114,15 +61,7 @@ export const versions: Version[] = [
 	},
 	{
 		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
-		},
-		current: false,
-		label: 'v1000.1.0',
-		prefix: '/v1000.1.0',
-	},
-	{
-		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
 		},
 		current: false,
 		label: 'v1000.0.0',
@@ -130,7 +69,7 @@ export const versions: Version[] = [
 	},
 	{
 		badges: {
-			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white',
+			node: 'https://img.shields.io/badge/node-%3E%3D20.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
 		},
 		current: false,
 		label: 'v1.0.0',

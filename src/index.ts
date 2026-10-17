@@ -18,9 +18,27 @@ export type EffectName = string
 
 /** Value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
 export type ComputedValue<T> = {
+	readonly pending: boolean
 	readonly value: T | undefined | null
 	reactive: boolean
 }
+
+/** Scheduling strategy for {@linkcode effect}: run during the write, or on a later microtask. */
+export type EffectSchedule = 'microtask' | 'sync'
+
+/** Options for {@linkcode effect}. */
+export interface EffectOptions {
+	schedule?: EffectSchedule
+}
+
+/** Options for {@linkcode until}. */
+export interface UntilOptions {
+	signal?: AbortSignal
+	timeout?: number
+}
+
+/** Callback for {@linkcode onSettled}, invoked when the graph reaches quiescence. */
+export type SettledCallback = () => void
 
 type ProxyTarget = Record<PropertyKey, unknown>
 
@@ -36,6 +54,7 @@ let batchDepth = 0
 let isNotifying = false
 let isTrackingOnly = false
 const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
+const pendingMicroEffects: Set<EffectFunction> = new Set<EffectFunction>()
 const effectQueue: EffectFunction[] = []
 const deferredEffectCreations: EffectFunction[] = []
 let rerunTempDeps: Set<object> | null = null
@@ -45,28 +64,45 @@ let rerunReadIndex = 0
 let rerunStable = false
 let buildingReadList: (object | PropertyKey)[] | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
+const settledCallbacks: Set<SettledCallback> = new Set<SettledCallback>()
+let settleProcessed = false
+let flushProcessed = false
+let microtaskFlushArmed = false
+let microtaskFlushing = false
+// Consecutive microtask flushes each armed by the one before it, with no macrotask in between
+let microtaskFlushChain = 0
+let effectErrorHandled = false
+let untilEvaluating = false
+let untilSawPending = false
 
 // Proxy caching
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
+// Effects by the property they read, per subscriber Set. It may hold stale entries: scheduling re-checks __reads,
+// so it only has to be a superset of the true readers. Kept off the Set: an own property there cost ~8% on
+// single-subscriber writes in the benchmark suite
+const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<EffectFunction>>> = new WeakMap<
+	Set<EffectFunction>,
+	Map<PropertyKey, Set<EffectFunction>>
+>()
 
-const MUTATING_ARRAY_METHODS: Set<string> = new Set([
-	'push',
-	'pop',
-	'shift',
-	'unshift',
-	'splice',
-	'sort',
-	'reverse',
-])
-
-// Symbol for cached methods
-const CACHED_METHODS: unique symbol = Symbol('[[cachedMethods]]')
+const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
 
 // Function type for cached methods
 type CachedMethod = (...args: unknown[]) => unknown
-const frozenMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
+const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+const MAX_SETTLE_CYCLES = 100
+const MAX_MICROTASK_FLUSH_CHAIN = 100
+// Up to this many subscribers a scan is cheaper than the per-property index lookups
+const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
+
+// Hooks consulted on the hot path; stored on the effect only when at least one is set
+type EffectInternalHooks = {
+	onDependencyAdd?: HookFunction<[object, PropertyKey, string | undefined]> | undefined
+	onDependencyChange?: HookFunction<[object, PropertyKey]> | undefined
+	onSchedule?: HookFunction<[string | undefined]> | undefined
+}
 
 // Effect function type
 type EffectFunction = {
@@ -74,31 +110,13 @@ type EffectFunction = {
 	__active?: boolean
 	__children?: Set<EffectFunction> | undefined
 	__deps?: Set<object> | undefined
-	__hooks?: {
-		onDependencyAdd?: HookFunction<
-			[
-				object,
-				PropertyKey,
-				string | undefined,
-			]
-		>
-		onDependencyChange?: HookFunction<
-			[
-				object,
-				PropertyKey,
-			]
-		>
-		onSchedule?: HookFunction<
-			[
-				string | undefined,
-			]
-		>
-	}
+	__hooks?: EffectInternalHooks
 	__parent?: EffectFunction | undefined
 	__prevDeps?: Set<object> | undefined
 	__prevReads?: Map<object, Set<PropertyKey>> | undefined
 	__readList?: (object | PropertyKey)[] | undefined
 	__reads?: Map<object, Set<PropertyKey>> | undefined
+	__schedule?: EffectSchedule | undefined
 	effectName?: string
 }
 
@@ -111,15 +129,11 @@ type ProxyObject = ProxyTarget & {
 	[PROXY]?: object
 }
 
-type CachedMethodsObject = ProxyTarget & {
-	[CACHED_METHODS]?: Record<PropertyKey, CachedMethod>
-}
-
-function getCachedMethodFromWeakMap(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
-	let cache = frozenMethodCache.get(target)
+function wrapArrayMethod(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
+	let cache = arrayMethodCache.get(target)
 	if (!cache) {
 		cache = new Map<PropertyKey, CachedMethod>()
-		frozenMethodCache.set(target, cache)
+		arrayMethodCache.set(target, cache)
 	}
 
 	let wrapped = cache.get(prop)
@@ -159,8 +173,32 @@ function getSubscribers(target: object): Set<EffectFunction> {
 	if (fallbackSubs) return fallbackSubs
 
 	const subscriberSet = new Set<EffectFunction>()
+	subscribersByProp.set(subscriberSet, new Map<PropertyKey, Set<EffectFunction>>())
 	storeSubscriberSet(target, subscriberSet)
 	return subscriberSet
+}
+
+// Every subscriber Set comes from getSubscribers, which registers its index
+function propIndexOf(subs: Set<EffectFunction>): Map<PropertyKey, Set<EffectFunction>> {
+	return subscribersByProp.get(subs) as Map<PropertyKey, Set<EffectFunction>>
+}
+
+function indexRead(subs: Set<EffectFunction>, eff: EffectFunction, prop: PropertyKey): void {
+	const byProp = propIndexOf(subs)
+	let readers = byProp.get(prop)
+	if (!readers) {
+		readers = new Set<EffectFunction>()
+		byProp.set(prop, readers)
+	}
+	readers.add(eff)
+}
+
+function unindexRead(subs: Set<EffectFunction>, eff: EffectFunction, prop: PropertyKey): void {
+	const byProp = propIndexOf(subs)
+	const readers = byProp.get(prop)
+	if (!readers) return
+	readers.delete(eff)
+	if (readers.size === 0) byProp.delete(prop)
 }
 
 function replayReadListToTempCollections(list: (object | PropertyKey)[], endIndex: number): void {
@@ -264,7 +302,42 @@ function findSubscribers(target: object): Set<EffectFunction> | undefined {
 	return t[SUBSCRIBERS] ?? proxyCacheSubs.get(target)
 }
 
+function armMicrotaskFlush(): void {
+	if (microtaskFlushArmed) return
+	microtaskFlushArmed = true
+	microtaskFlushChain = microtaskFlushing ? microtaskFlushChain + 1 : 0
+	queueMicrotask((): void => {
+		microtaskFlushArmed = false
+		if (microtaskFlushChain >= MAX_MICROTASK_FLUSH_CHAIN) {
+			pendingMicroEffects.clear()
+			console.error(
+				new Error(
+					`Infinite loop detected: microtask effects kept rescheduling themselves for ${MAX_MICROTASK_FLUSH_CHAIN} flushes`
+				)
+			)
+			return
+		}
+		for (const eff of pendingMicroEffects) pendingEffects.add(eff)
+		pendingMicroEffects.clear()
+		microtaskFlushing = true
+		try {
+			flushEffects()
+			notifySettledOutsideFlush()
+		} finally {
+			microtaskFlushing = false
+		}
+	})
+}
+
 function addPendingEffect(subscriber: EffectFunction): void {
+	if (subscriber.__schedule === 'microtask') {
+		const prevMicro = pendingMicroEffects.size
+		pendingMicroEffects.add(subscriber)
+		if (pendingMicroEffects.size === prevMicro) return
+		callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
+		armMicrotaskFlush()
+		return
+	}
 	const prevSize = pendingEffects.size
 	pendingEffects.add(subscriber)
 	if (pendingEffects.size === prevSize) return
@@ -273,29 +346,44 @@ function addPendingEffect(subscriber: EffectFunction): void {
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
 	const hooks = subscriber.__hooks
-	if (pendingEffects.has(subscriber) && !hooks?.onDependencyChange) return
+	// runs per subscriber on every write: the size check skips a lookup that only microtask effects can hit
+	if (
+		(pendingEffects.has(subscriber) || (pendingMicroEffects.size > 0 && pendingMicroEffects.has(subscriber))) &&
+		!hooks?.onDependencyChange
+	)
+		return
 	const set = subscriber.__reads?.get(target)
 	if (!set?.has(prop) && !set?.has(OWN_KEYS_SYMBOL)) return
 	addPendingEffect(subscriber)
 	if (hooks?.onDependencyChange) callHookSafe(hooks.onDependencyChange, target, prop)
 }
 
-function scheduleSubscriber(subscriber: EffectFunction, target: object, prop: PropertyKey | undefined): void {
-	if (prop === undefined) {
-		addPendingEffect(subscriber)
-	} else {
-		scheduleSubscriberWithProp(subscriber, target, prop)
-	}
-}
-
 function scheduleSubscribersForTarget(target: object, prop?: PropertyKey): void {
 	const subs = findSubscribers(target)
 	if (!subs?.size) return
 
-	for (const subscriber of subs) {
-		scheduleSubscriber(subscriber, target, prop)
+	if (prop === undefined) {
+		for (const subscriber of subs) addPendingEffect(subscriber)
+	} else if (subs.size <= INDEXED_SCHEDULE_MIN_SUBSCRIBERS) {
+		for (const subscriber of subs) scheduleSubscriberWithProp(subscriber, target, prop)
+	} else {
+		schedulePropReaders(subs, target, prop)
 	}
 	if (batchDepth === 0 && !isNotifying) flushEffects()
+}
+
+// Only effects that read prop, or enumerated the keys, can match; every other subscriber is skipped
+function schedulePropReaders(subs: Set<EffectFunction>, target: object, prop: PropertyKey): void {
+	const byProp = propIndexOf(subs)
+	const readers = byProp.get(prop)
+	if (readers) {
+		for (const subscriber of readers) scheduleSubscriberWithProp(subscriber, target, prop)
+	}
+	const keyReaders = byProp.get(OWN_KEYS_SYMBOL)
+	if (!keyReaders) return
+	for (const subscriber of keyReaders) {
+		if (!readers?.has(subscriber)) scheduleSubscriberWithProp(subscriber, target, prop)
+	}
 }
 
 // Flush all pending effects
@@ -304,7 +392,13 @@ function runEffectIfActive(effect: EffectFunction): void {
 		try {
 			effect()
 		} catch (err) {
+			// A microtask flush has no caller to rethrow to: onError already ran, otherwise report it
+			if (microtaskFlushing) {
+				if (!effectErrorHandled) console.error(err)
+				return
+			}
 			pendingEffects.clear()
+			effectQueue.length = 0
 			throw err
 		}
 	}
@@ -333,9 +427,21 @@ function flushEffects(): void {
 	isNotifying = true
 
 	try {
-		while (pendingEffects.size > 0) {
-			runPendingEffectBatch()
+		// A cycle after the first drains effects scheduled by onSettled callbacks, then notifies again
+		for (let cycle = 0; cycle < MAX_SETTLE_CYCLES; cycle++) {
+			flushProcessed = true
+			while (pendingEffects.size > 0) {
+				runPendingEffectBatch()
+			}
+			notifySettledIfQuiet()
+			if (pendingEffects.size === 0) return
 		}
+		pendingEffects.clear()
+		const err = new Error(
+			`Infinite loop detected: onSettled callbacks kept scheduling effects for ${MAX_SETTLE_CYCLES} notifications`
+		)
+		if (!microtaskFlushing) throw err
+		console.error(err)
 	} finally {
 		isNotifying = false
 	}
@@ -343,6 +449,7 @@ function flushEffects(): void {
 
 function resetEffectTracking(eff: EffectFunction): void {
 	pendingEffects.delete(eff)
+	pendingMicroEffects.delete(eff)
 	eff.__deps = undefined
 	eff.__readList = undefined
 	eff.__reads = undefined
@@ -351,7 +458,7 @@ function resetEffectTracking(eff: EffectFunction): void {
 }
 
 function cleanupEffect(effect: EffectFunction): void {
-	removeEffectFromSubscribers(effect, effect.__deps)
+	removeEffectFromSubscribers(effect, effect.__deps, effect.__reads)
 	resetEffectTracking(effect)
 }
 
@@ -442,15 +549,7 @@ function depsMatch(
 
 // Proxy handler functions
 function createDeleteHandler<T>(
-	onDelete:
-		| HookFunction<
-				[
-					PropertyKey,
-					boolean,
-					T,
-				]
-		  >
-		| undefined
+	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['deleteProperty']> {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		const had = Object.hasOwn(rawTarget, prop)
@@ -481,27 +580,9 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	} else {
 		const subs = getSubscribers(rawTarget)
 		subs.add(currentEffect)
+		indexRead(subs, currentEffect, prop)
 		recordEffectRead(currentEffect, rawTarget, prop, false)
 	}
-}
-
-function getOrCreateMethodCache(rawTarget: ProxyTarget): Record<PropertyKey, CachedMethod> | null {
-	const rawTargetWithCache = rawTarget as CachedMethodsObject
-	const existing = rawTargetWithCache[CACHED_METHODS]
-	if (existing) return existing
-
-	const cache = Object.create(null) as Record<PropertyKey, CachedMethod>
-	try {
-		Object.defineProperty(rawTarget, CACHED_METHODS, {
-			configurable: true,
-			enumerable: false,
-			value: cache,
-			writable: false,
-		})
-	} catch {
-		return null
-	}
-	return cache
 }
 
 function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): CachedMethod | undefined {
@@ -512,43 +593,11 @@ function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value:
 		typeof value !== 'function'
 	)
 		return undefined
-
-	if (!Object.isExtensible(rawTarget)) {
-		return getCachedMethodFromWeakMap(rawTarget, prop, value as CachedMethod)
-	}
-
-	const cache = getOrCreateMethodCache(rawTarget)
-	if (!cache) return getCachedMethodFromWeakMap(rawTarget, prop, value as CachedMethod)
-
-	return createCachedArrayMethod(rawTarget, cache, prop, value as CachedMethod)
-}
-
-function createCachedArrayMethod(
-	rawTarget: ProxyTarget,
-	cache: Record<PropertyKey, CachedMethod>,
-	prop: PropertyKey,
-	value: CachedMethod
-): CachedMethod {
-	if (!cache[prop]) {
-		cache[prop] = (...args: unknown[]): unknown => {
-			const result = value.apply(rawTarget, args)
-			scheduleSubscribersForTarget(rawTarget)
-			return result
-		}
-	}
-	return cache[prop] as CachedMethod
+	return wrapArrayMethod(rawTarget, prop, value as CachedMethod)
 }
 
 function createGetHandler<T>(
-	onRead:
-		| HookFunction<
-				[
-					PropertyKey,
-					unknown,
-					T,
-				]
-		  >
-		| undefined,
+	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
 	hooks: StateHooks<T> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['get']> {
 	if (!onRead && !hooks) {
@@ -578,15 +627,7 @@ function createGetHandler<T>(
 }
 
 function createHasHandler<T>(
-	onHas:
-		| HookFunction<
-				[
-					PropertyKey,
-					boolean,
-					T,
-				]
-		  >
-		| undefined
+	onHas: HookFunction<[PropertyKey, boolean, T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['has']> {
 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
 		trackDependency(rawTarget, prop)
@@ -597,14 +638,7 @@ function createHasHandler<T>(
 }
 
 function createOwnKeysHandler<T>(
-	onOwnKeys:
-		| HookFunction<
-				[
-					PropertyKey[],
-					T,
-				]
-		  >
-		| undefined
+	onOwnKeys: HookFunction<[PropertyKey[], T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['ownKeys']> {
 	return (rawTarget: ProxyTarget): (string | symbol)[] => {
 		trackDependency(rawTarget, OWN_KEYS_SYMBOL)
@@ -647,6 +681,8 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 
 function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	if (!currentEffect || !didEffectReadProp(currentEffect, rawTarget, prop)) return
+	// microtask effects re-run on a later microtask; MAX_MICROTASK_FLUSH_CHAIN bounds a self-feeding chain
+	if (currentEffect.__schedule === 'microtask') return
 	const parent = currentEffect.__parent
 	if (parent) return
 	const effectName = currentEffect.effectName
@@ -657,16 +693,7 @@ function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
 }
 
 function createSetHandler<T>(
-	onWrite:
-		| HookFunction<
-				[
-					PropertyKey,
-					unknown,
-					unknown,
-					T,
-				]
-		  >
-		| undefined
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['set']> {
 	if (!onWrite) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
@@ -700,16 +727,7 @@ function performWrite<T>(
 	rawTarget: ProxyTarget,
 	prop: PropertyKey,
 	value: unknown,
-	onWrite:
-		| HookFunction<
-				[
-					PropertyKey,
-					unknown,
-					unknown,
-					T,
-				]
-		  >
-		| undefined
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): boolean {
 	checkInfiniteLoop(rawTarget, prop)
 
@@ -836,16 +854,6 @@ function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newD
 	}
 }
 
-function areDepsStable(
-	newDeps: Set<object> | undefined,
-	newReads: Map<object, Set<PropertyKey>> | undefined,
-	prevDeps: Set<object>,
-	prevReads: Map<object, Set<PropertyKey>>
-): boolean {
-	if (!newDeps || !newReads) return false
-	return depsMatch(prevDeps, newDeps, prevReads, newReads)
-}
-
 function tryRestoreStableDeps(
 	eff: EffectFunction,
 	prevDeps: Set<object> | undefined,
@@ -854,7 +862,7 @@ function tryRestoreStableDeps(
 	newReads: Map<object, Set<PropertyKey>> | undefined
 ): boolean {
 	if (!prevDeps || !prevReads || !newDeps || !newReads) return false
-	if (!areDepsStable(newDeps, newReads, prevDeps, prevReads)) return false
+	if (!depsMatch(prevDeps, newDeps, prevReads, newReads)) return false
 	eff.__reads = prevReads
 	eff.__deps = prevDeps
 	return true
@@ -875,95 +883,50 @@ function updateEffectSubscriptions(
 	if (prevDeps) {
 		removeStaleSubscribers(eff, prevDeps, newDeps)
 		registerNewSubscribers(eff, prevDeps, newDeps)
+		if (prevReads) reindexReads(eff, prevReads, newReads)
 	}
 	eff.__prevDeps = newDeps
 	eff.__prevReads = newReads
 }
 
-function removeEffectFromSubscribers(eff: EffectFunction, deps: Set<object> | undefined): void {
+function reindexReads(
+	eff: EffectFunction,
+	prevReads: Map<object, Set<PropertyKey>>,
+	newReads: Map<object, Set<PropertyKey>>
+): void {
+	for (const [target, props] of prevReads) {
+		const subs = getSubscribers(target)
+		const kept = newReads.get(target)
+		for (const prop of props) {
+			if (!kept?.has(prop)) unindexRead(subs, eff, prop)
+		}
+	}
+	for (const [target, props] of newReads) {
+		const subs = getSubscribers(target)
+		for (const prop of props) indexRead(subs, eff, prop)
+	}
+}
+
+function removeEffectFromSubscribers(
+	eff: EffectFunction,
+	deps: Set<object> | undefined,
+	reads: Map<object, Set<PropertyKey>> | undefined
+): void {
 	if (!deps) return
 	for (const dep of deps) {
-		findSubscribers(dep)?.delete(eff)
+		const subs = getSubscribers(dep)
+		subs.delete(eff)
+		const props = reads?.get(dep)
+		if (props) {
+			for (const prop of props) unindexRead(subs, eff, prop)
+		}
 	}
 }
 
 function cleanupEffectOnError(eff: EffectFunction): void {
-	removeEffectFromSubscribers(eff, eff.__prevDeps)
-	removeEffectFromSubscribers(eff, eff.__deps)
+	removeEffectFromSubscribers(eff, eff.__prevDeps, eff.__prevReads)
+	removeEffectFromSubscribers(eff, eff.__deps, eff.__reads)
 	resetEffectTracking(eff)
-}
-
-function attachEffectHooks(
-	eff: EffectFunction,
-	onDependencyAdd:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-					string | undefined,
-				]
-		  >
-		| undefined,
-	onDependencyChange:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-				]
-		  >
-		| undefined,
-	onSchedule:
-		| HookFunction<
-				[
-					string | undefined,
-				]
-		  >
-		| undefined
-): void {
-	if (!onDependencyAdd && !onSchedule && !onDependencyChange) return
-	eff.__hooks = buildEffectHooksMap(onDependencyAdd, onDependencyChange, onSchedule)
-}
-
-function buildEffectHooksMap(
-	onDependencyAdd:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-					string | undefined,
-				]
-		  >
-		| undefined,
-	onDependencyChange:
-		| HookFunction<
-				[
-					object,
-					PropertyKey,
-				]
-		  >
-		| undefined,
-	onSchedule:
-		| HookFunction<
-				[
-					string | undefined,
-				]
-		  >
-		| undefined
-): NonNullable<EffectFunction['__hooks']> {
-	const map: NonNullable<EffectFunction['__hooks']> = Object.create(null)
-	if (onDependencyAdd) map.onDependencyAdd = onDependencyAdd
-	if (onDependencyChange) map.onDependencyChange = onDependencyChange
-	if (onSchedule) map.onSchedule = onSchedule
-	return map
-}
-
-function promoteTempToGlobal(
-	eff: EffectFunction,
-	tempDeps: Set<object>,
-	tempReads: Map<object, Set<PropertyKey>>
-): void {
-	eff.__deps = tempDeps
-	eff.__reads = tempReads
 }
 
 function clearRerunState(): void {
@@ -1007,7 +970,8 @@ function handleRerunResult(
 			clearRerunState()
 			return true
 		}
-		promoteTempToGlobal(eff, rerunTempDeps, rerunTempReads)
+		eff.__deps = rerunTempDeps
+		eff.__reads = rerunTempReads
 		eff.__readList = undefined
 	}
 
@@ -1020,13 +984,7 @@ function executeEffectBody(
 	fn: EffectCallback,
 	prevDeps: Set<object> | undefined,
 	prevReads: Map<object, Set<PropertyKey>> | undefined,
-	onRun:
-		| HookFunction<
-				[
-					EffectName | undefined,
-				]
-		  >
-		| undefined,
+	onRun: HookFunction<[EffectName | undefined]> | undefined,
 	name: EffectName | undefined
 ): void {
 	const isFirstRun = !prevDeps
@@ -1070,21 +1028,8 @@ function executeEffectBody(
 function runEffectSafely(
 	eff: EffectFunction,
 	fn: EffectCallback,
-	onRun:
-		| HookFunction<
-				[
-					EffectName | undefined,
-				]
-		  >
-		| undefined,
-	onError:
-		| HookFunction<
-				[
-					Error,
-					EffectName | undefined,
-				]
-		  >
-		| undefined,
+	onRun: HookFunction<[EffectName | undefined]> | undefined,
+	onError: HookFunction<[Error, EffectName | undefined]> | undefined,
 	name: EffectName | undefined
 ): void {
 	const prev = currentEffect
@@ -1094,6 +1039,7 @@ function runEffectSafely(
 	} catch (err) {
 		clearRerunState()
 		cleanupEffectOnError(eff)
+		effectErrorHandled = onError !== undefined
 		callHookSafe(onError, err as Error, name)
 		throw err
 	} finally {
@@ -1115,7 +1061,12 @@ function registerChildEffect(eff: EffectFunction): void {
 }
 
 /** Run a function whenever its tracked dependencies change. Returns an {@linkcode Unsubscribe} disposal function. */
-export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe {
+export function effect(
+	fn: EffectCallback,
+	name?: EffectName,
+	hooks?: EffectHooks,
+	options?: EffectOptions
+): Unsubscribe {
 	const onRun = composeHook(hooks?.onRun)
 	const onDispose = composeHook(hooks?.onDispose)
 	const onError = composeHook(hooks?.onError)
@@ -1129,8 +1080,14 @@ export function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHook
 		runEffectSafely(runEffect, fn, onRun, onError, name)
 	}
 
-	attachEffectHooks(runEffect, onDependencyAdd, onDependencyChange, onSchedule)
+	if (onDependencyAdd || onDependencyChange || onSchedule) {
+		runEffect.__hooks = { onDependencyAdd, onDependencyChange, onSchedule }
+	}
 	registerChildEffect(runEffect)
+
+	if (options?.schedule) {
+		runEffect.__schedule = options.schedule
+	}
 
 	if (name) {
 		runEffect.effectName = name
@@ -1160,6 +1117,7 @@ function flushDirtyTargets(): void {
 
 function clearBatchState(): void {
 	pendingEffects.clear()
+	pendingMicroEffects.clear()
 	deferredEffectCreations.length = 0
 	dirtyTargets.clear()
 }
@@ -1179,6 +1137,7 @@ function flushBatchEffects(): void {
 	try {
 		runDeferredEffects()
 		if (pendingEffects.size > 0) flushEffects()
+		notifySettledOutsideFlush()
 	} catch (err) {
 		clearBatchState()
 		throw err
@@ -1187,14 +1146,7 @@ function flushBatchEffects(): void {
 
 function handleBatchError(
 	err: unknown,
-	onBatchError:
-		| HookFunction<
-				[
-					Error,
-					number,
-				]
-		  >
-		| undefined,
+	onBatchError: HookFunction<[Error, number]> | undefined,
 	entryDepth: number
 ): void {
 	batchDepth--
@@ -1256,24 +1208,21 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 	return result
 }
 
-function runDeriveComputation<T>(
-	computeFn: () => T,
+function isThenable(value: unknown): value is Promise<unknown> {
+	// Promise resolution only treats objects and functions as thenables; primitives skip the .then lookup
+	if (value === null || (typeof value !== 'object' && typeof value !== 'function')) return false
+	return typeof (value as { then?: unknown }).then === 'function'
+}
+
+function writeDeriveValue<T>(
 	internalState: {
 		lastValue: T | undefined | null
 	},
 	reactiveInternal: {
 		value: T | undefined | null
 	} | null,
-	onCompute:
-		| HookFunction<
-				[
-					T | undefined,
-				]
-		  >
-		| undefined
+	newValue: T
 ): void {
-	callHookSafe(onCompute, internalState.lastValue as T | undefined)
-	const newValue = computeFn()
 	if (!Object.is(newValue, internalState.lastValue)) {
 		internalState.lastValue = newValue
 		if (reactiveInternal) {
@@ -1282,57 +1231,48 @@ function runDeriveComputation<T>(
 	}
 }
 
-function resolveDeriveValue<T>(
-	target: {
-		value: T | undefined | null
+function setDerivePending(
+	internalState: {
+		pending: boolean
 	},
 	reactiveInternal: {
-		value: T | undefined | null
-	} | null
-): T | undefined | null {
-	return reactiveInternal && currentEffect ? reactiveInternal.value : target.value
-}
-
-function toggleDeriveReactivity(
-	value: boolean,
-	wasReactive: boolean,
-	hasDispose: boolean,
-	createEffect: () => void,
-	disposeEffect: () => void
+		pending: boolean
+	} | null,
+	pending: boolean
 ): void {
-	if (value && !wasReactive && !hasDispose) {
-		createEffect()
-	} else if (!value && wasReactive && hasDispose) {
-		disposeEffect()
+	if (internalState.pending === pending) return
+	// write through the proxy when present: a raw pre-write would make the proxy set a no-op and swallow notification
+	if (reactiveInternal) {
+		reactiveInternal.pending = pending
+	} else {
+		internalState.pending = pending
 	}
 }
 
-function runDeriveWithErrorHandling<T>(
-	computeFn: () => T,
+function computeDerive<T>(
+	computeFn: () => T | Promise<T>,
 	internalState: {
 		lastValue: T | undefined | null
+		pending: boolean
 	},
 	reactiveInternal: {
+		pending: boolean
 		value: T | undefined | null
 	} | null,
-	onCompute:
-		| HookFunction<
-				[
-					T | undefined,
-				]
-		  >
-		| undefined,
-	onError:
-		| HookFunction<
-				[
-					Error,
-				]
-		  >
-		| undefined,
+	onCompute: HookFunction<[T | undefined]> | undefined,
+	onError: HookFunction<[Error]> | undefined,
+	onAsync: (result: Promise<T>) => void,
 	cleanup: () => void
 ): void {
 	try {
-		runDeriveComputation(computeFn, internalState, reactiveInternal, onCompute)
+		callHookSafe(onCompute, internalState.lastValue as T | undefined)
+		const newValue = computeFn()
+		if (isThenable(newValue)) {
+			onAsync(newValue as Promise<T>)
+		} else {
+			writeDeriveValue(internalState, reactiveInternal, newValue as T)
+			setDerivePending(internalState, reactiveInternal, false)
+		}
 	} catch (err) {
 		callHookSafe(onError, err as Error)
 		throw err
@@ -1342,7 +1282,9 @@ function runDeriveWithErrorHandling<T>(
 }
 
 /** Eagerly compute a value from reactive dependencies. Returns a {@linkcode ComputedValue} — set `reactive` to `false` to dispose. */
-export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T> {
+export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
+export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
+export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T> {
 	const onCompute = composeHook(hooks?.onCompute)
 	const onCacheHit = composeHook(hooks?.onCacheHit)
 	const onDeriveDispose = composeHook(hooks?.onDispose)
@@ -1351,11 +1293,13 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 
 	const internalState = {
 		lastValue: undefined as T | undefined | null,
+		pending: false,
 		reactive: true,
 		value: undefined as T | undefined | null,
 	}
 
 	let dispose: Unsubscribe | null = null
+	let generation = 0
 	let isComputing = false
 	let reactiveInternal: typeof internalState | null = null
 
@@ -1375,9 +1319,39 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 				if (!internalState.reactive || isComputing) return
 
 				isComputing = true
-				runDeriveWithErrorHandling(computeFn, internalState, reactiveInternal, onCompute, onError, () => {
-					isComputing = false
-				})
+				computeDerive(
+					computeFn,
+					internalState,
+					reactiveInternal,
+					onCompute,
+					onError,
+					(result: Promise<T>): void => {
+						// a newer computation bumps generation; a sync result or dispose clears pending; either discards this settle
+						const gen = ++generation
+						setDerivePending(internalState, reactiveInternal, true)
+						result.then(
+							(value: T): void => {
+								if (gen !== generation || !internalState.pending) return
+								settleProcessed = true
+								batch((): void => {
+									writeDeriveValue(internalState, reactiveInternal, value)
+									setDerivePending(internalState, reactiveInternal, false)
+								})
+							},
+							(err: unknown): void => {
+								if (gen !== generation || !internalState.pending) return
+								settleProcessed = true
+								batch((): void => {
+									setDerivePending(internalState, reactiveInternal, false)
+								})
+								callHookSafe(onError, err as Error)
+							}
+						)
+					},
+					(): void => {
+						isComputing = false
+					}
+				)
 			},
 			undefined,
 			internalEffectHooks
@@ -1389,6 +1363,7 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 			callHookSafe(onDeriveDispose)
 			dispose()
 			dispose = null
+			setDerivePending(internalState, reactiveInternal, false)
 			reactiveInternal = null
 		}
 	}
@@ -1397,12 +1372,23 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 		createEffect()
 	}
 
+	const readValue = (): T | undefined | null => {
+		if (untilEvaluating) {
+			untilSawPending = untilSawPending || internalState.pending
+			if (reactiveInternal && currentEffect) void reactiveInternal.pending
+		}
+		const value = reactiveInternal && currentEffect ? reactiveInternal.value : internalState.value
+		callHookSafe(onCacheHit, value as T, !isComputing)
+		return value
+	}
+
 	return new Proxy(internalState, {
 		get(target: typeof internalState, prop: PropertyKey): unknown {
 			if (prop === 'value') {
-				const value = resolveDeriveValue(target, reactiveInternal)
-				callHookSafe(onCacheHit, value as T, !isComputing)
-				return value
+				return readValue()
+			}
+			if (prop === 'pending') {
+				return reactiveInternal && currentEffect ? reactiveInternal.pending : target.pending
 			}
 			if (prop === 'reactive') {
 				return target.reactive
@@ -1413,10 +1399,123 @@ export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedV
 			if (prop === 'reactive') {
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
-				toggleDeriveReactivity(value as boolean, wasReactive, !!dispose, createEffect, disposeEffect)
+				if (value && !wasReactive && !dispose) createEffect()
+				else if (!value && wasReactive && dispose) disposeEffect()
 				return true
 			}
 			return false
 		},
 	}) as ComputedValue<T>
+}
+
+function notifySettledIfQuiet(): void {
+	if (pendingEffects.size > 0 || effectQueue.length > 0 || microtaskFlushArmed) return
+	if (!flushProcessed && !settleProcessed) return
+	flushProcessed = false
+	settleProcessed = false
+	// runs on every flush: skip creating an iterator when nothing listens
+	if (settledCallbacks.size === 0) return
+	for (const callback of settledCallbacks) {
+		try {
+			callback()
+		} catch {}
+	}
+}
+
+// Callback writes queue while isNotifying is set; outside a flush they are flushed once every callback has returned
+function notifySettledOutsideFlush(): void {
+	if (isNotifying) {
+		notifySettledIfQuiet()
+		return
+	}
+	isNotifying = true
+	notifySettledIfQuiet()
+	isNotifying = false
+	flushEffects()
+}
+
+/** Invoke a callback whenever the reactive graph reaches quiescence after processing work. Returns an unsubscribe. */
+export function onSettled(callback: SettledCallback): Unsubscribe {
+	settledCallbacks.add(callback)
+	return (): void => {
+		settledCallbacks.delete(callback)
+	}
+}
+
+function runUntil<T>(
+	predicate: () => T,
+	options: UntilOptions | undefined,
+	resolve: (value: T) => void,
+	reject: (reason: unknown) => void
+): void {
+	const signal = options?.signal
+	const timeout = options?.timeout
+	let done = false
+	let stop: Unsubscribe = (): void => {}
+	let timer: ReturnType<typeof setTimeout> | undefined
+	const cleanup = (): void => {
+		if (timer !== undefined) clearTimeout(timer)
+		if (signal) signal.removeEventListener('abort', onAbort)
+		const unsubscribe = stop
+		stop = (): void => {}
+		unsubscribe()
+	}
+	const fail = (reason: unknown): void => {
+		if (done) return
+		done = true
+		cleanup()
+		reject(reason)
+	}
+	const onAbort = (): void => {
+		fail(signal?.reason)
+	}
+	if (signal)
+		signal.addEventListener('abort', onAbort, {
+			once: true,
+		})
+	if (timeout !== undefined) {
+		timer = setTimeout((): void => {
+			fail(new Error(`until() timed out after ${timeout}ms`))
+		}, timeout)
+	}
+	stop = effect((): void => {
+		if (done) return
+		untilSawPending = false
+		untilEvaluating = true
+		let value: T
+		try {
+			value = predicate()
+		} catch (err) {
+			// The error belongs to the awaiter, not the writer; settle on a microtask so `stop` is assigned on a first-run throw
+			done = true
+			queueMicrotask((): void => {
+				cleanup()
+				reject(err)
+			})
+			return
+		} finally {
+			untilEvaluating = false
+		}
+		if (value && !untilSawPending) {
+			done = true
+			queueMicrotask((): void => {
+				cleanup()
+				resolve(value)
+			})
+		}
+	})
+}
+
+/** Resolve with the predicate's value once a settled evaluation is truthy. Must not be called inside a reactive scope. */
+export function until<T>(predicate: () => T, options?: UntilOptions): Promise<T> {
+	if (currentEffect) {
+		throw new Error('until() must not be called inside a reactive scope')
+	}
+	const signal = options?.signal
+	if (signal?.aborted) {
+		return Promise.reject(signal.reason)
+	}
+	return new Promise<T>((resolve, reject): void => {
+		runUntil(predicate, options, resolve, reject)
+	})
 }

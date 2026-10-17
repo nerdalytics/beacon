@@ -1,5 +1,4 @@
-import { getValidVersions, readPageMarkdown, slugFromHref, validateVersion } from '#lib/llm-docs'
-import { getAllPages } from '#lib/navigation'
+import { getValidVersions, renderLlmsFull, validateVersion } from '#lib/llm-docs'
 import type { RequestHandler } from './$types'
 
 export const prerender = true
@@ -20,14 +19,7 @@ export const GET: RequestHandler = ({
 	}
 }) => {
 	const version = validateVersion(params.version)
-	const pages = getAllPages(`/${version}`)
-
-	const body = pages
-		.map((p) => {
-			const slug = slugFromHref(p.href)
-			return readPageMarkdown(version, slug)
-		})
-		.join('\n\n---\n\n')
+	const body = renderLlmsFull(version)
 
 	return new Response(body, {
 		headers: {

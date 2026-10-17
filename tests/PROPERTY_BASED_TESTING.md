@@ -74,7 +74,7 @@ Implemented in `property-dynamic-deps.test.ts`.
 ### 11. Frozen/Sealed Object Reactivity (WeakMap Fallback Paths) — Done
 
 Implemented in `property-frozen-sealed.test.ts`. Two suites: synthetic root-level sealed/frozen
-objects (8 properties exercising proxyCacheSubs, frozenMethodCache, proxyCache WeakMap paths), and
+objects (8 properties exercising proxyCacheSubs, arrayMethodCache, proxyCache WeakMap paths), and
 real-use-case frozen children of extensible parents (7 properties: replacement triggers effects,
 read-through returns correct values, proxy identity stable across reads, derive updates on
 replacement, batch replacement deduplicates, all primitive properties readable, same-ref is no-op).

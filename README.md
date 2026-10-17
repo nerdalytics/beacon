@@ -7,7 +7,7 @@
 [![pm:jsr](https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black)](https://jsr.io/@nerdalytics/beacon)
 [![pm:vlt](https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white)](https://vlt.sh/)
 [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
-[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2000.0.0)
+[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2001.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2001.0.0)
 
 [![tech:nodejs](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
@@ -53,6 +53,38 @@ signal.count = 5;
 dispose();
 doubled.reactive = false;
 ```
+
+## Async API (v2001)
+
+### Async derive and `pending`
+
+`derive` accepts async compute functions. While a computation is in flight the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
+
+```typescript
+const user = derive(async () => (await db.users.find(signal.id)) ?? null);
+effect(() => {
+  if (user.pending) return;
+  console.log(user.value);
+});
+```
+
+### `until`
+
+`until(predicate, { timeout?, signal? })` resolves with the predicate's value once a settled evaluation is truthy — safe to await inside request handlers. It throws when called inside a reactive scope and disposes itself on settle, timeout, or abort.
+
+```typescript
+await until(() => cache.warm, { timeout: 5000 });
+```
+
+### `onSettled`
+
+`onSettled(callback)` invokes the callback whenever the graph reaches quiescence after processing work (a flush or an async settlement). Returns an unsubscribe function.
+
+### Effect `schedule` option
+
+`effect(fn, name, hooks, { schedule: 'microtask' })` defers re-runs to a microtask, coalescing writes across await boundaries into one run. The default `'sync'` preserves v2000 timing exactly.
+
+**Migration note:** synchronous `derive` and default-schedule effects behave exactly as in v2000; the only consumer-visible changes are the new `pending` field on computed values and async compute support.
 
 ## Documentation
 

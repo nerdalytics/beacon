@@ -64,20 +64,12 @@ describe('Effect Core', {
 			results.push('third')
 		})
 
-		assert.deepStrictEqual(results, [
-			'first',
-			'second',
-			'third',
-		])
+		assert.deepStrictEqual(results, ['first', 'second', 'third'])
 
 		results.length = 0
 		$state.value = 1
 
-		assert.deepStrictEqual(results, [
-			'first',
-			'second',
-			'third',
-		])
+		assert.deepStrictEqual(results, ['first', 'second', 'third'])
 
 		dispose1()
 		dispose2()

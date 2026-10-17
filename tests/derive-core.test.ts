@@ -97,13 +97,7 @@ describe('Derive Core', {
 
 	it('computes complex transformations', (): void => {
 		const $items = state({
-			list: [
-				1,
-				2,
-				3,
-				4,
-				5,
-			],
+			list: [1, 2, 3, 4, 5],
 		})
 
 		const $sum = derive((): number => $items.list.reduce((a: number, b: number): number => a + b, 0))
@@ -114,27 +108,12 @@ describe('Derive Core', {
 
 		assert.strictEqual($sum.value, 15)
 		assert.strictEqual($avg.value, 3)
-		assert.deepStrictEqual(
-			$filtered.value,
-			[
-				3,
-				4,
-				5,
-			]
-		)
+		assert.deepStrictEqual($filtered.value, [3, 4, 5])
 
 		$items.list.push(6)
 		assert.strictEqual($sum.value, 21)
 		assert.strictEqual($avg.value, 3.5)
-		assert.deepStrictEqual(
-			$filtered.value,
-			[
-				3,
-				4,
-				5,
-				6,
-			]
-		)
+		assert.deepStrictEqual($filtered.value, [3, 4, 5, 6])
 	})
 
 	it('handles same-value updates efficiently', (): void => {

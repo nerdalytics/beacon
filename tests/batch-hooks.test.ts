@@ -18,12 +18,7 @@ describe('Batch Hooks', {
 				depths.push(depth)
 			},
 		})
-		assert.deepStrictEqual(
-			depths,
-			[
-				1,
-			]
-		)
+		assert.deepStrictEqual(depths, [1])
 	})
 
 	it('fires onBatchEnd with correct depth', () => {
@@ -33,19 +28,11 @@ describe('Batch Hooks', {
 				depths.push(depth)
 			},
 		})
-		assert.deepStrictEqual(
-			depths,
-			[
-				1,
-			]
-		)
+		assert.deepStrictEqual(depths, [1])
 	})
 
 	it('fires onBatchError with error and depth', () => {
-		const errors: [
-			Error,
-			number,
-		][] = []
+		const errors: [Error, number][] = []
 		assert.throws(
 			() => {
 				batch(
@@ -54,10 +41,7 @@ describe('Batch Hooks', {
 					},
 					{
 						onBatchError: (err: Error, depth: number) => {
-							errors.push([
-								err,
-								depth,
-							])
+							errors.push([err, depth])
 						},
 					}
 				)
@@ -93,20 +77,8 @@ describe('Batch Hooks', {
 		batch(() => {
 			batch(() => {}, innerHooks)
 		}, outerHooks)
-		assert.deepStrictEqual(
-			starts,
-			[
-				1,
-				2,
-			]
-		)
-		assert.deepStrictEqual(
-			ends,
-			[
-				2,
-				1,
-			]
-		)
+		assert.deepStrictEqual(starts, [1, 2])
+		assert.deepStrictEqual(ends, [2, 1])
 	})
 
 	it('isolates hook errors from batch execution', () => {

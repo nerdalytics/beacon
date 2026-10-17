@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { error } from '@sveltejs/kit'
 import { getAllPages } from '#lib/navigation'
-import { resolveVersionLabel, versions } from '#lib/versions'
+import { latestSource, resolveVersionLabel, versions } from '#lib/versions'
 
 const FRONTMATTER_BLANKS_RE = /^(---[\s\S]*?---\n)\n+/
 const ROUTES_DIR: string = join(process.cwd(), 'src', 'routes')
@@ -10,7 +10,7 @@ const SCRIPT_BLOCK_RE = /<script\b[\s\S]*?<\/script\b[^>]*>\s*/gi
 const VERSION_LINK_RE = /<VersionLink\s+path="([^"]*)">([\s\S]*?)<\/VersionLink>/g
 const VERSION_TAG_RE = /<Version\s*\/>/g
 
-/** Set of valid version prefixes without leading slash: 'latest', 'v1000.3.1', etc. */
+/** Set of valid version prefixes without leading slash: 'latest', 'v1000.3.3', etc. */
 const VALID_VERSIONS: Set<string> = new Set(versions.map((v) => v.prefix.slice(1)))
 
 /** Extract the last segment of an href path (e.g., '/latest/state' → 'state'). */
@@ -61,12 +61,21 @@ function stripSvelteArtifacts(markdown: string, versionPrefix: string): string {
 export function readPageMarkdown(version: string, page: string): string {
 	const safeVersion = validateVersion(version)
 	const safePage = validatePage(safeVersion, page)
-	const filePath = join(ROUTES_DIR, safeVersion, safePage, '+page.md')
+	const dir = safeVersion === 'latest' ? latestSource : safeVersion
+	const filePath = join(ROUTES_DIR, dir, safePage, '+page.md')
 	try {
 		const raw = readFileSync(filePath, 'utf-8')
 		return stripSvelteArtifacts(raw, safeVersion)
 	} catch (err: unknown) {
-		if (err instanceof Error && 'code' in err && (err as { code?: string }).code === 'ENOENT') {
+		if (
+			err instanceof Error &&
+			'code' in err &&
+			(
+				err as {
+					code?: string
+				}
+			).code === 'ENOENT'
+		) {
 			error(404, 'Not found. See /llms.txt for available versions and pages.')
 		}
 		throw err
@@ -76,4 +85,39 @@ export function readPageMarkdown(version: string, page: string): string {
 /** Return all valid version strings (without leading slash), in versions.ts declaration order. */
 export function getValidVersions(): string[] {
 	return versions.map((v) => v.prefix.slice(1))
+}
+
+/** Render the llms.txt index body for a version prefix, with links rooted at base. */
+export function renderLlmsIndex(version: string, base: string): string {
+	const pages = getAllPages(`/${version}`)
+	const pageLines = pages
+		.map((p) => {
+			const slug = slugFromHref(p.href)
+			return `- [${p.title}](${base}/${version}/${slug}.md)`
+		})
+		.join('\n')
+
+	return `# Beacon — ${version}
+
+> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the signal level. When state changes, derived values and effects update automatically.
+
+## Pages
+
+${pageLines}
+
+## Full documentation
+
+- [All pages merged](${base}/${version}/llms-full.txt)
+`
+}
+
+/** Render the merged llms-full.txt body for a version prefix. */
+export function renderLlmsFull(version: string): string {
+	const pages = getAllPages(`/${version}`)
+	return pages
+		.map((p) => {
+			const slug = slugFromHref(p.href)
+			return readPageMarkdown(version, slug)
+		})
+		.join('\n\n---\n\n')
 }
