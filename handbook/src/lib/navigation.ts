@@ -194,12 +194,12 @@ const currentConfig: NavConfig = {
 	hasRecipes: true,
 	hasSelect: false,
 	hasSettle: true,
-	migration: 'v2000.0.0 \u2192 v3000.0.0',
+	migration: 'v2000.0.0 \u2192 v2001.0.0',
 }
 
 const versionConfigs: [string, NavConfig][] = [
 	['/latest', currentConfig],
-	['/v3000.0.0', currentConfig],
+	['/v2001.0.0', currentConfig],
 	[
 		'/v2000.0.0',
 		{

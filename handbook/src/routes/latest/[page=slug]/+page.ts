@@ -11,7 +11,7 @@ const pages: Record<
 	}>
 > = import.meta.glob<{
 	default: Component
-}>('../../v3000.0.0/*/+page.md')
+}>('../../v2001.0.0/*/+page.md')
 
 const slugOf = (path: string): string => path.split('/').at(-2) ?? ''
 

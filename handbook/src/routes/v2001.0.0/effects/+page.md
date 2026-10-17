@@ -401,7 +401,7 @@ test('effect tracks dependencies', () => {
 })
 ```
 
-## Scheduling (v3000)
+## Scheduling (v2001)
 
 Effects accept a `schedule` option. The default `'sync'` preserves v2000 execution timing exactly: the effect runs before the write call returns. `'microtask'` defers re-runs to a microtask, coalescing writes that happen across await boundaries into a single run.
 

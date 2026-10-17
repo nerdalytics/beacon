@@ -225,7 +225,7 @@ Custom hooks can be published as separate npm packages and consumed as peer depe
 {
   "name": "@myorg/beacon-hooks-audit",
   "peerDependencies": {
-    "@nerdalytics/beacon": "^2000.0.0"
+    "@nerdalytics/beacon": "^2001.0.0"
   }
 }
 ```

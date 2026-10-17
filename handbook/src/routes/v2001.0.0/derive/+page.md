@@ -439,7 +439,7 @@ test('derive supports disposal via reactive toggle', () => {
 6. **Use effects for side effects** — keep derives pure
 7. **Consider lifecycle** — short-lived derives should set `reactive = false` promptly
 
-## Async computations (v3000)
+## Async computations (v2001)
 
 `derive` accepts compute functions that return promises. Dependencies read before the first await are tracked as usual; the value updates when the promise settles.
 

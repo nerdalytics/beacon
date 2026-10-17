@@ -7,7 +7,7 @@
 [![pm:jsr](https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black)](https://jsr.io/@nerdalytics/beacon)
 [![pm:vlt](https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white)](https://vlt.sh/)
 [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
-[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2000.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2000.0.0)
+[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2001.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2001.0.0)
 
 [![tech:nodejs](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
@@ -54,7 +54,7 @@ dispose();
 doubled.reactive = false;
 ```
 
-## Epoch 3 API (v3000)
+## Async API (v2001)
 
 ### Async derive and `pending`
 
