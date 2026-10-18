@@ -142,6 +142,47 @@ describe('Derive Hooks', {
 		$d.reactive = false
 	})
 
+	it('fires every onDependencyChange in an array after re-enabling reactivity', () => {
+		const changes: string[] = []
+		const $s = state({
+			count: 0,
+		})
+		const $d = derive(() => $s.count * 2, {
+			onDependencyChange: [
+				(_target: object, prop: PropertyKey) => {
+					changes.push(`a:${String(prop)}`)
+				},
+				(_target: object, prop: PropertyKey) => {
+					changes.push(`b:${String(prop)}`)
+				},
+			],
+		})
+		$d.reactive = false
+		$d.reactive = true
+		changes.length = 0
+		$s.count = 1
+		assert.deepStrictEqual(changes, ['a:count', 'b:count'])
+		assert.strictEqual($d.value, 2)
+		$d.reactive = false
+	})
+
+	it('recomputes on dependency writes when hooks omit onDependencyChange', () => {
+		const computed: (number | undefined)[] = []
+		const $s = state({
+			count: 1,
+		})
+		const $d = derive(() => $s.count * 10, {
+			onCompute: (prev: number | undefined) => {
+				computed.push(prev)
+			},
+		})
+		$s.count = 2
+		$s.count = 3
+		assert.deepStrictEqual(computed, [undefined, 10, 20])
+		assert.strictEqual($d.value, 30)
+		$d.reactive = false
+	})
+
 	it('isolates hook errors from derive functionality', () => {
 		const $s = state({
 			count: 1,

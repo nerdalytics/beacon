@@ -143,8 +143,7 @@ addPendingEffect(subscriber)
 |----------|---------|
 | `cleanupEffect` | Removes from subscribers, then `resetEffectTracking` |
 | `resetEffectTracking` | Dequeues from both pending sets, clears `__deps`/`__reads`/`__readList`/`__prevDeps`/`__prevReads` |
-| `cleanupEffectCompletely` | `cleanupEffect` + iterative child cleanup (avoids stack overflow) |
-| `cleanupChildEffect` | Cleans one child + pushes grandchildren onto iterative queue |
+| `cleanupEffectCompletely` | One iterative loop over the effect and all descendants: `cleanupEffect`, unlink parent/children, deactivate (avoids stack overflow) |
 | `cleanupEffectOnError` | Emergency cleanup on error — removes from all subscriber sets |
 | `removeEffectFromSubscribers` | Removes effect from all subscriber sets in a dep set |
 
