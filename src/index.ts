@@ -1124,13 +1124,11 @@ function clearBatchState(): void {
 
 function runDeferredEffects(): void {
 	const len = deferredEffectCreations.length
-	if (len > 0) {
-		for (let i = 0; i < len; i++) {
-			const eff = deferredEffectCreations[i]
-			if (eff) eff()
-		}
-		deferredEffectCreations.length = 0
+	for (let i = 0; i < len; i++) {
+		const eff = deferredEffectCreations[i]
+		if (eff) eff()
 	}
+	deferredEffectCreations.length = 0
 }
 
 function flushBatchEffects(): void {
