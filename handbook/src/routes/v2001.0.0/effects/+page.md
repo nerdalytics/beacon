@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-`effect()` creates reactive functions that re-run automatically when their dependencies change. Effects bridge reactive state to side effects — logging, network requests, DOM updates, and so on.
+`effect()` creates reactive functions that re-run automatically when their dependencies change. Effects connect reactive state to side effects such as logging, network requests, and DOM updates.
 
 ## API
 
@@ -67,11 +67,11 @@ $user.role = 'user' // Does NOT trigger effect
 
 ## How it works
 
-1. **Initial run**: Effect runs immediately when created
-2. **Dependency tracking**: During execution, any reactive property access is recorded
-3. **Subscription**: Effect subscribes to all accessed properties
-4. **Re-execution**: When dependencies change, the effect is queued for re-run
-5. **Cleanup**: Old dependencies are cleaned up before each new run
+1. **Initial run.** The effect runs immediately when created
+2. **Dependency tracking.** During execution, any reactive property access is recorded
+3. **Subscription.** The effect subscribes to all accessed properties
+4. **Re-execution.** When dependencies change, the effect is queued for re-run
+5. **Cleanup.** Old dependencies are cleaned up before each new run
 
 ```
 Create Effect -> Set as Current -> Run Function -> Track Deps -> Wait for Changes
@@ -130,7 +130,7 @@ effect(() => {
 
 Beacon is not a compiler. It cannot statically analyze whether the effect would eventually exit, so it treats any read-then-write to the same property as an error.
 
-The guard does not throw for nested child effects or for `'microtask'` effects. A `'microtask'` effect that keeps writing its own dependency is stopped by the microtask chain limit instead (see Scheduling below).
+The guard does not throw for nested child effects or for `'microtask'` effects. A `'microtask'` effect that keeps writing its own dependency is stopped by the microtask chain limit instead. See Scheduling below.
 
 ### Safe patterns
 
@@ -149,7 +149,7 @@ const doubled = derive(() => $counter.count * 2)
 
 ## Conditional dependencies
 
-Effects only track what they actually access in a given run:
+Effects track only what they access in a given run:
 
 ```typescript
 const $s = state({ useA: true, a: 1, b: 2 })
@@ -295,7 +295,7 @@ function setupComponent() {
 
 ### Async callbacks don't track dependencies
 
-Beacon tracks dependencies by setting a global `currentEffect` during effect execution. Async callbacks — `setTimeout`, `Promise.then`, event handlers — run after the effect finishes, when `currentEffect` is null.
+Beacon tracks dependencies by setting a global `currentEffect` during effect execution. Async callbacks run after the effect finishes, when `currentEffect` is null. This includes `setTimeout`, `Promise.then`, and event handlers.
 
 ```typescript
 // Won't track dependencies
@@ -314,7 +314,7 @@ effect(() => {
 })
 ```
 
-This applies to Promise callbacks (`.then()`, `.catch()`, `async/await`) and event handlers too.
+This applies to Promise callbacks such as `.then()`, `.catch()`, and `async/await`, and to event handlers too.
 
 ### Array index tracking
 
@@ -338,7 +338,7 @@ $list.items[0] = 99 // Triggers first effect only
 $list.items[5] = 99 // Triggers second effect (length changes)
 ```
 
-Array mutating methods like `push()`, `pop()`, `splice()` notify all subscribers because they can affect multiple properties (indices, length).
+Array mutating methods such as `push()`, `pop()`, and `splice()` notify all subscribers because they can change multiple properties, such as indices and length.
 
 ## Integration examples
 
@@ -403,7 +403,7 @@ test('effect tracks dependencies', () => {
 
 ## Scheduling (v2001)
 
-Effects accept a `schedule` option. The default `'sync'` preserves v2000 execution timing exactly: the effect runs before the write call returns. `'microtask'` defers re-runs to a microtask, coalescing writes that happen across await boundaries into a single run.
+Effects accept a `schedule` option. The default `'sync'` preserves v2000 execution timing exactly. The effect runs before the write call returns. `'microtask'` defers re-runs to a microtask, coalescing writes that happen across await boundaries into a single run.
 
 ```typescript
 effect(
@@ -420,8 +420,8 @@ $session.user = 'ada'
 $session.role = 'admin'
 ```
 
-- **Same-turn coalescing** — multiple writes to observed properties within one microtask turn produce exactly one run, observing the final values
-- **Batch boundary precedence** — a microtask-scheduled effect notified inside `batch` runs after the outermost boundary exits, in a later microtask turn
-- **Guard scope** — the synchronous write-during-read infinite-loop guard applies unchanged to `'sync'` effects; a `'microtask'` effect that writes its own dependency re-runs on the following turn instead of throwing. These re-runs never yield to timers or I/O, so they are capped: after 100 consecutive microtask flushes, each scheduled from inside the one before it (a self-writing effect, `'microtask'` effects writing each other's dependencies, or an `onSettled` callback that wakes a `'microtask'` effect), the pending `'microtask'` effects are dropped and an `Infinite loop detected` error goes to `console.error`. Dropped effects stay subscribed, and the next write from outside a microtask flush starts a new count. A self-write that stores the value already present schedules nothing and ends the chain. Cycles between `'sync'` effects are not capped
-- **Observability** — the `onSchedule` hook fires at notification time for both schedules, before any deferred run
-- **Errors** — a throw during a microtask flush has no caller to reach, so it is not rethrown: the throwing effect is disposed and its `onError` hook fires (without `onError`, the error goes to `console.error`), and the other effects in that flush still run. This covers `'sync'` effects that a `'microtask'` effect's writes trigger. A `'microtask'` effect's first run is synchronous and still throws to the `effect()` caller. The microtask chain limit is reported with `console.error` only; no effect's `onError` fires
+- **Same-turn coalescing.** Multiple writes to observed properties within one microtask turn produce exactly one run, observing the final values
+- **Batch boundary precedence.** A microtask-scheduled effect notified inside `batch` runs after the outermost boundary exits, in a later microtask turn
+- **Guard scope.** The synchronous write-during-read infinite-loop guard applies unchanged to `'sync'` effects. A `'microtask'` effect that writes its own dependency re-runs on the following turn instead of throwing. These re-runs never yield to timers or I/O, so they are capped. After 100 consecutive microtask flushes, each scheduled from inside the one before it, Beacon drops the pending `'microtask'` effects. It sends an `Infinite loop detected` error to `console.error`. The chain can be built by a self-writing effect, by `'microtask'` effects writing each other's dependencies, or by an `onSettled` callback that wakes a `'microtask'` effect. Dropped effects stay subscribed, and the next write from outside a microtask flush starts a new count. A self-write that stores the value already present schedules nothing and ends the chain. Cycles between `'sync'` effects are not capped.
+- **Observability.** The `onSchedule` hook fires at notification time for both schedules, before any deferred run
+- **Errors.** A throw during a microtask flush has no caller to receive it, so it is not rethrown. The throwing effect is disposed and its `onError` hook fires. Without `onError`, the error goes to `console.error`. The other effects in that flush still run. This covers `'sync'` effects that a `'microtask'` effect's writes trigger. A `'microtask'` effect's first run is synchronous and still throws to the `effect()` caller. The microtask chain limit is reported with `console.error` only, and no effect's `onError` fires

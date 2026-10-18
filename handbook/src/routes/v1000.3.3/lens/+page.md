@@ -12,7 +12,7 @@ function lens<T, K>(
 ): State<K>
 ```
 
-Returns a writable `State<K>` focused on a nested property of `source`. Reads return the value at that path. Writes immutably update the source at that path.
+Returns a writable `State<K>` bound to a nested property of `source`. Reads return the value at that path. Writes immutably update the source at that path.
 
 ## Basic usage
 
@@ -41,7 +41,7 @@ $host.set('127.0.0.1')
 
 `select()` returns a read-only `ReadOnlyState<R>`. It subscribes to a slice but cannot write back.
 
-`lens()` returns a writable `State<K>`. It subscribes to a slice and can write back to the source, maintaining immutability throughout the object tree.
+`lens()` returns a writable `State<K>`. It subscribes to a slice and can write back to the source. The object tree stays immutable.
 
 | | `select()` | `lens()` |
 |---|---|---|
@@ -71,7 +71,7 @@ $collapsed.set(true)
 console.log($app().ui.panels.sidebar.collapsed) // => true
 ```
 
-Writes rebuild the object tree immutably from the leaf to the root. The source reference changes, triggering effects that depend on it or on intermediate slices.
+Writes rebuild the object tree immutably from the leaf to the root. The source reference changes, so effects that depend on it or on intermediate slices re-run.
 
 ## Array index support
 
@@ -90,7 +90,7 @@ console.log($list().items) // => ['a', 'B', 'c']
 
 ## Circular update prevention
 
-`lens()` uses an `isUpdating` flag to break the source↔lens feedback loop. When the lens writes to the source, the sync effect is suppressed. When the source changes externally, the lens reflects the new value without writing back.
+`lens()` uses an `isUpdating` flag to break the feedback loop between the source and the lens. When the lens writes to the source, the lens suppresses the sync effect. When the source changes externally, the lens reflects the new value without writing back.
 
 ```typescript
 const $config = state({ theme: 'dark' })
@@ -109,7 +109,7 @@ console.log($config().theme) // => "dark"
 
 `lens()` rejects three property names: `__proto__`, `constructor`, and `prototype`. If the accessor traverses any of these keys, the lens silently ignores writes. Reads continue to work.
 
-This is a defense-in-depth measure against prototype pollution. Modern JavaScript engines handle the specific code path safely today, but the guard removes the dependency on engine behavior. The denylist is checked once during path extraction, not on every read or write.
+This is a defense-in-depth measure against prototype pollution. Modern JavaScript engines handle the specific code path safely today, but the guard removes the dependency on engine behavior. Beacon checks the denylist once during path extraction, not on every read or write.
 
 ```typescript
 const $user = state({ name: 'Alice' })

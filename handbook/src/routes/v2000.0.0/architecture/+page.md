@@ -4,14 +4,14 @@ description: How Beacon's reactive system works under the hood
 ---
 
 
-Beacon is a single-file reactive system built on ES Proxies. No virtual DOM, no compiler, no framework runtime. State mutations flow through Proxy traps into a dependency graph that triggers effects with surgical precision.
+Beacon is a single-file reactive system built on ES Proxies. No virtual DOM, no compiler, no framework runtime. State mutations flow through Proxy traps into a dependency graph that triggers effects with surgical precision. Each effect re-runs only when a property it read changes.
 
 ## Design principles
 
-1. **Natural syntax** — standard property access (`state.value`), not function calls
-2. **Fine-grained tracking** — dependencies tracked per property, not per object
-3. **Automatic cleanup** — subscriptions managed through WeakMaps and parent-child relationships
-4. **Zero-cost instrumentation** — optional hooks observe internals without affecting behavior
+1. **Natural syntax.** Standard property access (`state.value`), not function calls
+2. **Fine-grained tracking.** Dependencies are tracked per property, not per object
+3. **Automatic cleanup.** Subscriptions are managed through WeakMaps and parent-child relationships
+4. **Zero-cost instrumentation.** Optional hooks observe internals without affecting behavior
 
 ## Proxy-based state
 
@@ -34,7 +34,7 @@ Every object passed to `state()` gets wrapped in a Proxy. The Proxy intercepts f
    Raw Target   (actual data storage)
 ```
 
-Nested objects are wrapped lazily — the first time you access a nested property, Beacon wraps the child object in its own Proxy. A proxy cache prevents duplicate wrapping.
+Nested objects are wrapped lazily. The first time you access a nested property, Beacon wraps the child object in its own Proxy. A proxy cache prevents duplicate wrapping.
 
 ## Dependency tracking
 
@@ -60,9 +60,9 @@ When an effect runs:
 
 ### Stable dependency skip
 
-On re-runs, effects compare new dependencies against the previous run via `depsMatch`. If dependencies haven't changed, Beacon restores previous tracking structures — no subscriber set teardown or rebuild. If dependencies did change, only stale deps are removed.
+On re-runs, effects compare new dependencies against the previous run via `depsMatch`. If dependencies haven't changed, Beacon restores previous tracking structures. No subscriber set teardown or rebuild happens. If dependencies did change, only stale deps are removed.
 
-Subsequent runs use a `trackingOnly` flag that tells Proxy handlers to use lightweight `trackRead` instead of full `registerEffectRead`, skipping `getSubscribers` + `Set.add`.
+Subsequent runs set an `isTrackingOnly` flag. Proxy handlers then call `recordEffectRead` with `silent` set to `true`, which skips `getSubscribers` and `Set.add`.
 
 ## Effect execution
 
@@ -76,7 +76,7 @@ Effect Creation → Run Function → Compare Deps → Stable? → Restore previo
 
 1. Set `currentEffect`
 2. Save previous dependency snapshot (`__prevDeps`, `__prevReads`)
-3. Run the effect function — dependencies auto-tracked via proxy traps
+3. Run the effect function. Dependencies are tracked automatically through proxy traps.
 4. Compare new deps against previous
 5. Handle nested effects via parent-child relationships
 6. Queue for re-execution on dependency changes
@@ -88,7 +88,7 @@ Beacon uses non-recursive, queue-based propagation:
 1. A state property changes (via `Object.is` comparison)
 2. All subscribers are added to `pendingSubscribers`
 3. If not in a batch, `flushEffects` processes them
-4. Effects copy to an array, `pendingEffects` is cleared, array is iterated
+4. Effects copy to an array, Beacon clears `pendingEffects`, and the loop iterates the array
 5. New effects triggered during iteration go into `pendingEffects` for the next loop iteration
 6. Processing continues until no more effects fire
 
@@ -109,16 +109,16 @@ Batched:
 The batch fast path (`!onWrite && !currentEffect`):
 
 1. Entering a batch increments `batchDepth`
-2. Set handler skips subscriber scheduling — only tracks dirty target-property pairs in `dirtyTargets`
+2. Set handler skips subscriber scheduling. It only tracks dirty target-property pairs in `dirtyTargets`
 3. Effects created during batch go into `deferredEffectCreations`
 4. At `batchDepth === 1` (before decrement): process `dirtyTargets`, call `scheduleSubscribersForTarget` once per unique property
 5. When outermost batch completes: run deferred effects, then `flushEffects()`
 
-State objects with write hooks always use the normal path — hooks fire per-mutation.
+State objects with write hooks always use the normal path, because hooks fire per mutation.
 
 ## Cycle handling
 
-### Direct loops — blocked
+### Direct loops are blocked
 
 An effect that reads and writes the same state throws immediately:
 
@@ -129,9 +129,9 @@ effect(() => {
 })
 ```
 
-Beacon detects this by checking: (1) the update is inside an effect, (2) the effect read from the same state, (3) it's not a nested effect chain.
+Beacon detects this by checking three conditions: the update runs inside an effect, the effect read from the same state, and the effect is not part of a nested effect chain.
 
-### Indirect cycles — allowed
+### Indirect cycles are allowed
 
 Cyclic dependencies across different effects are allowed because queue-based propagation handles them:
 
@@ -140,7 +140,7 @@ effect(() => { target.value = source.value * 2 })
 effect(() => { source.value = target.value / 2 })
 ```
 
-Value equality checks (`Object.is`) break the loop when values stabilize. Converging values stop at floating-point precision limits. Unbounded values continue until hitting JavaScript limits (e.g., `Infinity`).
+Value equality checks (`Object.is`) break the loop when values stabilize. Converging values stop at floating-point precision limits. Unbounded values continue until they reach JavaScript limits such as `Infinity`.
 
 ## Memory management
 
@@ -163,10 +163,10 @@ All tracking maps use WeakMaps:
 
 ### Proxy edge cases
 
-**Array methods**: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse` are intercepted to trigger reactivity.
+**Array methods.** Beacon intercepts `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, and `reverse` to trigger reactivity.
 
-**Frozen/sealed objects**: WeakMap fallbacks store metadata when objects are not extensible.
+**Frozen/sealed objects.** WeakMap fallbacks store metadata when objects are not extensible.
 
-**Symbol properties**: Internal symbols (`[[beacon_subscribers]]`, `[[beacon_proxy]]`) get special handling to avoid interference.
+**Symbol properties.** Beacon gives the internal symbols (`[[beacon_subscribers]]`, `[[beacon_proxy]]`) special handling so they do not interfere.
 
-**Spread operations**: Handled without triggering stack overflows.
+**Spread operations.** Beacon handles them without stack overflows.

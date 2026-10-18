@@ -28,7 +28,7 @@ console.log($total()) // => 500
 
 ## Read-only
 
-`derive()` returns `ReadOnlyState<T>`. There is no `.set()` or `.update()` — the value is controlled entirely by its computation function:
+`derive()` returns `ReadOnlyState<T>`. There is no `.set()` or `.update()`. The computation function alone controls the value:
 
 ```typescript
 const $count = state(0)
@@ -60,7 +60,7 @@ console.log(computed) // => true (computed on first read)
 
 ## Same-value optimization
 
-Derived values use `Object.is()` to compare the previous and new computed values. If the result hasn't changed, downstream effects are not notified:
+Derived values use `Object.is()` to compare the previous and new computed values. If the result has not changed, downstream effects are not notified:
 
 ```typescript
 const $items = state([1, 2, 3])
@@ -112,11 +112,11 @@ $count.set(5)
 // => 10 (effect re-runs because $doubled changed)
 ```
 
-Reading outside of an effect just returns the current value without tracking.
+Reading outside an effect returns the current value without tracking.
 
 ## Derive vs effect
 
-Use `derive()` when you need a **value**. Use `effect()` when you need a **side effect**.
+Use `derive()` when you need a value. Use `effect()` when you need a side effect.
 
 ```typescript
 // Good: derive produces a value

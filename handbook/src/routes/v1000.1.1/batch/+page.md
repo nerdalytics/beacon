@@ -85,7 +85,7 @@ batch(() => {
 
 ## Deferred effect creation
 
-Effects created inside a `batch()` are deferred until the batch completes. This means `effect()` calls inside `batch()` don't run immediately — they are queued and executed after all state updates have been applied:
+Effects created inside a `batch()` are deferred until the batch completes. Calls to `effect()` inside `batch()` don't run immediately. Beacon queues them and runs them after all state updates:
 
 ```typescript
 const $count = state(0)
@@ -132,4 +132,4 @@ console.log($count()) // => 999
 
 Batch when you update multiple signals that feed the same effects. Bulk operations over data, or initialization sequences where intermediate states are meaningless, are good candidates.
 
-A single `.set()` call has no benefit from batching. And because `batch()` is synchronous, `await` inside the callback ends the batch context at the first yield point. Async work belongs outside the batch.
+A single `.set()` call gets no benefit from batching. `batch()` is synchronous, so an `await` inside the callback ends the batch context at the first yield point. Put async work outside the batch.

@@ -18,7 +18,7 @@ const dispose = effect(() => {
 }, 'CountLogger')
 ```
 
-The name flows into hook callbacks (`onRun`, `onError`, `onDispose`, `onSchedule`) and appears in infinite loop error messages.
+The name is passed to the `onRun`, `onError`, `onDispose`, and `onSchedule` hook callbacks, and it appears in infinite loop error messages.
 
 ## Tracing state access
 
@@ -121,11 +121,11 @@ Use `onSchedule` to see when an effect is queued for re-execution. Combine with 
 Use state `onRead` to log every access. Run your code and inspect the output.
 
 **Is my derive recomputing too often?**
-Use `onCompute` and `onCacheHit` counters (see example above). A high compute-to-cache-hit ratio means dependencies change frequently.
+Use the `onCompute` and `onCacheHit` counters in the example above. A high compute-to-cache-hit ratio means dependencies change frequently.
 
 **Which effect threw?**
 Use `onError` with named effects. The effect name is passed as the second argument.
 
 ## Production use
 
-Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. There is no global debug mode to accidentally ship.
+Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. There is no global debug mode that could ship by accident.

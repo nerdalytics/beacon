@@ -5,7 +5,7 @@ description: Plain-text endpoints for referencing Beacon docs in LLM conversatio
 
 ## Overview
 
-The Beacon handbook is available as plain text at every version. These endpoints follow the [llms.txt](https://llmstxt.org/) convention and return content that LLMs can read directly.
+Beacon serves the handbook as plain text for every version. These endpoints follow the [llms.txt](https://llmstxt.org/) convention and return content that LLMs can read directly.
 
 ## Endpoints
 
@@ -36,6 +36,6 @@ Read https://nerdalytics.github.io/beacon/latest/state.md and show me how to use
 
 These URLs work anywhere an LLM can fetch a resource:
 
-- **Claude Code** / **ChatGPT** — paste the URL into your prompt
-- **Cursor** / **Windsurf** — add as a doc reference
-- **Custom agents** — fetch `/{version}/llms-full.txt` as system context
+- In Claude Code or ChatGPT, paste the URL into your prompt
+- In Cursor or Windsurf, add the URL as a doc reference
+- Custom agents fetch `/{version}/llms-full.txt` as system context

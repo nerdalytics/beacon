@@ -11,4 +11,4 @@ description: Package links and community resources for Beacon
 
 ## Community
 
-- [GitHub Discussions](https://github.com/nerdalytics/beacon/discussions) — questions and ideas
+- [GitHub Discussions](https://github.com/nerdalytics/beacon/discussions) for questions and ideas

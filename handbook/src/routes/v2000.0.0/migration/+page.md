@@ -4,15 +4,15 @@ description: How to upgrade from Beacon v1000 to v2000
 ---
 
 
-Version 2000.0.0 shifts from function-based to Proxy-based reactive state. The API is simpler but fundamentally different.
+Version 2000.0.0 replaces function-based reactive state with Proxy-based state. The API is simpler but fundamentally different.
 
 ## Key changes
 
-1. **Natural JavaScript syntax** — direct property access instead of `state()` function calls
-2. **Proxy-based reactivity** — all state objects wrapped in Proxies for automatic tracking
-3. **Per-property tracking** — dependencies tracked at the property level, not object level
-4. **Always-eager computed values** — no lazy evaluation; simpler mental model
-5. **Removed APIs** — `select`, `lens`, `readonlyState`, `protectedState` are gone
+1. **Natural JavaScript syntax.** Direct property access instead of `state()` function calls
+2. **Proxy-based reactivity.** Beacon wraps all state objects in Proxies for automatic tracking
+3. **Per-property tracking.** Dependencies are tracked at the property level, not object level
+4. **Always-eager computed values.** There is no lazy evaluation; simpler mental model. Derived values compute when created and whenever a dependency changes.
+5. **Removed APIs.** `select`, `lens`, `readonlyState`, and `protectedState` no longer exist
 
 ## API comparison
 
@@ -82,10 +82,10 @@ console.log(doubled.value)
 
 These APIs no longer exist in v2000:
 
-- `select()` — use `derive()` instead
-- `lens()` — access nested properties directly
-- `readonlyState()` — not needed; control access through module boundaries
-- `protectedState()` — not needed; same approach
+- `select()`. Use `derive()` instead.
+- `lens()`. Access nested properties directly.
+- `readonlyState()`. It is not needed. Control access through module boundaries.
+- `protectedState()`. It is not needed. Use the same approach.
 
 ### 6. Dispose derived values
 

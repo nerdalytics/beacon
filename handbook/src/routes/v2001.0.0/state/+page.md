@@ -70,7 +70,7 @@ $items[0] = 10 // Index assignment works
 
 When you call `state(obj)`, Beacon:
 
-1. Checks if a proxy already exists for this object (cache lookup)
+1. Checks the cache for an existing proxy of this object
 2. Creates a new Proxy with handler traps
 3. Stores the proxy-target relationship
 4. Returns the proxy
@@ -116,11 +116,11 @@ $app.user.profile.name = 'Bob' // Triggers updates
 
 Every property access has overhead:
 
-- **Direct object**: ~3ms for 1M operations
-- **Proxied object**: ~75ms for 1M operations (batched)
-- **Trade-off**: Natural syntax for 4x performance cost
+- A direct object takes ~3ms for 1M operations.
+- A proxied object takes ~75ms for 1M batched operations.
+- Natural syntax costs 4x in performance.
 
-Internally, Beacon optimizes by manipulating the raw target directly. The proxy trap intercepts the operation, performs direct manipulation on the underlying object, then queues the notification.
+Internally, Beacon optimizes by manipulating the raw target directly. The proxy trap intercepts the operation, applies it to the underlying object, then queues the notification.
 
 ## Patterns
 
@@ -203,7 +203,7 @@ console.log(original.count === $reactive.count) // true (same value)
 
 ### Class instances
 
-Methods may not work as expected due to `this` binding issues:
+Methods may not work as expected because of `this` binding issues:
 
 ```typescript
 class Counter {
@@ -353,7 +353,7 @@ $user.email = 'alice@example.com' // Optional property
 
 ## Performance tips
 
-1. **Avoid reading in hot loops** — cache values outside loops
-2. **Batch updates** — use `batch()` for multiple changes
-3. **Minimize nesting depth** — deeply nested objects have more overhead
-4. **Use primitive comparisons** — `Object.is()` is used for equality
+1. **Avoid reading in hot loops.** Cache values outside loops.
+2. **Batch updates.** Use `batch()` for multiple changes.
+3. **Minimize nesting depth.** Deeply nested objects have more overhead.
+4. **Use primitive comparisons.** `Object.is()` is used for equality.

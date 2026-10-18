@@ -39,11 +39,11 @@ const derived = (fn) => {
 }
 ```
 
-It creates an internal signal initialized with `fn()`, then an effect that keeps it in sync. This means derived values:
+It creates an internal signal initialized with `fn()`, then an effect that keeps it up to date. This means derived values:
 
-- **Recompute eagerly** — the effect runs as soon as a dependency changes
-- **Are themselves signals** — you can read them inside other effects or derived values
-- **Support `.set()` and `.update()`** — though overwriting a derived value is unusual
+- **Recompute eagerly.** The effect runs as soon as a dependency changes
+- **Are themselves signals.** You can read them inside other effects or derived values
+- **Support `.set()` and `.update()`.** Overwriting a derived value is unusual
 
 ## Chaining derived values
 
@@ -78,11 +78,11 @@ $count.set(5)
 // => 10 (effect re-runs because $doubled changed)
 ```
 
-Reading outside of an effect just returns the current value without tracking.
+Reading outside an effect returns the current value without tracking.
 
 ## Derived vs effect
 
-Use `derived()` when you need a **value**. Use `effect()` when you need a **side effect**.
+Use `derived()` when you need a value. Use `effect()` when you need a side effect.
 
 ```typescript
 // Good: derived produces a value

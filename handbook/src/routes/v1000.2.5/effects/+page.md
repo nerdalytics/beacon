@@ -11,7 +11,7 @@ function effect(fn: () => void): Unsubscribe
 
 Runs `fn` immediately, tracks which signals it reads, and re-runs `fn` when any of those signals change. Returns an `Unsubscribe` function.
 
-`Unsubscribe` is a named export — you can import it for explicit typing:
+`Unsubscribe` is a named export. Import it for explicit typing:
 
 ```typescript
 import { type Unsubscribe, state, effect } from '@nerdalytics/beacon'
@@ -43,7 +43,7 @@ $count.set(2)
 
 ## Automatic dependency tracking
 
-Dependencies are discovered by running the function. Whatever signals you call inside `fn`, those become dependencies:
+Dependencies are discovered by running the function. Every signal that `fn` reads becomes a dependency:
 
 ```typescript
 const $a = state(1)
@@ -101,7 +101,7 @@ Always unsubscribe effects when they are no longer needed to prevent memory leak
 
 ## Re-entrance prevention
 
-If an effect is already running, Beacon skips re-entry rather than allowing recursive execution. This prevents stack overflows in scenarios where an effect indirectly triggers itself through intermediate state changes.
+If an effect is already running, Beacon skips re-entry rather than allowing recursive execution. This prevents stack overflows when an effect indirectly triggers itself through intermediate state changes.
 
 ## Infinite loop detection
 
@@ -120,7 +120,7 @@ In v1.0.0 this pattern looped until the queue drained. In v1000.0.0 it throws im
 
 ## Parent-child effect tracking
 
-Nested effects are tracked hierarchically. When a parent effect is cleaned up, its child effects are also disposed:
+Beacon tracks nested effects hierarchically. Cleaning up a parent effect also disposes its child effects:
 
 ```typescript
 const $a = state(0)
@@ -145,4 +145,4 @@ In v1.0.0, nested effects accumulated duplicates on each parent re-run.
 
 ## Effect execution order
 
-When multiple effects depend on the same signal, they execute in the order they were registered. Effects scheduled during a batch are collected and run once when the batch completes.
+When multiple effects depend on the same signal, they execute in the order they were registered. Beacon collects effects scheduled during a batch and runs them once when the batch completes.

@@ -4,11 +4,11 @@ description: Get up and running with Beacon in five minutes
 ---
 
 
-This walkthrough builds a reactive system from scratch. By the end you'll have used all four Beacon primitives.
+This walkthrough builds a reactive system from scratch. By the end you will have used all four Beacon functions.
 
 ## 1. Create reactive state
 
-`state()` wraps a plain object in a Proxy. It returns the same shape — you read and write properties as usual.
+`state()` wraps a plain object in a Proxy. It returns the same shape. You read and write properties as usual.
 
 ```typescript
 import { state } from '@nerdalytics/beacon'

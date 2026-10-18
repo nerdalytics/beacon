@@ -5,8 +5,8 @@ description: Install Beacon and set up your project
 
 ## Requirements
 
-- Node.js 20.0.0 or later (LTS v20 or v22)
-- TypeScript 5.x recommended, not required
+- Node.js 20.0.0 or later, LTS v20 or v22
+- TypeScript 5.x is recommended but not required
 
 ## Install
 
@@ -53,4 +53,4 @@ $count.set(1)
 // => 2
 ```
 
-If you see `0` then `2`, the installation is correct.
+If the output is `0` then `2`, the installation is correct.

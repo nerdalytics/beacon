@@ -8,14 +8,14 @@ Beacon is a reactive state management library for Node.js backends. It tracks wh
 
 ## What it does
 
-Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. No manual subscriptions. No event names. No selectors.
+Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. You write no manual subscriptions, event names, or selectors.
 
-Four primitives cover the entire API:
+Four functions cover the entire API:
 
-- **`state(obj)`** — wraps an object in a reactive Proxy
-- **`effect(fn)`** — runs a function and re-runs it when its dependencies change
-- **`derive(fn)`** — computes a value that stays in sync with its dependencies
-- **`batch(fn)`** — groups multiple state changes into a single update cycle
+- **`state(obj)`** wraps an object in a reactive Proxy
+- **`effect(fn)`** runs a function and re-runs it when its dependencies change
+- **`derive(fn)`** computes a value that stays in sync with its dependencies
+- **`batch(fn)`** groups multiple state changes into a single update cycle
 
 That's the whole library.
 
@@ -25,12 +25,12 @@ That's the whole library.
 - ~10kb minified
 - Single-file core
 - TypeScript-first with full type inference
-- Deep reactivity — nested objects are automatically wrapped
+- Deep reactivity. Nested objects are automatically wrapped.
 - Automatic dependency tracking at the property level
 
 ## Who this is for
 
-Backend developers who want reactive patterns on the server. If you've used signals or observables on the frontend and wished you had the same thing in your Node.js services, Beacon fills that gap.
+Backend developers who want reactive patterns on the server. If you have used signals or observables on the frontend and want the same model in your Node.js services, Beacon provides it.
 
 Common use cases:
 

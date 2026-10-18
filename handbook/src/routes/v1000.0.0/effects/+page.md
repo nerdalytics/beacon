@@ -9,7 +9,7 @@ description: Side effects with automatic dependency tracking
 function effect(fn: () => void): Unsubscribe
 ```
 
-Runs `fn` immediately, tracks which signals it reads, and re-runs `fn` when any of those signals change. Returns an unsubscribe function.
+Runs `fn` on creation, records which signals it reads, and re-runs `fn` when any of those signals change. Returns an unsubscribe function.
 
 ## Basic usage
 
@@ -32,7 +32,7 @@ $count.set(2)
 
 ## Automatic dependency tracking
 
-Dependencies are discovered by running the function. Whatever signals you call inside `fn`, those become dependencies:
+Beacon finds dependencies by running the function. Every signal that `fn` calls becomes a dependency:
 
 ```typescript
 const $a = state(1)
@@ -44,7 +44,7 @@ effect(() => {
 // Depends on both $a and $b
 ```
 
-If the set of signals read changes between runs, dependencies update automatically:
+If the signals read change between runs, Beacon updates the dependencies:
 
 ```typescript
 const $flag = state(true)
@@ -66,7 +66,7 @@ $flag.set(false)
 
 ## Cleanup on re-run
 
-Before each re-run, Beacon removes the effect from all its dependency sets and re-discovers them during execution. This prevents stale dependencies from accumulating.
+Before each re-run, Beacon removes the effect from all its dependency sets, then finds them again during execution. This stops stale dependencies from accumulating.
 
 ## Unsubscribing
 
@@ -86,11 +86,11 @@ $count.set(1)
 // (nothing — effect is disposed)
 ```
 
-Always unsubscribe effects when they are no longer needed to prevent memory leaks.
+Always unsubscribe effects you no longer need. This prevents memory leaks.
 
 ## Re-entrance prevention
 
-If an effect is already running, Beacon skips re-entry rather than allowing recursive execution. This prevents stack overflows in scenarios where an effect indirectly triggers itself through intermediate state changes.
+If an effect is already running, Beacon skips the re-entry instead of running it recursively. This prevents stack overflows when an effect triggers itself indirectly through intermediate state changes.
 
 ## Infinite loop detection
 
@@ -105,11 +105,11 @@ effect(() => {
 })
 ```
 
-In v1.0.0 this pattern looped until the queue drained. In v1000.0.0 it throws immediately.
+In v1.0.0, this pattern looped until the queue drained. In v1000.0.0, it throws immediately.
 
 ## Parent-child effect tracking
 
-Nested effects are tracked hierarchically. When a parent effect is cleaned up, its child effects are also disposed:
+Beacon tracks nested effects as a hierarchy. Cleaning up a parent effect also disposes its child effects:
 
 ```typescript
 const $a = state(0)
@@ -134,4 +134,4 @@ In v1.0.0, nested effects accumulated duplicates on each parent re-run.
 
 ## Effect execution order
 
-When multiple effects depend on the same signal, they execute in the order they were registered. Effects scheduled during a batch are collected and run once when the batch completes.
+When multiple effects depend on the same signal, they run in the order they were registered. Beacon collects effects scheduled during a batch and runs them once when the batch completes.

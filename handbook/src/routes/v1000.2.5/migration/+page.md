@@ -11,4 +11,4 @@ The README bundled in the npm package was replaced with a lighter version, reduc
 npm install @nerdalytics/beacon@1000.2.5 --save-exact
 ```
 
-No code changes required.
+You do not need to change any code.

@@ -71,7 +71,7 @@ $collapsed.set(true)
 console.log($app().ui.panels.sidebar.collapsed) // => true
 ```
 
-Writes rebuild the object tree immutably from the leaf to the root. The source reference changes, triggering effects that depend on it or on intermediate slices.
+Each write rebuilds the object tree immutably from the leaf to the root. The source reference changes, so effects that depend on the source or on intermediate slices re-run.
 
 ## Array index support
 
@@ -90,7 +90,7 @@ console.log($list().items) // => ['a', 'B', 'c']
 
 ## Circular update prevention
 
-`lens()` uses an `isUpdating` flag to break the source↔lens feedback loop. When the lens writes to the source, the sync effect is suppressed. When the source changes externally, the lens reflects the new value without writing back.
+`lens()` uses an `isUpdating` flag to break the feedback loop between source and lens. When the lens writes to the source, the flag suppresses the sync effect. When the source changes externally, the lens reflects the new value without writing back.
 
 ```typescript
 const $config = state({ theme: 'dark' })

@@ -9,11 +9,11 @@ description: Group multiple signal updates into a single effect cycle
 function batch<T>(fn: () => T): T
 ```
 
-Executes `fn`, deferring all effect execution until `fn` completes. Returns the return value of `fn`.
+Runs `fn` and holds back all effect execution until `fn` finishes. Returns what `fn` returns.
 
 ## Why batch
 
-Without batching, each `.set()` immediately triggers dependent effects:
+Without batching, every `.set()` immediately runs the dependent effects:
 
 ```typescript
 const $first = state('Ada')
@@ -85,7 +85,7 @@ batch(() => {
 
 ## Deferred effect creation
 
-Effects created inside a `batch()` are deferred until the batch completes. This means `effect()` calls inside `batch()` don't run immediately — they are queued and executed after all state updates have been applied:
+Effects created inside a `batch()` wait until the batch completes. Calls to `effect()` inside `batch()` do not run at once. Beacon queues them and runs them after all state updates have been applied:
 
 ```typescript
 const $count = state(0)
@@ -103,11 +103,11 @@ batch(() => {
 // => 20
 ```
 
-This prevents effects from seeing intermediate states during batch execution.
+This keeps effects from seeing intermediate states during batch execution.
 
 ## Error handling
 
-If the callback throws, pending effects are cleared at the outermost batch level to prevent stale effects from running:
+If the callback throws, the outermost batch clears pending effects so that stale effects do not run:
 
 ```typescript
 const $count = state(0)
@@ -130,6 +130,6 @@ console.log($count()) // => 999
 
 ## When to batch
 
-Batch when you update multiple signals that feed the same effects. Bulk operations over data, or initialization sequences where intermediate states are meaningless, are good candidates.
+Batch when you update several signals that feed the same effects. Bulk operations over data and initialization sequences with meaningless intermediate states are good candidates.
 
-A single `.set()` call has no benefit from batching. And because `batch()` is synchronous, `await` inside the callback ends the batch context at the first yield point. Async work belongs outside the batch.
+A single `.set()` gains nothing from batching. `batch()` is synchronous, so an `await` inside the callback ends the batch at the first yield point. Keep async work outside the batch.

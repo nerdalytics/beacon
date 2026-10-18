@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-`derive()` creates computed values that update automatically when their dependencies change. It memoizes the result and only recalculates when necessary.
+`derive()` creates computed values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
 
 ## API
 
@@ -23,9 +23,9 @@ type ComputedValue<T> = {
 }
 ```
 
-- `value` — the cached computed result (read-only)
-- `pending` — `true` while an async compute is in flight; always `false` for synchronous derives (read-only)
-- `reactive` — controls the internal effect lifecycle; set to `false` to dispose, `true` to recreate
+- `value` is the cached computed result and is read-only
+- `pending` is `true` while an async compute is in flight. It is always `false` for synchronous derives, and it is read-only.
+- `reactive` controls the internal effect lifecycle. Set it to `false` to dispose and `true` to recreate
 
 See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
 
@@ -225,7 +225,7 @@ const v3 = expensive.value // computeCount: 2 (recomputed)
 
 When multiple mutations change different dependencies, `batch()` ensures the derive recomputes once instead of once per mutation.
 
-A single mutation already propagates consistently through a derive chain without batch — effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
+A single mutation already propagates consistently through a derive chain without batch. Effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
 
 ```typescript
 const $a = state({ value: 1 })
@@ -326,7 +326,7 @@ function createManagedDerived() {
 
 ### Circular references
 
-This code fails at runtime because `c` is not yet defined when `b` is created — a JavaScript `ReferenceError`, not a Beacon-specific check:
+This code fails at runtime because `c` is not yet defined when `b` is created. The failure is a JavaScript `ReferenceError`, not a Beacon-specific check:
 
 ```typescript
 const $a = state({ value: 1 })
@@ -339,7 +339,7 @@ const c = derive(() => b.value + 1)
 
 ### Don't mutate in derive
 
-Derived values should be pure — no side effects:
+Derived values should be pure, with no side effects:
 
 ```typescript
 // Bad: has side effects
@@ -431,13 +431,13 @@ test('derive supports disposal via reactive toggle', () => {
 
 ## Performance tips
 
-1. **Set `reactive = false` on unused derives** — prevents memory leaks
-2. **Use batch for multiple updates** — derive recomputes once per batch
-3. **Keep computations simple** — complex derives run on every dependency change
-4. **Avoid deep nesting** — chains of derives add overhead
-5. **Cache external data** — don't refetch in derive functions
-6. **Use effects for side effects** — keep derives pure
-7. **Consider lifecycle** — short-lived derives should set `reactive = false` promptly
+1. **Set `reactive = false` on unused derives.** This prevents memory leaks
+2. **Use batch for multiple updates.** The derive recomputes once per batch
+3. **Keep computations simple.** Complex derives run on every dependency change
+4. **Avoid deep nesting.** Chains of derives add overhead
+5. **Cache external data.** Don't refetch in derive functions
+6. **Use effects for side effects.** Keep derives pure
+7. **Consider lifecycle.** Short-lived derives should set `reactive = false` as soon as they are no longer needed
 
 ## Async computations (v2001)
 
@@ -455,9 +455,9 @@ effect(() => {
 })
 ```
 
-While a recompute is in flight the computed value keeps its last settled result and `pending` is `true` (stale-while-pending). Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run on each flip.
+While a recompute is in flight, the computed value keeps its last settled result and `pending` is `true`. This is stale-while-pending behavior. Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run each time `pending` changes.
 
-- **Superseded computations are discarded** — if a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing and a superseded rejection does not call `onError`; the latest computation wins
-- **Rejections route to `onError`** — a rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
-- **Synchronous derives are unchanged** — a synchronous compute function still yields its value immediately, with `pending` always `false`
-- **Disposing discards in-flight computations** — setting `reactive` to `false` clears `pending`; a settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`
+- **Superseded computations are discarded.** If a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing. A superseded rejection does not call `onError`. The latest computation wins
+- **Rejections route to `onError`.** A rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
+- **Synchronous derives are unchanged.** A synchronous compute function still yields its value immediately, with `pending` always `false`
+- **Disposing discards in-flight computations.** Setting `reactive` to `false` clears `pending`. A settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`

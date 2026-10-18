@@ -8,7 +8,7 @@ This walkthrough builds a reactive system from scratch. By the end you'll have u
 
 ## 1. Create reactive state
 
-`state()` wraps a plain object in a Proxy. It returns the same shape — you read and write properties as usual.
+`state()` wraps a plain object in a Proxy. It returns the same shape. You read and write properties as usual.
 
 ```typescript
 import { state } from '@nerdalytics/beacon'
@@ -72,7 +72,7 @@ $app.errors = 5
 errorRate.reactive = false
 ```
 
-Always set `reactive = false` when you're done with a derived value. It creates an internal effect that leaks if not disposed.
+Always set `reactive = false` when you finish with a derived value. It creates an internal effect that leaks if you do not dispose it.
 
 ## 4. Batch updates
 

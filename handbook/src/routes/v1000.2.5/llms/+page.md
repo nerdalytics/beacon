@@ -20,7 +20,7 @@ The Beacon handbook is available as plain text at every version. These endpoints
 | `/{version}/llms-full.txt` | All pages concatenated into one document |
 | `/{version}/{page}.md` | Single page as raw Markdown |
 
-Replace `{version}` with a version number (e.g. `<Version />`) or `latest`.
+Replace `{version}` with a version number (for example, `<Version />`) or `latest`.
 
 ## Examples
 
@@ -40,6 +40,6 @@ Read https://nerdalytics.github.io/beacon/latest/state.md and show me how to use
 
 These URLs work anywhere an LLM can fetch a resource:
 
-- **Claude Code** / **ChatGPT** — paste the URL into your prompt
-- **Cursor** / **Windsurf** — add as a doc reference
-- **Custom agents** — fetch `/{version}/llms-full.txt` as system context
+- Claude Code or ChatGPT. Paste the URL into your prompt.
+- Cursor or Windsurf. Add the URL as a doc reference.
+- **Custom agents**. Fetch `/{version}/llms-full.txt` as system context

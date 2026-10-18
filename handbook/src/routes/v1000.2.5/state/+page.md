@@ -9,7 +9,7 @@ description: Reactive signals with automatic dependency tracking
 function state<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): State<T>
 ```
 
-Returns a `State<T>` wrapping the initial value. A state is a callable function with `.set()` and `.update()` methods. The optional `equalityFn` replaces `Object.is` for the same-value check — see [Custom equality](#custom-equality).
+Returns a `State<T>` wrapping the initial value. A state is a callable function with `.set()` and `.update()` methods. The optional `equalityFn` replaces `Object.is` for the same-value check. See [Custom equality](#custom-equality).
 
 ## Type interfaces
 
@@ -26,7 +26,7 @@ type State<T> = ReadOnlyState<T> & WriteableState<T>
 type Unsubscribe = () => void
 ```
 
-`State<T>` combines both read and write capabilities. `ReadOnlyState<T>` is callable and read-only — returned by `derive()` and `select()`. `WriteableState<T>` exposes `.set()` and `.update()`. `Unsubscribe` is the return type of `effect()` — call it to dispose the effect and remove it from all dependency sets.
+`State<T>` combines both read and write capabilities. `ReadOnlyState<T>` is callable and read-only. `derive()` and `select()` return it. `WriteableState<T>` exposes `.set()` and `.update()`. `Unsubscribe` is the return type of `effect()`. Call it to dispose the effect and remove it from all dependency sets.
 
 ## Creating signals
 
@@ -39,7 +39,7 @@ const $items = state<string[]>([])
 const $config = state({ host: 'localhost', port: 3000 })
 ```
 
-Signals accept any type: primitives, arrays, objects, `null`, `undefined`.
+Signals accept any type, including primitives, arrays, objects, `null`, and `undefined`.
 
 ## Reading
 
@@ -55,7 +55,7 @@ effect(() => {
 })
 ```
 
-Reading inside an `effect()` or `derive()` callback registers a dependency. Reading outside of these contexts returns the value without tracking.
+Reading inside an `effect()` or `derive()` callback registers a dependency. Reading outside these contexts returns the value without tracking.
 
 ## Writing
 
@@ -79,11 +79,11 @@ $count.update((n) => n + 1)
 console.log($count()) // => 1
 ```
 
-Useful when the new value depends on the old one.
+Use it when the new value depends on the old one.
 
 ## Same-value optimization
 
-Beacon uses `Object.is()` to compare old and new values. If the value hasn't changed, subscribers are not notified:
+Beacon uses `Object.is()` to compare old and new values. If the value has not changed, Beacon does not notify subscribers:
 
 ```typescript
 const $count = state(0)
@@ -121,7 +121,7 @@ By default, `state()` uses `Object.is` to decide whether a `.set()` call should 
 function state<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): State<T>
 ```
 
-The equality function receives the current value and the incoming value. Return `true` to skip notification (values are equal), `false` to notify.
+The equality function receives the current value and the incoming value. Return `true` to skip notification, because the values are equal. Return `false` to notify.
 
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
@@ -160,7 +160,7 @@ If omitted, both functions fall back to `Object.is`, preserving the same behavio
 
 ## Working with objects
 
-Since signals use value-level (not property-level) tracking, you must replace the entire object to trigger updates:
+Signals track whole values, not properties, so you must replace the entire object to trigger updates:
 
 ```typescript
 const $user = state({ name: 'Ada', age: 36 })
@@ -179,7 +179,7 @@ For property-level subscriptions, use `select()` to react only when a specific p
 
 ## Working with arrays
 
-Same principle — create a new array reference:
+Arrays follow the same rule. Create a new array reference:
 
 ```typescript
 const $items = state<string[]>([])

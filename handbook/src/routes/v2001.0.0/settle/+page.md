@@ -9,7 +9,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 ## until
 
-`until(predicate, options?)` returns a promise that resolves with the predicate's value once a settled evaluation of the predicate is truthy. It is the bridge from imperative code — request handlers, startup sequences, test harnesses — into the reactive graph.
+`until(predicate, options?)` returns a promise that resolves with the predicate's value once a settled evaluation of the predicate is truthy. It connects imperative code, such as request handlers, startup sequences, and test harnesses, to the reactive graph.
 
 ```typescript
 import { state, until } from '@nerdalytics/beacon'
@@ -23,10 +23,10 @@ serve(cache.entries)
 
 Behavior:
 
-1. **Settled reads only** — while an async computation the predicate depends on is pending, evaluations do not resolve the promise; resolution waits for the settle
-2. **Reactive scope prohibition** — calling `until` inside an effect or computation throws; use an effect for reactive responses
-3. **Self-disposal** — on resolve, rejection, timeout, or abort the internal subscription, timer, and abort listener are released; none outlives the promise
-4. **Throwing predicate** — if an evaluation throws, the promise rejects with that error; the write that triggered the evaluation does not throw
+1. **Settled reads only.** While an async computation the predicate depends on is pending, evaluations do not resolve the promise. Resolution waits for the settle.
+2. **Reactive scope prohibition.** Calling `until` inside an effect or computation throws. Use an effect for reactive responses.
+3. **Self-disposal.** When the promise resolves, rejects, times out, or aborts, Beacon releases the internal subscription, timer, and abort listener. None of them outlives the promise.
+4. **Throwing predicate.** If an evaluation throws, the promise rejects with that error. The write that triggered the evaluation does not throw.
 
 ### Options
 
@@ -49,7 +49,7 @@ controller.abort('deadline')
 
 ## onSettled
 
-`onSettled(callback)` invokes the callback whenever the reactive graph reaches quiescence after processing work — a synchronous flush or an async settlement. It returns an unsubscribe function.
+`onSettled(callback)` calls the callback each time the reactive graph finishes its work and goes quiet. That happens after a synchronous flush or an async settlement. It returns an unsubscribe function.
 
 ```typescript
 import { batch, onSettled, state } from '@nerdalytics/beacon'
@@ -71,10 +71,10 @@ stop()
 
 Behavior:
 
-1. **Writes inside a callback** — a callback's state writes, including writes inside `batch()`, apply at once; the effects they schedule run after every callback has returned and before the flush that notified returns. Callbacks are then invoked again for that cycle. A write that schedules no effect starts no new cycle
-2. **Runaway callbacks** — if callbacks still schedule effects after 100 notifications in one flush, the remaining effects are dropped and an `Infinite loop detected` error is thrown to the code that started the flush; a microtask flush reports it with `console.error`, an async settlement as an unhandled rejection. The example above reaches this limit if an effect reads `metrics.flushes`. A callback write that wakes only `'microtask'` effects starts a new microtask flush instead of a new cycle, so this limit does not count it; the microtask chain limit (see Effects) stops that loop after 100 flushes
+1. **Writes inside a callback.** A callback's state writes apply at once, including writes inside `batch()`. The effects they schedule run after every callback has returned. They run before the flush that notified returns. Callbacks then run again for that cycle. A write that schedules no effect starts no new cycle.
+2. **Runaway callbacks.** If callbacks still schedule effects after 100 notifications in one flush, the remaining effects are dropped and an `Infinite loop detected` error is thrown to the code that started the flush. A microtask flush reports it with `console.error`. An async settlement reports it as an unhandled rejection. The example above reaches this limit if an effect reads `metrics.flushes`. A callback write that wakes only `'microtask'` effects starts a new microtask flush instead of a new cycle, so this limit does not count it. The microtask chain limit in Effects stops that loop after 100 flushes.
 
 ## See also
 
-- <VersionLink path="/derive">Derive</VersionLink> — async computations whose settlements trigger quiescence
-- <VersionLink path="/effects">Effects</VersionLink> — reactive runners, including microtask scheduling
+- <VersionLink path="/derive">Derive</VersionLink> covers async computations whose settlements trigger quiescence
+- <VersionLink path="/effects">Effects</VersionLink> covers reactive runners, including microtask scheduling
