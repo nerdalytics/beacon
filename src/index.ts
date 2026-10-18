@@ -560,11 +560,6 @@ function createDeleteHandler<T>(
 	}
 }
 
-function resolveValue(value: unknown, hooks: StateHooks<object> | undefined): unknown {
-	if (value === null || typeof value !== 'object') return value
-	return wrapNestedObject(value as object, hooks)
-}
-
 function isInternalSymbol(prop: PropertyKey): boolean {
 	return prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS
 }
@@ -622,7 +617,8 @@ function createGetHandler<T>(
 		const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
 		if (wrapped) return wrapped
 
-		return resolveValue(value, hooks as StateHooks<object> | undefined)
+		if (value === null || typeof value !== 'object') return value
+		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
 	}
 }
 

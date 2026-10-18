@@ -6,7 +6,7 @@ import { batch, effect, state } from '../src/index.ts'
 /**
  * Property-based tests for deep reactivity at arbitrary nesting depths.
  *
- * Beacon's proxy wrapping in resolveValue → wrapNestedObject is recursive:
+ * Beacon's proxy wrapping in the get handler → wrapNestedObject is recursive:
  * accessing a nested object property returns a proxy, which itself wraps
  * deeper objects on access. These tests verify that writing to the deepest
  * property at any nesting depth N triggers an effect reading that path.
