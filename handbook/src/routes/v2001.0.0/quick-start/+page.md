@@ -8,7 +8,7 @@ This walkthrough builds a reactive system from scratch. By the end you'll have u
 
 ## 1. Create reactive state
 
-`state()` wraps a plain object in a Proxy. It returns the same shape — you read and write properties as usual.
+`state()` wraps a plain object in a Proxy. It returns the same shape. You read and write properties as usual.
 
 ```typescript
 import { state } from '@nerdalytics/beacon'

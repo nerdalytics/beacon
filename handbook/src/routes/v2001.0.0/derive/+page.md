@@ -23,9 +23,9 @@ type ComputedValue<T> = {
 }
 ```
 
-- `value` — the cached computed result (read-only)
-- `pending` — `true` while an async compute is in flight; always `false` for synchronous derives (read-only)
-- `reactive` — controls the internal effect lifecycle; set to `false` to dispose, `true` to recreate
+- `value` is the cached computed result and is read-only
+- `pending` is `true` while an async compute is in flight. It is always `false` for synchronous derives, and it is read-only.
+- `reactive` controls the internal effect lifecycle. Set it to `false` to dispose and `true` to recreate
 
 See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
 
@@ -225,7 +225,7 @@ const v3 = expensive.value // computeCount: 2 (recomputed)
 
 When multiple mutations change different dependencies, `batch()` ensures the derive recomputes once instead of once per mutation.
 
-A single mutation already propagates consistently through a derive chain without batch — effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
+A single mutation already propagates consistently through a derive chain without batch. Effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
 
 ```typescript
 const $a = state({ value: 1 })
@@ -326,7 +326,7 @@ function createManagedDerived() {
 
 ### Circular references
 
-This code fails at runtime because `c` is not yet defined when `b` is created — a JavaScript `ReferenceError`, not a Beacon-specific check:
+This code fails at runtime because `c` is not yet defined when `b` is created. The failure is a JavaScript `ReferenceError`, not a Beacon-specific check:
 
 ```typescript
 const $a = state({ value: 1 })
@@ -339,7 +339,7 @@ const c = derive(() => b.value + 1)
 
 ### Don't mutate in derive
 
-Derived values should be pure — no side effects:
+Derived values should be pure, with no side effects:
 
 ```typescript
 // Bad: has side effects
@@ -431,13 +431,13 @@ test('derive supports disposal via reactive toggle', () => {
 
 ## Performance tips
 
-1. **Set `reactive = false` on unused derives** — prevents memory leaks
-2. **Use batch for multiple updates** — derive recomputes once per batch
-3. **Keep computations simple** — complex derives run on every dependency change
-4. **Avoid deep nesting** — chains of derives add overhead
-5. **Cache external data** — don't refetch in derive functions
-6. **Use effects for side effects** — keep derives pure
-7. **Consider lifecycle** — short-lived derives should set `reactive = false` promptly
+1. **Set `reactive = false` on unused derives.** This prevents memory leaks
+2. **Use batch for multiple updates.** The derive recomputes once per batch
+3. **Keep computations simple.** Complex derives run on every dependency change
+4. **Avoid deep nesting.** Chains of derives add overhead
+5. **Cache external data.** Don't refetch in derive functions
+6. **Use effects for side effects.** Keep derives pure
+7. **Consider lifecycle.** Short-lived derives should set `reactive = false` promptly
 
 ## Async computations (v2001)
 

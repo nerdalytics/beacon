@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-This page documents what ships in `@nerdalytics/beacon`: the hook type interfaces and the `composeHook` utility. There are no built-in hook implementations — you write your own hook functions against these interfaces.
+This page documents what ships in `@nerdalytics/beacon`: the hook type interfaces and the `composeHook` utility. There are no built-in hook implementations. You write your own hook functions against these interfaces.
 
 For a conceptual overview and the composition model, see <VersionLink path="/hooks-overview">Hooks Overview</VersionLink>.
 
@@ -82,9 +82,9 @@ Normalization rules:
 - Single-element array → that element
 - Multiple-element array → composed function that calls all in sequence
 
-**Error isolation**: Each function in a composed array is wrapped in `try/catch`. One failing hook does not prevent the others from running.
+**Error isolation.** Each function in a composed array is wrapped in `try/catch`. One failing hook does not prevent the others from running.
 
-You rarely need to call `composeHook` directly — the `state`, `effect`, `derive`, and `batch` primitives call it internally when normalizing hook fields. It is useful when writing your own hook factory that accepts `SingleOrArray` and needs to produce a single callable.
+You rarely need to call `composeHook` directly. The `state`, `effect`, `derive`, and `batch` primitives call it internally when they normalize hook fields. It is useful when you write your own hook factory that accepts `SingleOrArray` and needs to produce a single callable.
 
 ```typescript
 import { composeHook } from '@nerdalytics/beacon/hooks'

@@ -8,19 +8,19 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-All four Beacon primitives — `state`, `effect`, `derive`, `batch` — accept an optional hooks parameter as their last argument. Hooks observe internal operations without affecting behavior.
+The four Beacon primitives, `state`, `effect`, `derive`, and `batch`, each accept an optional hooks parameter as their last argument. Hooks observe internal operations without affecting behavior.
 
 Three properties define the system:
 
-- **Optional** — omit for zero overhead
-- **Composable** — pass a single function or an array
-- **Isolated** — hook errors never break core reactivity
+- **Optional.** Omit it for zero overhead.
+- **Composable.** Pass a single function or an array.
+- **Isolated.** Hook errors never break core reactivity.
 
 ## Why hooks
 
 Hooks give you a controlled place to attach instrumentation: logging, timing, validation, analytics. Because hooks are opt-in per call site, you attach them only where you need them. There is no global debug mode, no environment variables, no build flags.
 
-Benefits: no debug code in production, no monkey-patching, extensible beyond logging, compatible with tree-shaking.
+Hooks also mean no debug code in production, no monkey-patching, extensibility beyond logging, and compatibility with tree-shaking.
 
 ## Zero-cost abstraction
 
@@ -31,11 +31,7 @@ const hasRead = hooks?.onRead != null // false
 if (hasRead) hooks.onRead!(...) // never executed
 ```
 
-Without hooks:
-
-- **Check overhead**: ~0.5ns per operation (single falsy check)
-- **Memory**: no additional allocations
-- **Bundle size**: 0 bytes (hooks not imported)
+Without hooks, each operation costs ~0.5ns for the single falsy check. Beacon makes no additional allocations, and the bundle adds 0 bytes because hooks are not imported.
 
 With hooks, cost depends entirely on the hook implementation.
 
@@ -205,7 +201,7 @@ Pass an array to combine observers:
 state(obj, { onWrite: [logger, validator, metrics] })
 ```
 
-Array functions execute in order. Each is wrapped in `try/catch` — one failing hook does not prevent the rest from running.
+Array functions execute in order. Each is wrapped in `try/catch`, so one failing hook does not prevent the rest from running.
 
 Mix single and array hooks on the same object:
 
@@ -225,7 +221,7 @@ Hook errors never propagate to user code. Every hook invocation is wrapped in `t
 
 - A broken hook cannot crash your application
 - A broken hook cannot prevent state updates or effect execution
-- Hook errors are silently swallowed — add your own error handling inside hooks if you need visibility
+- Hook errors are silently swallowed. Add your own error handling inside hooks if you need visibility.
 
 ```typescript
 state(
@@ -241,7 +237,7 @@ state(
 
 ## Module structure
 
-What actually ships in `@nerdalytics/beacon`:
+What ships in `@nerdalytics/beacon`:
 
 ```
 src/
@@ -258,7 +254,7 @@ There are no built-in hook implementations. You write inline functions or extrac
 
 **Keep hooks simple.** Avoid async work or heavy computation inside hooks. If you need to defer work, use `queueMicrotask`.
 
-**Name your effects.** The effect name flows into `onRun`, `onError`, `onDispose`, and `onSchedule` callbacks, and appears in infinite-loop error messages.
+**Name your effects.** The effect name is passed to the `onRun`, `onError`, `onDispose`, and `onSchedule` callbacks, and it appears in infinite-loop error messages.
 
 ```typescript
 effect(() => { /* body */ }, 'sync-to-db', {

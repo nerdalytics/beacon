@@ -4,14 +4,14 @@ description: How Beacon's reactive system works under the hood
 ---
 
 
-Beacon is a single-file reactive system built on ES Proxies. No virtual DOM, no compiler, no framework runtime. State mutations flow through Proxy traps into a dependency graph that triggers effects with surgical precision.
+Beacon is a single-file reactive system built on ES Proxies. No virtual DOM, no compiler, no framework runtime. State mutations flow through Proxy traps into a dependency graph that triggers the effects which read the changed property.
 
 ## Design principles
 
-1. **Natural syntax** — standard property access (`state.value`), not function calls
-2. **Fine-grained tracking** — dependencies tracked per property, not per object
-3. **Automatic cleanup** — subscriptions managed through WeakMaps and parent-child relationships
-4. **Zero-cost instrumentation** — optional hooks observe internals without affecting behavior
+1. **Natural syntax.** Standard property access (`state.value`), not function calls
+2. **Fine-grained tracking.** Dependencies are tracked per property, not per object
+3. **Automatic cleanup.** Subscriptions are managed through WeakMaps and parent-child relationships
+4. **Zero-cost instrumentation.** Optional hooks observe internals without affecting behavior
 
 ## Proxy-based state
 
@@ -34,7 +34,7 @@ Every object passed to `state()` gets wrapped in a Proxy. The Proxy intercepts f
    Raw Target   (actual data storage)
 ```
 
-Nested objects are wrapped lazily — the first time you access a nested property, Beacon wraps the child object in its own Proxy. A proxy cache prevents duplicate wrapping.
+Nested objects are wrapped lazily. The first access to a nested property makes Beacon wrap the child object in its own Proxy. A proxy cache prevents duplicate wrapping.
 
 ## Dependency tracking
 
@@ -56,11 +56,11 @@ When an effect runs:
 1. Beacon sets `currentEffect` to the running effect
 2. Every property read hits the Proxy `get` trap
 3. The trap records: this effect reads this property of this object
-4. When a property changes, only effects that read **that specific property** re-run
+4. When a property changes, only effects that read that specific property re-run
 
 ### Stable dependency skip
 
-On re-runs, effects compare new dependencies against the previous run via `depsMatch`. If dependencies haven't changed, Beacon restores previous tracking structures — no subscriber set teardown or rebuild. If dependencies did change, only stale deps are removed.
+On re-runs, effects compare new dependencies against the previous run via `depsMatch`. If dependencies haven't changed, Beacon restores previous tracking structures with no subscriber set teardown or rebuild. If dependencies did change, only stale deps are removed.
 
 Subsequent runs use a `trackingOnly` flag that tells Proxy handlers to use lightweight `trackRead` instead of full `registerEffectRead`, skipping `getSubscribers` + `Set.add`.
 
@@ -76,7 +76,7 @@ Effect Creation → Run Function → Compare Deps → Stable? → Restore previo
 
 1. Set `currentEffect`
 2. Save previous dependency snapshot (`__prevDeps`, `__prevReads`)
-3. Run the effect function — dependencies auto-tracked via proxy traps
+3. Run the effect function. Dependencies are auto-tracked via proxy traps
 4. Compare new deps against previous
 5. Handle nested effects via parent-child relationships
 6. Queue for re-execution on dependency changes
@@ -109,16 +109,16 @@ Batched:
 The batch fast path (`!onWrite && !currentEffect`):
 
 1. Entering a batch increments `batchDepth`
-2. Set handler skips subscriber scheduling — only tracks dirty target-property pairs in `dirtyTargets`
+2. Set handler skips subscriber scheduling and only tracks dirty target-property pairs in `dirtyTargets`
 3. Effects created during batch go into `deferredEffectCreations`
 4. At `batchDepth === 1` (before decrement): process `dirtyTargets`, call `scheduleSubscribersForTarget` once per unique property
 5. When outermost batch completes: run deferred effects, then `flushEffects()`
 
-State objects with write hooks always use the normal path — hooks fire per-mutation.
+State objects with write hooks always use the normal path, because hooks fire on every mutation.
 
 ## Cycle handling
 
-### Direct loops — blocked
+### Direct loops are blocked
 
 An effect that reads and writes the same state throws immediately:
 
@@ -129,9 +129,9 @@ effect(() => {
 })
 ```
 
-Beacon detects this by checking: (1) the update is inside an effect, (2) the effect read from the same state, (3) it's not a nested effect chain.
+Beacon detects this by checking that the update runs inside an effect, that the effect read from the same state, and that the pattern is not a nested effect chain.
 
-### Indirect cycles — allowed
+### Indirect cycles are allowed
 
 Cyclic dependencies across different effects are allowed because queue-based propagation handles them:
 
@@ -140,7 +140,7 @@ effect(() => { target.value = source.value * 2 })
 effect(() => { source.value = target.value / 2 })
 ```
 
-Value equality checks (`Object.is`) break the loop when values stabilize. Converging values stop at floating-point precision limits. Unbounded values continue until hitting JavaScript limits (e.g., `Infinity`).
+Value equality checks (`Object.is`) break the loop when values stabilize. Converging values stop at floating-point precision limits. Unbounded values continue until they hit JavaScript limits, such as `Infinity`.
 
 ## Memory management
 
@@ -163,10 +163,10 @@ All tracking maps use WeakMaps:
 
 ### Proxy edge cases
 
-**Array methods**: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse` are intercepted to trigger reactivity.
+**Array methods.** `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse` are intercepted to trigger reactivity.
 
-**Frozen/sealed objects**: WeakMap fallbacks store metadata when objects are not extensible.
+**Frozen/sealed objects.** WeakMap fallbacks store metadata when objects are not extensible.
 
-**Symbol properties**: Internal symbols (`[[beacon_subscribers]]`, `[[beacon_proxy]]`) get special handling to avoid interference.
+**Symbol properties.** Internal symbols such as `[[beacon_subscribers]]` and `[[beacon_proxy]]` get special handling to avoid interference.
 
-**Spread operations**: Handled without triggering stack overflows.
+**Spread operations.** Beacon handles them without triggering stack overflows.

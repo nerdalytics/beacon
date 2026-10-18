@@ -36,6 +36,6 @@ Read https://nerdalytics.github.io/beacon/v2001.0.0/state.md and show me how to 
 
 These URLs work anywhere an LLM can fetch a resource:
 
-- **Claude Code** / **ChatGPT** — paste the URL into your prompt
-- **Cursor** / **Windsurf** — add as a doc reference
-- **Custom agents** — fetch `/{version}/llms-full.txt` as system context
+- Paste the URL into your prompt in Claude Code or ChatGPT.
+- Add the URL as a doc reference in Cursor or Windsurf.
+- Custom agents can fetch `/{version}/llms-full.txt` as system context.

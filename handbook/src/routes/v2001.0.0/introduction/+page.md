@@ -12,10 +12,10 @@ Beacon wraps plain objects in ES Proxies. When you read a property inside an eff
 
 Four primitives cover the reactive graph:
 
-- **`state(obj)`** — wraps an object in a reactive Proxy
-- **`effect(fn)`** — runs a function and re-runs it when its dependencies change
-- **`derive(fn)`** — computes a value that stays in sync with its dependencies
-- **`batch(fn)`** — groups multiple state changes into a single update cycle
+- `state(obj)` wraps an object in a reactive Proxy
+- `effect(fn)` runs a function and re-runs it when its dependencies change
+- `derive(fn)` computes a value that stays in sync with its dependencies
+- `batch(fn)` groups multiple state changes into a single update cycle
 
 Two settle points bridge imperative code into the graph:
 
@@ -30,7 +30,7 @@ That's the whole library.
 - ~9kb minified, ~4kb gzipped
 - Single-file core
 - TypeScript-first with full type inference
-- Deep reactivity — nested objects are automatically wrapped
+- Deep reactivity: nested objects are automatically wrapped
 - Automatic dependency tracking at the property level
 
 ## Who this is for

@@ -116,11 +116,11 @@ $app.user.profile.name = 'Bob' // Triggers updates
 
 Every property access has overhead:
 
-- **Direct object**: ~3ms for 1M operations
-- **Proxied object**: ~75ms for 1M operations (batched)
-- **Trade-off**: Natural syntax for 4x performance cost
+- A direct object takes ~3ms for 1M operations.
+- A proxied object takes ~75ms for 1M batched operations.
+- Natural syntax costs 4x in performance.
 
-Internally, Beacon optimizes by manipulating the raw target directly. The proxy trap intercepts the operation, performs direct manipulation on the underlying object, then queues the notification.
+Internally, Beacon optimizes by manipulating the raw target directly. The proxy trap intercepts the operation, applies it to the underlying object, then queues the notification.
 
 ## Patterns
 
@@ -353,7 +353,7 @@ $user.email = 'alice@example.com' // Optional property
 
 ## Performance tips
 
-1. **Avoid reading in hot loops** — cache values outside loops
-2. **Batch updates** — use `batch()` for multiple changes
-3. **Minimize nesting depth** — deeply nested objects have more overhead
-4. **Use primitive comparisons** — `Object.is()` is used for equality
+1. **Avoid reading in hot loops.** Cache values outside loops.
+2. **Batch updates.** Use `batch()` for multiple changes.
+3. **Minimize nesting depth.** Deeply nested objects have more overhead.
+4. **Use primitive comparisons.** `Object.is()` is used for equality.

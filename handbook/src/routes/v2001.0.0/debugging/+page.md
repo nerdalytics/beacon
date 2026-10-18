@@ -18,7 +18,7 @@ const dispose = effect(() => {
 }, 'CountLogger')
 ```
 
-The name flows into hook callbacks (`onRun`, `onError`, `onDispose`, `onSchedule`) and appears in infinite loop error messages.
+The name is passed to the `onRun`, `onError`, `onDispose`, and `onSchedule` hook callbacks, and it appears in infinite loop error messages.
 
 ## Tracing state access
 
@@ -128,4 +128,4 @@ Use `onError` with named effects. The effect name is passed as the second argume
 
 ## Production use
 
-Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. There is no global debug mode to accidentally ship.
+Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. There is no global debug mode that could ship by accident.

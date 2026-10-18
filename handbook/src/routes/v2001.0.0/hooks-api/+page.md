@@ -327,7 +327,7 @@ interface DeriveHooks<T = any> {
 }
 ```
 
-> Hooks no longer track counts internally — hooks can maintain their own metrics if needed.
+> Hooks no longer track counts internally. Hooks can maintain their own metrics if needed.
 
 ### onCompute
 
@@ -422,7 +422,7 @@ interface BatchHooks {
 }
 ```
 
-> `onBatchEnd` no longer includes `updateCount` — hooks can track their own metrics if needed.
+> `onBatchEnd` no longer includes `updateCount`. Hooks can track their own metrics if needed.
 
 ### onBatchStart
 
@@ -606,7 +606,7 @@ effect(
 )
 ```
 
-Execution order: array hooks execute in the order they appear. The internal compose function wraps each hook in error isolation — if one throws, others still execute. Undefined and null hooks are ignored.
+Array hooks execute in the order they appear. The internal compose function wraps each hook in error isolation, so if one throws, the others still execute. Undefined and null hooks are ignored.
 
 ## TypeScript support
 
@@ -678,9 +678,9 @@ target[prop]
 
 Optimization strategies:
 
-1. **Pre-check hook existence** — store boolean flags to avoid repeated optional chaining
-2. **Defer heavy computation** — use `queueMicrotask` for expensive work
-3. **Filter by property** — check specific properties instead of running on every access
+1. **Pre-check hook existence.** Store boolean flags to avoid repeated optional chaining
+2. **Defer heavy computation.** Use `queueMicrotask` for expensive work
+3. **Filter by property.** Check specific properties instead of running on every access
 
 ```typescript
 // Defer heavy computation
@@ -714,10 +714,10 @@ function safeHook<T>(): StateHooks<T>['onWrite'] {
 
 ## Best practices
 
-1. **Keep hooks fast** — avoid heavy computation that slows operations
-2. **Use arrays for related hooks** — combine related functionality naturally
-3. **Handle errors gracefully** — the compose function provides isolation, but add your own logging
-4. **Type your hooks** — use TypeScript generics for better DX
-5. **Test hooks independently** — write unit tests for custom hooks
-6. **Use async sparingly** — keep hooks synchronous when possible
-7. **Document behavior** — clearly describe what custom hooks do
+1. **Keep hooks fast.** Avoid heavy computation that slows operations
+2. **Use arrays for related hooks.** Combine related functionality naturally
+3. **Handle errors gracefully.** The compose function provides isolation, but add your own logging
+4. **Type your hooks.** Use TypeScript generics for better DX
+5. **Test hooks independently.** Write unit tests for custom hooks
+6. **Use async sparingly.** Keep hooks synchronous when possible
+7. **Document behavior.** Describe what each custom hook does

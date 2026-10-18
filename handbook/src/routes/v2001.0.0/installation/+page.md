@@ -15,7 +15,7 @@ description: Install Beacon and set up your project
 |---|---|---|
 | Node.js >= 24 | Full support | Primary target. All tests pass. |
 | Bun >= 1.3 | Compatible | Core reactivity works. Caveat: Bun's `deepStrictEqual` includes non-enumerable symbol properties on objects, unlike Node. If you compare a Beacon-wrapped array with `deepStrictEqual` on Bun, you will see internal symbols (`[[beacon_proxy]]`, `[[beacon_subscribers]]`) in the diff. This is a Bun deviation from Node's `assert` behavior, not a Beacon bug. |
-| Deno >= 2.7 | Compatible | Core reactivity works. Caveat: Deno's `node:test` compat layer does not implement `afterEach`, so one test file fails to load. The reactive system itself runs correctly — the gap is in the test harness, not in Beacon. |
+| Deno >= 2.7 | Compatible | Core reactivity works. Caveat: Deno's `node:test` compat layer does not implement `afterEach`, so one test file fails to load. The reactive system itself runs correctly. The gap is in the test harness, not in Beacon. |
 
 ## Install
 
@@ -93,5 +93,5 @@ All four primitives are named exports from the package root. There are no subpat
 
 ## TypeScript
 
-Beacon ships source files and declaration maps. Type inference works out of the box — no `@types` package needed.
+Beacon ships source files and declaration maps. Type inference works out of the box. No `@types` package is needed.
 
