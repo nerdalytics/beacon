@@ -1214,13 +1214,15 @@ function isThenable(value: unknown): value is Promise<unknown> {
 	return typeof (value as { then?: unknown }).then === 'function'
 }
 
+type DeriveInternal<T> = {
+	lastValue: T | undefined | null
+	pending: boolean
+	value: T | undefined | null
+}
+
 function writeDeriveValue<T>(
-	internalState: {
-		lastValue: T | undefined | null
-	},
-	reactiveInternal: {
-		value: T | undefined | null
-	} | null,
+	internalState: Pick<DeriveInternal<T>, 'lastValue'>,
+	reactiveInternal: Pick<DeriveInternal<T>, 'value'> | null,
 	newValue: T
 ): void {
 	if (!Object.is(newValue, internalState.lastValue)) {
@@ -1232,12 +1234,8 @@ function writeDeriveValue<T>(
 }
 
 function setDerivePending(
-	internalState: {
-		pending: boolean
-	},
-	reactiveInternal: {
-		pending: boolean
-	} | null,
+	internalState: Pick<DeriveInternal<unknown>, 'pending'>,
+	reactiveInternal: Pick<DeriveInternal<unknown>, 'pending'> | null,
 	pending: boolean
 ): void {
 	if (internalState.pending === pending) return
@@ -1251,14 +1249,8 @@ function setDerivePending(
 
 function computeDerive<T>(
 	computeFn: () => T | Promise<T>,
-	internalState: {
-		lastValue: T | undefined | null
-		pending: boolean
-	},
-	reactiveInternal: {
-		pending: boolean
-		value: T | undefined | null
-	} | null,
+	internalState: Pick<DeriveInternal<T>, 'lastValue' | 'pending'>,
+	reactiveInternal: Pick<DeriveInternal<T>, 'pending' | 'value'> | null,
 	onCompute: HookFunction<[T | undefined]> | undefined,
 	onError: HookFunction<[Error]> | undefined,
 	onAsync: (result: Promise<T>) => void,
