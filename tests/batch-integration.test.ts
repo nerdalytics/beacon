@@ -162,6 +162,36 @@ describe('Batch Integration', {
 		assert.deepStrictEqual(results, [2])
 	})
 
+	it('runs effects created inside batch once at batch end and not again in later batches', (): void => {
+		const $state = state({
+			value: 0,
+		})
+		const runs: string[] = []
+		let disposeA: () => void = (): void => {}
+		let disposeB: () => void = (): void => {}
+
+		batch((): void => {
+			disposeA = effect((): void => {
+				runs.push(`a${$state.value}`)
+			})
+			disposeB = effect((): void => {
+				runs.push(`b${$state.value}`)
+			})
+			assert.deepStrictEqual(runs, [])
+		})
+
+		assert.deepStrictEqual(runs, ['a0', 'b0'])
+
+		batch((): void => {
+			$state.value = 1
+		})
+
+		assert.deepStrictEqual(runs, ['a0', 'b0', 'a1', 'b1'])
+
+		disposeA()
+		disposeB()
+	})
+
 	it('batches multiple state objects', (): void => {
 		const $user = state({
 			age: 30,
