@@ -59,6 +59,47 @@ describe('Derive Hooks', {
 		assert.strictEqual(disposed, true)
 	})
 
+	it('re-creates and disposes one effect across reactive toggles', () => {
+		let computes = 0
+		let disposals = 0
+		const $s = state({
+			count: 1,
+		})
+		const $d = derive(() => $s.count * 10, {
+			onCompute: () => {
+				computes++
+			},
+			onDispose: () => {
+				disposals++
+			},
+		})
+		assert.strictEqual(computes, 1)
+
+		$d.reactive = true
+		assert.strictEqual(computes, 1)
+
+		$d.reactive = false
+		$d.reactive = false
+		assert.strictEqual(disposals, 1)
+		$s.count = 2
+		assert.strictEqual(computes, 1)
+		assert.strictEqual($d.value, 10)
+
+		$d.reactive = true
+		$d.reactive = true
+		assert.strictEqual(computes, 2)
+		assert.strictEqual($d.value, 20)
+		$s.count = 3
+		assert.strictEqual(computes, 3)
+		assert.strictEqual($d.value, 30)
+
+		$d.reactive = false
+		assert.strictEqual(disposals, 2)
+		$s.count = 4
+		assert.strictEqual(computes, 3)
+		assert.strictEqual($d.value, 30)
+	})
+
 	it('fires onError when computeFn throws and re-throws', () => {
 		const errors: Error[] = []
 		assert.throws(

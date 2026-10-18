@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { state } from '../src/index.ts'
+import { effect, state } from '../src/index.ts'
 
 describe('State Hooks', {
 	concurrency: true,
@@ -167,6 +167,39 @@ describe('State Hooks', {
 		$s.user.name = 'Bob'
 		$s.user.settings.theme = 'light'
 		assert.deepStrictEqual(writes, ['name', 'theme'])
+	})
+
+	it('returns reactive nested proxies and passes primitives through when hooked', () => {
+		const reads: string[] = []
+		const raw = {
+			count: 1,
+			empty: null,
+			label: 'a',
+			user: {
+				name: 'Alice',
+			},
+		}
+		const $s = state(raw, {
+			onRead: (prop: PropertyKey) => {
+				reads.push(String(prop))
+			},
+		})
+
+		assert.strictEqual($s.count, 1)
+		assert.strictEqual($s.label, 'a')
+		assert.strictEqual($s.empty, null)
+		assert.notStrictEqual($s.user, raw.user)
+		assert.strictEqual($s.user, $s.user)
+
+		const names: string[] = []
+		const dispose = effect(() => {
+			names.push($s.user.name)
+		})
+		$s.user.name = 'Bob'
+		dispose()
+
+		assert.deepStrictEqual(names, ['Alice', 'Bob'])
+		assert.ok(reads.includes('name'))
 	})
 
 	it('fires onRead when array mutating methods are accessed', () => {

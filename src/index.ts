@@ -330,18 +330,13 @@ function armMicrotaskFlush(): void {
 }
 
 function addPendingEffect(subscriber: EffectFunction): void {
-	if (subscriber.__schedule === 'microtask') {
-		const prevMicro = pendingMicroEffects.size
-		pendingMicroEffects.add(subscriber)
-		if (pendingMicroEffects.size === prevMicro) return
-		callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
-		armMicrotaskFlush()
-		return
-	}
-	const prevSize = pendingEffects.size
-	pendingEffects.add(subscriber)
-	if (pendingEffects.size === prevSize) return
+	const isMicro = subscriber.__schedule === 'microtask'
+	const queue = isMicro ? pendingMicroEffects : pendingEffects
+	const prevSize = queue.size
+	queue.add(subscriber)
+	if (queue.size === prevSize) return
 	callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
+	if (isMicro) armMicrotaskFlush()
 }
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
@@ -560,11 +555,6 @@ function createDeleteHandler<T>(
 	}
 }
 
-function resolveValue(value: unknown, hooks: StateHooks<object> | undefined): unknown {
-	if (value === null || typeof value !== 'object') return value
-	return wrapNestedObject(value as object, hooks)
-}
-
 function isInternalSymbol(prop: PropertyKey): boolean {
 	return prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS
 }
@@ -622,7 +612,8 @@ function createGetHandler<T>(
 		const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
 		if (wrapped) return wrapped
 
-		return resolveValue(value, hooks as StateHooks<object> | undefined)
+		if (value === null || typeof value !== 'object') return value
+		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
 	}
 }
 
@@ -1124,13 +1115,11 @@ function clearBatchState(): void {
 
 function runDeferredEffects(): void {
 	const len = deferredEffectCreations.length
-	if (len > 0) {
-		for (let i = 0; i < len; i++) {
-			const eff = deferredEffectCreations[i]
-			if (eff) eff()
-		}
-		deferredEffectCreations.length = 0
+	for (let i = 0; i < len; i++) {
+		const eff = deferredEffectCreations[i]
+		if (eff) eff()
 	}
+	deferredEffectCreations.length = 0
 }
 
 function flushBatchEffects(): void {
@@ -1296,8 +1285,6 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 	let reactiveInternal: typeof internalState | null = null
 
 	const createEffect = (): void => {
-		if (dispose) return
-
 		reactiveInternal = state(internalState)
 
 		const internalEffectHooks: EffectHooks | undefined = onDependencyChange
@@ -1350,19 +1337,15 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 		)
 	}
 
-	const disposeEffect = (): void => {
-		if (dispose) {
-			callHookSafe(onDeriveDispose)
-			dispose()
-			dispose = null
-			setDerivePending(internalState, reactiveInternal, false)
-			reactiveInternal = null
-		}
+	const disposeEffect = (d: Unsubscribe): void => {
+		callHookSafe(onDeriveDispose)
+		d()
+		dispose = null
+		setDerivePending(internalState, reactiveInternal, false)
+		reactiveInternal = null
 	}
 
-	if (internalState.reactive) {
-		createEffect()
-	}
+	createEffect()
 
 	const readValue = (): T | undefined | null => {
 		if (untilEvaluating) {
@@ -1392,7 +1375,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
 				if (value && !wasReactive && !dispose) createEffect()
-				else if (!value && wasReactive && dispose) disposeEffect()
+				else if (!value && wasReactive && dispose) disposeEffect(dispose)
 				return true
 			}
 			return false
