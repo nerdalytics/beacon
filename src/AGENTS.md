@@ -77,7 +77,7 @@ Five handler factories, each returns a ProxyHandler method. `state()` without ho
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
-| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads, `getWrappedArrayMethod` for mutating methods, `resolveValue` for nested wrapping |
+| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads, `getWrappedArrayMethod` for mutating methods, `wrapNestedObject` for nested wrapping |
 | `createSetHandler()` | `set` | Delegates to `handleBatchFastPath` during batch, `performWrite` otherwise |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
@@ -92,7 +92,7 @@ Handler helpers:
 | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
 | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
 | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
-| `resolveValue` | Wraps nested objects via `wrapNestedObject` → `state()` |
+| `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
 | `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
 | `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
