@@ -1308,12 +1308,6 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 
 		reactiveInternal = state(internalState)
 
-		const internalEffectHooks: EffectHooks | undefined = onDependencyChange
-			? {
-					onDependencyChange,
-				}
-			: undefined
-
 		dispose = effect(
 			(): void => {
 				if (!internalState.reactive || isComputing) return
@@ -1354,7 +1348,9 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 				)
 			},
 			undefined,
-			internalEffectHooks
+			onDependencyChange && {
+				onDependencyChange,
+			}
 		)
 	}
 
