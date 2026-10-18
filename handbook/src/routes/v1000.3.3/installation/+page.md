@@ -16,7 +16,7 @@ npm install @nerdalytics/beacon --save-exact
 
 ## Project setup
 
-Beacon ships as ESM. Set `"type": "module"` in your `package.json`:
+Beacon ships as ES modules. Set `"type": "module"` in your `package.json`:
 
 ```json
 {

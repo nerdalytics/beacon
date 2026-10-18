@@ -16,7 +16,7 @@ npm install @nerdalytics/beacon --save-exact
 
 ## Project setup
 
-Beacon ships as ESM. Set `"type": "module"` in your `package.json`:
+Beacon ships as ESM. Set `"type": "module"` in `package.json`:
 
 ```json
 {
@@ -53,4 +53,4 @@ $count.set(1)
 // => 2
 ```
 
-If you see `0` then `2`, the installation is correct.
+If you see `0` followed by `2`, the installation works.

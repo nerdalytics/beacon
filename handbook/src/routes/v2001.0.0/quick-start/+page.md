@@ -72,7 +72,7 @@ $app.errors = 5
 errorRate.reactive = false
 ```
 
-Always set `reactive = false` when you're done with a derived value. It creates an internal effect that leaks if not disposed.
+Always set `reactive = false` when you finish with a derived value. It creates an internal effect that leaks if you do not dispose it.
 
 ## 4. Batch updates
 

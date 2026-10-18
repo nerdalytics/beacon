@@ -10,4 +10,4 @@ description: Source code, packages, and related work
 
 ## Related
 
-- [TC39 Signals Proposal](https://github.com/tc39/proposal-signals) — the standards proposal that informed Beacon's API surface
+- [TC39 Signals Proposal](https://github.com/tc39/proposal-signals). This standards proposal informed Beacon's API

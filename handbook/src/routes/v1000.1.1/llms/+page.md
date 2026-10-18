@@ -9,7 +9,7 @@ import Version from '#lib/components/Version.svelte'
 
 ## Overview
 
-The Beacon handbook is available as plain text at every version. These endpoints follow the [llms.txt](https://llmstxt.org/) convention and return content that LLMs can read directly.
+Beacon publishes the handbook as plain text for every version. These endpoints follow the [llms.txt](https://llmstxt.org/) convention and return content that LLMs can read directly.
 
 ## Endpoints
 
@@ -20,7 +20,7 @@ The Beacon handbook is available as plain text at every version. These endpoints
 | `/{version}/llms-full.txt` | All pages concatenated into one document |
 | `/{version}/{page}.md` | Single page as raw Markdown |
 
-Replace `{version}` with a version number (e.g. `<Version />`) or `latest`.
+Replace `{version}` with a version number, such as `<Version />`, or with `latest`.
 
 ## Examples
 
@@ -40,6 +40,6 @@ Read https://nerdalytics.github.io/beacon/latest/state.md and show me how to use
 
 These URLs work anywhere an LLM can fetch a resource:
 
-- **Claude Code** / **ChatGPT** — paste the URL into your prompt
-- **Cursor** / **Windsurf** — add as a doc reference
-- **Custom agents** — fetch `/{version}/llms-full.txt` as system context
+- Claude Code and ChatGPT: paste the URL into your prompt.
+- Cursor and Windsurf: add the URL as a doc reference.
+- Custom agents fetch `/{version}/llms-full.txt` as system context.

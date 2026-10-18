@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-This page documents what ships in `@nerdalytics/beacon`: the hook type interfaces and the `composeHook` utility. There are no built-in hook implementations. You write your own hook functions against these interfaces.
+This page documents the hook type interfaces and the `composeHook` utility that ship in `@nerdalytics/beacon`. There are no built-in hook implementations. You write your own hook functions against these interfaces.
 
 For a conceptual overview and the composition model, see <VersionLink path="/hooks-overview">Hooks Overview</VersionLink>.
 
@@ -49,7 +49,7 @@ Passed as the second argument to `derive(fn, hooks?)`.
 | `onCompute` | `(previousValue: T \| undefined)` | Compute function about to run |
 | `onCacheHit` | `(value: T, cacheHit: boolean)` | `.value` accessed |
 | `onDependencyChange` | `(target: object, prop: PropertyKey)` | A dependency changed |
-| `onDispose` | `()` | Derive disposed (`reactive` set to `false`) |
+| `onDispose` | `()` | Derive disposed by setting `reactive` to `false` |
 | `onError` | `(error: Error)` | Compute function threw |
 
 ### BatchHooks
@@ -76,15 +76,15 @@ function composeHook<Args extends unknown[]>(
 
 Normalization rules:
 
-- `undefined` or `null` → `undefined`
-- Single function → returned as-is
-- Empty array → `undefined`
-- Single-element array → that element
-- Multiple-element array → composed function that calls all in sequence
+- `undefined` or `null` returns `undefined`
+- A single function is returned as-is
+- An empty array returns `undefined`
+- A single-element array returns that element
+- A multiple-element array returns a composed function that calls all of them in sequence
 
 **Error isolation.** Each function in a composed array is wrapped in `try/catch`. One failing hook does not prevent the others from running.
 
-You rarely need to call `composeHook` directly. The `state`, `effect`, `derive`, and `batch` primitives call it internally when they normalize hook fields. It is useful when you write your own hook factory that accepts `SingleOrArray` and needs to produce a single callable.
+You rarely need to call `composeHook` directly. The `state`, `effect`, `derive`, and `batch` primitives call it internally when they normalize hook fields. It helps when you write a hook factory that accepts `SingleOrArray` and must return one callable.
 
 ```typescript
 import { composeHook } from '@nerdalytics/beacon/hooks'

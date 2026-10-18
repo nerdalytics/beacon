@@ -3,7 +3,7 @@ title: v1.0.0 → v1000.0.0
 description: Migrating from Beacon v1.0.0 to v1000.0.0
 ---
 
-v1000.0.0 is a complete rewrite. The core API pattern stays the same (callable signals with `.set()` and `.update()`), but types, naming, and runtime behavior changed. This page covers every breaking change and new addition.
+v1000.0.0 is a complete rewrite. The core API pattern stays the same. Signals are callable and have `.set()` and `.update()`. Types, naming, and runtime behavior changed. This page covers every breaking change and new addition.
 
 ## Renamed: `derived` → `derive`
 
@@ -17,7 +17,7 @@ import { derive } from '@nerdalytics/beacon'
 const $doubled = derive(() => $count() * 2)
 ```
 
-`derive()` returns `ReadOnlyState<T>` instead of `Signal<T>`. Calling `.set()` or `.update()` on a derived value is no longer possible.
+`derive()` returns `ReadOnlyState<T>` instead of `Signal<T>`. Calling `.set()` or `.update()` on a derived value no longer works.
 
 ## Renamed types: `Signal<T>` → `State<T>`
 
@@ -63,11 +63,11 @@ $user.update((u) => ({ ...u, name: 'Grace' }))
 // => "Grace"
 ```
 
-An optional third argument accepts a custom equality function. Defaults to `Object.is`.
+An optional third argument takes a custom equality function. The default is `Object.is`.
 
 ## New: `readonlyState()`
 
-Wraps a `State<T>` to hide `.set()` and `.update()`. Useful when exposing state to consumers that should read but not write.
+Wraps a `State<T>` and hides `.set()` and `.update()`. Use it when you expose state to consumers that should read but not write.
 
 ```typescript
 import { state, readonlyState } from '@nerdalytics/beacon'
@@ -81,7 +81,7 @@ console.log($readOnly()) // => 0
 
 ## New: `protectedState()`
 
-Returns a `[ReadOnlyState<T>, WriteableState<T>]` tuple. Separates read and write capabilities into distinct references.
+Returns a `[ReadOnlyState<T>, WriteableState<T>]` tuple. It puts the read and write capabilities into separate references.
 
 ```typescript
 import { protectedState } from '@nerdalytics/beacon'
@@ -106,7 +106,7 @@ effect(() => {
 })
 ```
 
-In v1.0.0 this would loop until the effect queue drained. In v1000.0.0 it throws `"Infinite loop detected: effect() cannot update a state() it depends on!"`.
+In v1.0.0, this looped until the effect queue drained. In v1000.0.0, it throws `"Infinite loop detected: effect() cannot update a state() it depends on!"`.
 
 ## Effect re-entrance prevention
 
@@ -128,7 +128,7 @@ In v1.0.0, effects created inside batches ran immediately.
 
 ## Internal architecture
 
-The internals were restructured from module-level closures to a class-based implementation. The public API surface is unchanged: `state()`, `derive()`, `effect()`, `batch()` remain top-level function exports.
+The internals were restructured from module-level closures to a class-based implementation. The public API is unchanged. `state()`, `derive()`, `effect()`, and `batch()` remain top-level function exports.
 
 ## Upgrade
 
@@ -136,4 +136,4 @@ The internals were restructured from module-level closures to a class-based impl
 npm install @nerdalytics/beacon@1000.0.0 --save-exact
 ```
 
-Search your codebase for `derived(` and replace with `derive(`. Update any `Signal<T>` type annotations to `State<T>`.
+Search your codebase for `derived(` and replace it with `derive(`. Update any `Signal<T>` type annotations to `State<T>`.

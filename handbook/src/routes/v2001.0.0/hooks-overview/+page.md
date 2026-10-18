@@ -18,9 +18,9 @@ Three properties define the system:
 
 ## Why hooks
 
-Hooks give you a controlled place to attach instrumentation: logging, timing, validation, analytics. Because hooks are opt-in per call site, you attach them only where you need them. There is no global debug mode, no environment variables, no build flags.
+Hooks are where you attach instrumentation: logging, timing, validation, analytics. Because hooks are opt-in per call site, you attach them only where you need them. There is no global debug mode, no environment variables, no build flags.
 
-Hooks also mean no debug code in production, no monkey-patching, extensibility beyond logging, and compatibility with tree-shaking.
+Hooks also keep debug code out of production, avoid monkey-patching, extend beyond logging, and work with tree-shaking.
 
 ## Zero-cost abstraction
 
@@ -100,7 +100,7 @@ function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Uns
 | Hook | Arguments | Fires when |
 | --- | --- | --- |
 | `onRun` | `(effectName?)` | Effect function about to execute |
-| `onDispose` | `(effectName?)` | Effect disposed (cleanup called) |
+| `onDispose` | `(effectName?)` | Effect disposed, with cleanup run |
 | `onError` | `(error, effectName?)` | Effect threw during execution |
 | `onDependencyAdd` | `(target, prop, effectName?)` | New dependency registered |
 | `onSchedule` | `(effectName?)` | Effect queued for re-execution |
@@ -138,7 +138,7 @@ function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
 | --- | --- | --- |
 | `onCompute` | `(previousValue?)` | Compute function about to run |
 | `onCacheHit` | `(value, fromCache)` | `.value` accessed |
-| `onDispose` | `()` | Derive disposed (`reactive` set to `false`) |
+| `onDispose` | `()` | Derive disposed by setting `reactive` to `false` |
 | `onError` | `(error)` | Compute function threw |
 | `onDependencyChange` | `(target, prop)` | A dependency changed |
 

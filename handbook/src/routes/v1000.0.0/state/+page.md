@@ -24,7 +24,7 @@ interface WriteableState<T> {
 type State<T> = ReadOnlyState<T> & WriteableState<T>
 ```
 
-`State<T>` combines both read and write capabilities. `ReadOnlyState<T>` is callable and read-only — returned by `derive()` and `select()`. `WriteableState<T>` exposes `.set()` and `.update()`.
+`State<T>` combines both read and write capabilities. `ReadOnlyState<T>` is callable and read-only, and `derive()` and `select()` return it. `WriteableState<T>` exposes `.set()` and `.update()`.
 
 ## Creating signals
 
@@ -53,7 +53,7 @@ effect(() => {
 })
 ```
 
-Reading inside an `effect()` or `derive()` callback registers a dependency. Reading outside of these contexts returns the value without tracking.
+Reading inside an `effect()` or `derive()` callback registers a dependency. Reading outside these contexts returns the value without tracking.
 
 ## Writing
 
@@ -69,7 +69,7 @@ console.log($count()) // => 5
 
 ### `.update(fn)`
 
-Transforms the value using the current value:
+Transforms the current value:
 
 ```typescript
 const $count = state(0)
@@ -113,7 +113,7 @@ $list.set([...arr]) // new reference — triggers update
 
 ## Working with objects
 
-Since signals use value-level (not property-level) tracking, you must replace the entire object to trigger updates:
+Signals track whole values, not properties. You must replace the entire object to trigger updates:
 
 ```typescript
 const $user = state({ name: 'Ada', age: 36 })
@@ -132,7 +132,7 @@ For property-level subscriptions, use `select()` to react only when a specific p
 
 ## Working with arrays
 
-Same principle — create a new array reference:
+The same rule applies to arrays. Create a new array reference:
 
 ```typescript
 const $items = state<string[]>([])

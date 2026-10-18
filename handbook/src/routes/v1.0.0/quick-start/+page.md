@@ -3,7 +3,7 @@ title: Quick Start
 description: Signals, derived values, effects, and batching in five minutes
 ---
 
-This page walks through each of Beacon's four primitives with runnable examples.
+This page walks through each of Beacon's four functions with examples you can run.
 
 ## Create a signal
 
@@ -110,4 +110,4 @@ batch(() => {
 // => "2 items in the list"
 ```
 
-That's the entire API. Four functions, no configuration, no setup.
+The entire API is four functions. It needs no configuration or setup.

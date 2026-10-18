@@ -57,7 +57,7 @@ $user.update((u) => ({ ...u, loginCount: u.loginCount + 1 }))
 // Effect re-runs even though name is still 'Ada'
 ```
 
-`select()` compares the selected slice before and after each source update. If the slice hasn't changed, downstream effects are not notified.
+`select()` compares the selected slice before and after each source update. If the slice has not changed, Beacon does not notify downstream effects.
 
 ## Custom equality
 
@@ -88,7 +88,7 @@ $data.update((d) => ({ ...d, items: [1, 2, 3, 4] }))
 
 ## Composing selectors
 
-`select()` returns a `ReadOnlyState<R>`, so it works anywhere a signal is expected — inside effects, derived values, or even as the source for another `select()`:
+`select()` returns a `ReadOnlyState<R>`, so it works wherever a signal is expected — inside effects, derived values, or even as the source for another `select()`:
 
 ```typescript
 const $app = state({
@@ -109,16 +109,16 @@ effect(() => {
 
 Both produce `ReadOnlyState`. The difference is notification:
 
-- `derive()` notifies downstream whenever any dependency changes and the result differs
-- `select()` only notifies when the selected slice differs, even if the source object changed
+- `derive()` notifies downstream whenever any dependency changes and the result differs.
+- `select()` notifies only when the selected slice differs, even if the source object changed.
 
-For large state objects where you care about one property, `select()` avoids the recomputation overhead `derive()` would cause.
+For large state objects where you care about one property, `select()` avoids the recomputation overhead that `derive()` would cause.
 
 ## Select vs lens
 
 `select()` and `lens()` both subscribe to a nested property of state. The difference is writability:
 
-- `select()` returns `ReadOnlyState<R>` — read a slice, cannot write back
-- `lens()` returns `State<K>` — read and write a slice, with immutable updates propagated to the source
+- `select()` returns `ReadOnlyState<R>`. It reads a slice and cannot write back.
+- `lens()` returns `State<K>`. It reads and writes a slice, and immutable updates propagate to the source.
 
 Use `select()` when you only need to observe a property. Use <VersionLink path="/lens">`lens()`</VersionLink> when you need two-way binding to a nested property.

@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-`effect()` creates reactive functions that re-run automatically when their dependencies change. Effects bridge reactive state to side effects — logging, network requests, DOM updates, and so on.
+`effect()` creates reactive functions that re-run automatically when their dependencies change. Effects connect reactive state to side effects, such as logging, network requests, and DOM updates.
 
 ## API
 
@@ -62,11 +62,11 @@ $user.role = 'user' // Does NOT trigger effect
 
 ## How it works
 
-1. **Initial run**: Effect runs immediately when created
-2. **Dependency tracking**: During execution, any reactive property access is recorded
-3. **Subscription**: Effect subscribes to all accessed properties
-4. **Re-execution**: When dependencies change, the effect is queued for re-run
-5. **Cleanup**: Old dependencies are cleaned up before each new run
+1. **Initial run.** Effect runs immediately when created
+2. **Dependency tracking.** During execution, Beacon records every reactive property access.
+3. **Subscription.** Effect subscribes to all accessed properties
+4. **Re-execution.** When a dependency changes, Beacon queues the effect for re-run
+5. **Cleanup.** Old dependencies are cleaned up before each new run
 
 ```
 Create Effect -> Set as Current -> Run Function -> Track Deps -> Wait for Changes
@@ -142,7 +142,7 @@ const doubled = derive(() => $counter.count * 2)
 
 ## Conditional dependencies
 
-Effects only track what they actually access in a given run:
+Effects track only what they access in a given run:
 
 ```typescript
 const $s = state({ useA: true, a: 1, b: 2 })
@@ -288,7 +288,7 @@ function setupComponent() {
 
 ### Async callbacks don't track dependencies
 
-Beacon tracks dependencies by setting a global `currentEffect` during effect execution. Async callbacks — `setTimeout`, `Promise.then`, event handlers — run after the effect finishes, when `currentEffect` is null.
+Beacon tracks dependencies by setting a global `currentEffect` during effect execution. Async callbacks run after the effect finishes, when `currentEffect` is null. Examples include `setTimeout`, `Promise.then`, and event handlers.
 
 ```typescript
 // Won't track dependencies
@@ -307,7 +307,7 @@ effect(() => {
 })
 ```
 
-This applies to Promise callbacks (`.then()`, `.catch()`, `async/await`) and event handlers too.
+This applies to Promise callbacks such as `.then()`, `.catch()`, and `async/await`, and to event handlers.
 
 ### Array index tracking
 
@@ -331,7 +331,7 @@ $list.items[0] = 99 // Triggers first effect only
 $list.items[5] = 99 // Triggers second effect (length changes)
 ```
 
-Array mutating methods like `push()`, `pop()`, `splice()` notify all subscribers because they can affect multiple properties (indices, length).
+Array mutating methods like `push()`, `pop()`, and `splice()` notify all subscribers because they can affect several properties, including the indices and the length.
 
 ## Integration examples
 

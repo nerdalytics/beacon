@@ -84,7 +84,7 @@ $data.update((d) => ({ ...d, items: [1, 2, 3, 4] }))
 
 ## Composing selectors
 
-`select()` returns a `ReadOnlyState<R>`, so it works anywhere a signal is expected — inside effects, derived values, or even as the source for another `select()`:
+`select()` returns a `ReadOnlyState<R>`, so it works anywhere a signal is expected. Effects and derived values can read it, and another `select()` can use it as its source:
 
 ```typescript
 const $app = state({
@@ -108,4 +108,4 @@ Both produce `ReadOnlyState`. The difference is notification:
 - `derive()` notifies downstream whenever any dependency changes and the result differs
 - `select()` only notifies when the selected slice differs, even if the source object changed
 
-For large state objects where you care about one property, `select()` avoids the recomputation overhead `derive()` would cause.
+For large state objects where you care about one property, `select()` avoids the recomputation overhead that `derive()` would cause.

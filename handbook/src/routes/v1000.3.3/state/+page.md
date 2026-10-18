@@ -9,7 +9,7 @@ description: Reactive signals with automatic dependency tracking
 function state<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): State<T>
 ```
 
-Returns a `State<T>` wrapping the initial value. A state is a callable function with `.set()` and `.update()` methods. The optional `equalityFn` replaces `Object.is` for the same-value check — see [Custom equality](#custom-equality).
+Returns a `State<T>` wrapping the initial value. A state is a callable function with `.set()` and `.update()` methods. The optional `equalityFn` replaces `Object.is` for the same-value check. See [Custom equality](#custom-equality).
 
 ## Type interfaces
 
@@ -26,7 +26,7 @@ type State<T> = ReadOnlyState<T> & WriteableState<T>
 type Unsubscribe = () => void
 ```
 
-`State<T>` combines both read and write capabilities. `ReadOnlyState<T>` is callable and read-only — returned by `derive()` and `select()`. `WriteableState<T>` exposes `.set()` and `.update()`. `Unsubscribe` is the return type of `effect()` — call it to dispose the effect and remove it from all dependency sets.
+`State<T>` combines read and write capabilities. `ReadOnlyState<T>` is callable and read-only, and `derive()` and `select()` return it. `WriteableState<T>` exposes `.set()` and `.update()`. `Unsubscribe` is the return type of `effect()`. Call it to dispose the effect and remove it from all dependency sets.
 
 All four types are `export type` only. Import them with `import type`:
 
@@ -91,7 +91,7 @@ Useful when the new value depends on the old one.
 
 ## Same-value optimization
 
-Beacon uses `Object.is()` to compare old and new values. If the value hasn't changed, subscribers are not notified:
+Beacon uses `Object.is()` to compare old and new values. If the value has not changed, Beacon does not notify subscribers:
 
 ```typescript
 const $count = state(0)
@@ -129,7 +129,7 @@ By default, `state()` uses `Object.is` to decide whether a `.set()` call should 
 function state<T>(initialValue: T, equalityFn?: (a: T, b: T) => boolean): State<T>
 ```
 
-The equality function receives the current value and the incoming value. Return `true` to skip notification (values are equal), `false` to notify.
+The equality function receives the current value and the incoming value. Return `true` to skip notification because the values are equal, or `false` to notify.
 
 ```typescript
 import { state, effect } from '@nerdalytics/beacon'
@@ -164,11 +164,11 @@ const [$read, $write] = protectedState(
 )
 ```
 
-If omitted, both functions fall back to `Object.is`, preserving the same behavior as previous versions.
+If omitted, both functions fall back to `Object.is`, which matches the behavior of previous versions.
 
 ## Working with objects
 
-Since signals use value-level (not property-level) tracking, you must replace the entire object to trigger updates:
+Signals track changes at the value level, not the property level, so you must replace the entire object to trigger updates:
 
 ```typescript
 const $user = state({ name: 'Ada', age: 36 })
@@ -187,7 +187,7 @@ For property-level subscriptions, use `select()` to react only when a specific p
 
 ## Working with arrays
 
-Same principle — create a new array reference:
+The same principle applies. Create a new array reference:
 
 ```typescript
 const $items = state<string[]>([])

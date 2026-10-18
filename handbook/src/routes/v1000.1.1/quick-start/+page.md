@@ -40,7 +40,7 @@ $count.set(3)
 console.log($doubled()) // => 6
 ```
 
-`derive()` creates a read-only signal that recomputes whenever its dependencies change. It returns a `ReadOnlyState<T>` — you can read it but not write to it.
+`derive()` creates a read-only signal that recomputes whenever its dependencies change. It returns a `ReadOnlyState<T>`. You can read it but not write to it.
 
 ## React to changes
 
@@ -137,4 +137,4 @@ batch(() => {
 // => "Server: http://0.0.0.0:8080"
 ```
 
-Eight functions, no configuration, no setup.
+The API is eight functions. It needs no configuration or setup.

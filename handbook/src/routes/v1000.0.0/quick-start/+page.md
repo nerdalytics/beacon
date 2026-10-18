@@ -40,7 +40,7 @@ $count.set(3)
 console.log($doubled()) // => 6
 ```
 
-`derive()` creates a read-only signal that recomputes whenever its dependencies change. It returns a `ReadOnlyState<T>` — you can read it but not write to it.
+`derive()` creates a read-only signal that recomputes whenever its dependencies change. It returns a `ReadOnlyState<T>`, so you can read it but not write to it.
 
 ## React to changes
 

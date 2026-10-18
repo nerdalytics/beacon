@@ -24,14 +24,14 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Changes from v1000.2.4
 
-Patch release. README restructured. No API changes. See the <VersionLink path="/migration">migration guide</VersionLink>.
+This is a patch release. The README was restructured, and the API did not change. See the <VersionLink path="/migration">migration guide</VersionLink>.
 
 ## Constraints
 
-Single TypeScript file, ~633 lines, zero dependencies. Node.js 20+, full type inference. Internals are a `StateImpl` class with static methods.
+Beacon is a single TypeScript file of ~633 lines with zero dependencies. It requires Node.js 20 or later and provides full type inference. Its internals are a `StateImpl` class with static methods.
 
 ## Use cases
 
-Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph. `select()` avoids unrelated recomputation on large state objects. `lens()` gives subsystems two-way ownership of a slice of shared state.
+Typical use cases are configuration objects that trigger side effects on change, in-memory caches that recompute derived data when inputs update, and event-driven pipelines where state changes propagate through a dependency graph. `select()` avoids unrelated recomputation on large state objects. `lens()` lets subsystems read and write a slice of shared state.
 
-Beacon is not a frontend framework. No DOM bindings, no component model. It tracks plain JavaScript values on the server.
+Beacon is not a frontend framework. It has no DOM bindings and no component model. It tracks plain JavaScript values on the server.

@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-`batch()` collapses multiple state mutations into a single notification cycle. Without batch, each mutation triggers its own propagation — effects see intermediate states. With batch, all mutations apply first, then effects run once with the final state.
+`batch()` collapses multiple state mutations into a single notification cycle. Without batch, each mutation triggers its own propagation, and effects see intermediate states. With batch, all mutations apply first, then effects run once with the final state.
 
 ## API
 
@@ -54,13 +54,13 @@ A single property mutation already propagates consistently through derive chains
 
 ## How it works
 
-1. **Batch start**: Increments `batchDepth` counter
-2. **Fast path** (`!onWrite && !currentEffect`): Mutations skip subscriber scheduling — only track dirty target-property pairs in `dirtyTargets`
-3. **Normal path** (write hooks exist or inside an effect): Standard scheduling with hooks and infinite loop detection
-4. **Effect creation**: Effects created inside batch go into `deferredEffectCreations` instead of running immediately
-5. **Dirty target processing**: At `batchDepth === 1`, iterate `dirtyTargets` and call `scheduleSubscribersForTarget` once per unique property
-6. **Batch end**: Decrements `batchDepth`
-7. **Flush**: When depth reaches 0, run deferred effects, then flush all pending effects
+1. **Batch start.** The batch increments the `batchDepth` counter
+2. **Fast path** (`!onWrite && !currentEffect`). Mutations skip subscriber scheduling and only track dirty target-property pairs in `dirtyTargets`
+3. **Normal path** (write hooks exist or inside an effect). Standard scheduling with hooks and infinite loop detection
+4. **Effect creation.** Effects created inside batch go into `deferredEffectCreations` instead of running immediately
+5. **Dirty target processing.** At `batchDepth === 1`, Beacon iterates `dirtyTargets` and calls `scheduleSubscribersForTarget` once per unique property
+6. **Batch end.** The batch decrements `batchDepth`
+7. **Flush.** When depth reaches 0, Beacon runs deferred effects, then flushes all pending effects
 
 ```
 batch() -> batchDepth++ -> Execute fn -> fast path: track dirty targets
@@ -110,10 +110,10 @@ For 1,000,000 iterations (median of 7 runs):
 
 ### Why batch is fast
 
-1. **Deferred scheduling**: The set handler fast path skips subscriber scheduling entirely during batch — only tracks dirty target-property pairs
-2. **Single notification cycle**: N mutations produce 1 flush instead of N flushes
-3. **Reduced effect executions**: Effects depending on multiple changed properties run once
-4. **Predictable timing**: All updates complete before any effects run
+1. **Deferred scheduling.** The set handler fast path skips subscriber scheduling entirely during batch. It only tracks dirty target-property pairs.
+2. **Single notification cycle.** N mutations produce 1 flush instead of N flushes
+3. **Reduced effect executions.** Effects depending on multiple changed properties run once
+4. **Predictable timing.** All updates complete before any effects run
 
 ```typescript
 // Without batch: 3 effect executions
@@ -315,8 +315,8 @@ test('batch groups notifications', () => {
 
 ## Tips
 
-1. **Batch multiple state objects** — when updating different states that trigger the same effects
-2. **Batch for derive** — when changing filter/sort/pagination that a derive depends on
-3. **Keep batches synchronous** — async operations break the batch context
-4. **Use for bulk operations** — essential for loops that update state repeatedly
-5. **Don't nest unnecessarily** — nested batches work but add no benefit
+1. **Batch multiple state objects.** Batch when updating different states that trigger the same effects
+2. **Batch for derive.** Batch when changing a filter, sort, or pagination value that a derive depends on
+3. **Keep batches synchronous.** Async operations break the batch context
+4. **Use for bulk operations.** Loops that update state repeatedly need batch
+5. **Don't nest unnecessarily.** Nested batches work but add no benefit

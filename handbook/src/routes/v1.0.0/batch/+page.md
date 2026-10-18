@@ -9,7 +9,7 @@ description: Group multiple signal updates into a single effect cycle
 function batch<T>(fn: () => T): T
 ```
 
-Executes `fn`, deferring all effect execution until `fn` completes. Returns the return value of `fn`.
+Executes `fn`, deferring all effect execution until `fn` completes. Returns what `fn` returns.
 
 ## Why batch
 
@@ -85,7 +85,7 @@ batch(() => {
 
 ## Error handling
 
-If the callback throws, pending effects are cleared at the outermost batch level to prevent stale effects from running:
+If the callback throws, the outermost batch clears pending effects so that stale effects do not run:
 
 ```typescript
 const $count = state(0)
@@ -108,6 +108,6 @@ console.log($count()) // => 999
 
 ## When to batch
 
-Batch when you update multiple signals that feed the same effects. Bulk operations over data, or initialization sequences where intermediate states are meaningless, are good candidates.
+Batch when you update several signals that feed the same effects. Good candidates are bulk operations over data and initialization sequences whose intermediate states have no meaning.
 
-A single `.set()` call has no benefit from batching. And because `batch()` is synchronous, `await` inside the callback ends the batch context at the first yield point. Async work belongs outside the batch.
+A single `.set()` call gains nothing from batching. Because `batch()` is synchronous, an `await` inside the callback ends the batch at the first yield point. Put async work outside the batch.

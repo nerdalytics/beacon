@@ -121,7 +121,7 @@ Use `onSchedule` to see when an effect is queued for re-execution. Combine with 
 Use state `onRead` to log every access. Run your code and inspect the output.
 
 **Is my derive recomputing too often?**
-Use `onCompute` and `onCacheHit` counters (see example above). A high compute-to-cache-hit ratio means dependencies change frequently.
+Use the `onCompute` and `onCacheHit` counters in the example above. A high compute-to-cache-hit ratio means dependencies change frequently.
 
 **Which effect threw?**
 Use `onError` with named effects. The effect name is passed as the second argument.

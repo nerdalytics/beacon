@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-`derive()` creates computed values that update automatically when their dependencies change. It memoizes the result and only recalculates when necessary.
+`derive()` creates computed values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
 
 ## API
 
@@ -437,7 +437,7 @@ test('derive supports disposal via reactive toggle', () => {
 4. **Avoid deep nesting.** Chains of derives add overhead
 5. **Cache external data.** Don't refetch in derive functions
 6. **Use effects for side effects.** Keep derives pure
-7. **Consider lifecycle.** Short-lived derives should set `reactive = false` promptly
+7. **Consider lifecycle.** Short-lived derives should set `reactive = false` as soon as they are no longer needed
 
 ## Async computations (v2001)
 
@@ -455,9 +455,9 @@ effect(() => {
 })
 ```
 
-While a recompute is in flight the computed value keeps its last settled result and `pending` is `true` (stale-while-pending). Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run on each flip.
+While a recompute is in flight, the computed value keeps its last settled result and `pending` is `true`. This is stale-while-pending behavior. Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run each time `pending` changes.
 
-- **Superseded computations are discarded** — if a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing and a superseded rejection does not call `onError`; the latest computation wins
-- **Rejections route to `onError`** — a rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
-- **Synchronous derives are unchanged** — a synchronous compute function still yields its value immediately, with `pending` always `false`
-- **Disposing discards in-flight computations** — setting `reactive` to `false` clears `pending`; a settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`
+- **Superseded computations are discarded.** If a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing. A superseded rejection does not call `onError`. The latest computation wins
+- **Rejections route to `onError`.** A rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
+- **Synchronous derives are unchanged.** A synchronous compute function still yields its value immediately, with `pending` always `false`
+- **Disposing discards in-flight computations.** Setting `reactive` to `false` clears `pending`. A settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`

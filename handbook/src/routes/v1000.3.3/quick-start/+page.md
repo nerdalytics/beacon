@@ -3,7 +3,7 @@ title: Quick Start
 description: Signals, derived values, effects, batching, and select in five minutes
 ---
 
-This page walks through Beacon's core primitives with runnable examples.
+This page walks through Beacon's core API with runnable examples.
 
 ## Create a signal
 
@@ -40,7 +40,7 @@ $count.set(3)
 console.log($doubled()) // => 6
 ```
 
-`derive()` creates a read-only signal that recomputes whenever its dependencies change. It returns a `ReadOnlyState<T>` — you can read it but not write to it.
+`derive()` creates a read-only signal that recomputes whenever its dependencies change. It returns a `ReadOnlyState<T>`, so you can read it but not write to it.
 
 ## React to changes
 
@@ -137,4 +137,4 @@ batch(() => {
 // => "Server: http://0.0.0.0:8080"
 ```
 
-Eight functions, no configuration, no setup.
+The API has eight functions and needs no configuration or setup.

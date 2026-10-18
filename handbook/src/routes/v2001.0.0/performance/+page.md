@@ -8,7 +8,7 @@ Beacon is a reactive system with zero external dependencies. Updates propagate t
 
 ## Benchmark results
 
-All numbers below are real: 1,000,000 iterations, 10 cycles × 7 measurement samples, median reported. Run on the same machine, back-to-back.
+All numbers below are real: the benchmarks run 1,000,000 iterations, 10 cycles × 7 measurement samples, and report the median. All runs happened on the same machine, back to back.
 
 ### End-to-end scenarios
 
@@ -36,15 +36,15 @@ All numbers below are real: 1,000,000 iterations, 10 cycles × 7 measurement sam
 | 100 states batched | 3.38ms | 4.40ms | +30%, v2000 slower |
 | 100 subs disjoint props | 656.61ms | 48.78ms | −93%, v2000 faster |
 
-**Total benchmark time: v1000 = 290.8s, v2000 = 174.6s, −40%**
+**Total benchmark time.** v1000 took 290.8s and v2000 took 174.6s, a 40% reduction
 
 ### Memory
 
-v2000 batch memory usage is far lower. Where v1000 holds 14,444–14,525kb on the heap during batch + derive scenarios, v2000 holds 18–22kb.
+v2000 batch memory usage is far lower. During batch + derive scenarios, v1000 holds 14,444 to 14,525kb on the heap. v2000 holds 18 to 22kb.
 
 ## What this means in practice
 
-v2000 is faster where it matters most for reactive workloads: write propagation, effect scheduling, and bulk state updates. The `state write 100 subs` result (483ms → 233ms) and `100 states individual` (151ms → 63ms) show the architecture's gains at high fan-out. The `100 subs disjoint props` result (657ms → 49ms, −93%) is the clearest win. Fine-grained per-property tracking means effects that read different properties on the same object no longer interfere.
+v2000 is faster where it matters most for reactive workloads: write propagation, effect scheduling, and bulk state updates. The `state write 100 subs` result drops from 483ms to 233ms, and `100 states individual` drops from 151ms to 63ms. Both show the architecture's gains at high fan-out. The `100 subs disjoint props` result is the clearest win, going from 657ms to 49ms, −93%. Fine-grained per-property tracking means effects that read different properties on the same object no longer interfere.
 
 The regressions to know about:
 
@@ -88,7 +88,7 @@ batch(() => {
 // effects run once with final state
 ```
 
-The benchmark confirms this. `100 states individual` vs `100 states batched` in v1000: 151ms vs 3.38ms. In v2000: 63ms vs 4.40ms. Batch every bulk write. It is the correct usage pattern.
+The benchmark confirms this. In v1000, `100 states individual` takes 151ms and `100 states batched` takes 3.38ms. In v2000, the same pair takes 63ms and 4.40ms. Batch every bulk write. It is the correct usage pattern.
 
 ### Batch fast path
 
@@ -126,7 +126,7 @@ batch(() => {
 On effect re-runs, dependencies are compared against the previous run. If they haven't changed:
 
 - Previous tracking structures are restored. No subscriber set teardown or rebuild happens.
-- Subsequent runs use `trackingOnly` mode, skipping `getSubscribers` + `Set.add` in proxy handlers
+- Subsequent runs use `isTrackingOnly` mode, skipping `getSubscribers` + `Set.add` in proxy handlers
 
 This matters for effects with stable dependency patterns that re-run frequently.
 
@@ -145,7 +145,7 @@ Internal metadata uses Symbols, so it doesn't appear in `Object.keys()`, `JSON.s
 When an effect is disposed:
 
 - `cleanupEffect()` removes it from all subscriber sets and resets tracking state
-- `cleanupEffectCompletely()` also iteratively cleans up child effects (iterative rather than recursive, to avoid stack overflow)
+- `cleanupEffectCompletely()` also cleans up child effects. It iterates instead of recursing, which avoids stack overflow
 - Nested effects are automatically cleaned up when parent effects re-run
 
 ### Derive disposal

@@ -18,7 +18,7 @@ const dispose = effect(() => {
 }, 'CountLogger')
 ```
 
-The name flows into hook callbacks (`onRun`, `onError`, `onDispose`, `onSchedule`) and appears in infinite loop error messages.
+The name is passed to hook callbacks (`onRun`, `onError`, `onDispose`, `onSchedule`) and appears in infinite loop error messages.
 
 ## Tracing state access
 
@@ -40,7 +40,7 @@ $user.name = 'Bob'      // [write] name: Alice → Bob
 console.log($user.age)  // [read] age → 30
 ```
 
-Additional state hooks: `onDelete`, `onHas`, `onOwnKeys`.
+Additional state hooks are `onDelete`, `onHas`, and `onOwnKeys`.
 
 ## Tracing effect lifecycle
 
@@ -90,7 +90,7 @@ $items.list = [1, 2, 3, 4]
 console.log(total.value) // computes: 2, cacheHits: 1
 ```
 
-Additional derive hooks: `onDispose`, `onError`, `onDependencyChange`.
+Additional derive hooks are `onDispose`, `onError`, and `onDependencyChange`.
 
 ## Debugging batch operations
 
@@ -128,4 +128,4 @@ Use `onError` with named effects. The effect name is passed as the second argume
 
 ## Production use
 
-Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. There is no global debug mode to accidentally ship.
+Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. No global debug mode exists that could ship to production by accident.

@@ -32,7 +32,7 @@ $count.set(2)
 
 ## Automatic dependency tracking
 
-Dependencies are discovered by running the function. Whatever signals you call inside `fn`, those become dependencies:
+Beacon discovers dependencies by running the function. Each signal you call inside `fn` becomes a dependency:
 
 ```typescript
 const $a = state(1)
@@ -66,7 +66,7 @@ $flag.set(false)
 
 ## Cleanup on re-run
 
-Before each re-run, Beacon removes the effect from all its dependency sets and re-discovers them during execution. This prevents stale dependencies from accumulating.
+Before each re-run, Beacon removes the effect from all its dependency sets and rediscovers them during execution. This keeps stale dependencies from piling up.
 
 ## Unsubscribing
 
@@ -109,4 +109,4 @@ The outer effect re-runs whenever `$a` changes, which creates a new inner effect
 
 ## Effect execution order
 
-When multiple effects depend on the same signal, they execute in the order they were registered. Effects scheduled during a batch are collected and run once when the batch completes.
+When multiple effects depend on the same signal, they run in the order they were registered. Beacon collects effects scheduled during a batch and runs them once when the batch completes.

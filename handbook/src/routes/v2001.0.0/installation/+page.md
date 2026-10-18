@@ -6,7 +6,7 @@ description: Install Beacon and set up your project
 
 ## Requirements
 
-- ESM project (`"type": "module"` in your `package.json`)
+- ESM project. Set `"type": "module"` in your `package.json`.
 - One of: Node.js >= 24.0.0, Bun >= 1.3, or Deno >= 2.7
 
 ## Runtime compatibility
@@ -14,8 +14,8 @@ description: Install Beacon and set up your project
 | Runtime | Status | Notes |
 |---|---|---|
 | Node.js >= 24 | Full support | Primary target. All tests pass. |
-| Bun >= 1.3 | Compatible | Core reactivity works. Caveat: Bun's `deepStrictEqual` includes non-enumerable symbol properties on objects, unlike Node. If you compare a Beacon-wrapped array with `deepStrictEqual` on Bun, you will see internal symbols (`[[beacon_proxy]]`, `[[beacon_subscribers]]`) in the diff. This is a Bun deviation from Node's `assert` behavior, not a Beacon bug. |
-| Deno >= 2.7 | Compatible | Core reactivity works. Caveat: Deno's `node:test` compat layer does not implement `afterEach`, so one test file fails to load. The reactive system itself runs correctly. The gap is in the test harness, not in Beacon. |
+| Bun >= 1.3 | Compatible | Core reactivity works. On Bun, `deepStrictEqual` includes non-enumerable symbol properties on objects. Node does not. A `deepStrictEqual` check on a Beacon-wrapped array shows the internal symbols `[[beacon_proxy]]` and `[[beacon_subscribers]]` in the diff. The cause is Bun's `assert` behavior, not a Beacon bug. |
+| Deno >= 2.7 | Compatible | Core reactivity works. Deno's `node:test` compat layer does not implement `afterEach`, so one test file fails to load. The reactive system itself runs correctly. The gap is in the test harness, not in Beacon. |
 
 ## Install
 

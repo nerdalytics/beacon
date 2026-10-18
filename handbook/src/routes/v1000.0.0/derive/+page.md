@@ -9,7 +9,7 @@ description: Read-only computed signals that track their own dependencies
 function derive<T>(computeFn: () => T): ReadOnlyState<T>
 ```
 
-Returns a `ReadOnlyState<T>` computed from `computeFn`. Recomputes when any signal read inside `computeFn` changes.
+Returns a `ReadOnlyState<T>` computed from `computeFn`. It recomputes when any signal that `computeFn` reads changes.
 
 ## Basic usage
 
@@ -28,7 +28,7 @@ console.log($total()) // => 500
 
 ## Read-only
 
-`derive()` returns `ReadOnlyState<T>`. There is no `.set()` or `.update()` — the value is controlled entirely by its computation function:
+`derive()` returns `ReadOnlyState<T>`, which has no `.set()` or `.update()`. Only the computation function sets the value:
 
 ```typescript
 const $count = state(0)
@@ -42,7 +42,7 @@ This is a change from v1.0.0, where `derived()` returned a full `Signal<T>` with
 
 ## Lazy initialization
 
-`derive()` is lazy-initialized. The computation function does not run until the derived value is first read or a dependency triggers an update:
+Beacon initializes `derive()` lazily. It does not run the computation until something first reads the derived value or a dependency triggers an update:
 
 ```typescript
 let computed = false
@@ -60,7 +60,7 @@ console.log(computed) // => true (computed on first read)
 
 ## Same-value optimization
 
-Derived values use `Object.is()` to compare the previous and new computed values. If the result hasn't changed, downstream effects are not notified:
+Beacon compares the previous and new derived values with `Object.is()`. If the result is unchanged, it does not notify downstream effects:
 
 ```typescript
 const $items = state([1, 2, 3])
@@ -82,7 +82,7 @@ $items.set([1, 2])
 
 ## Chaining derived values
 
-Derived values compose. Each one tracks its own dependencies independently:
+Derived values compose. Each one tracks its own dependencies:
 
 ```typescript
 const $items = state([10, 20, 30])
@@ -112,11 +112,11 @@ $count.set(5)
 // => 10 (effect re-runs because $doubled changed)
 ```
 
-Reading outside of an effect just returns the current value without tracking.
+Reading outside an effect returns the current value without tracking.
 
 ## Derive vs effect
 
-Use `derive()` when you need a **value**. Use `effect()` when you need a **side effect**.
+Use `derive()` when you need a value. Use `effect()` when you need a side effect.
 
 ```typescript
 // Good: derive produces a value

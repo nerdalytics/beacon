@@ -24,7 +24,7 @@ interface WriteableState<T> {
 type State<T> = ReadOnlyState<T> & WriteableState<T>
 ```
 
-`State<T>` combines both read and write capabilities. `ReadOnlyState<T>` is callable and read-only — returned by `derive()` and `select()`. `WriteableState<T>` exposes `.set()` and `.update()`.
+`State<T>` combines both read and write capabilities. `ReadOnlyState<T>` is callable and read-only. `derive()` and `select()` return it. `WriteableState<T>` exposes `.set()` and `.update()`.
 
 ## Creating signals
 
@@ -53,7 +53,7 @@ effect(() => {
 })
 ```
 
-Reading inside an `effect()` or `derive()` callback registers a dependency. Reading outside of these contexts returns the value without tracking.
+Reading inside an `effect()` or `derive()` callback registers a dependency. Reading outside these contexts returns the value without tracking.
 
 ## Writing
 
@@ -77,11 +77,11 @@ $count.update((n) => n + 1)
 console.log($count()) // => 1
 ```
 
-Useful when the new value depends on the old one.
+Use it when the new value depends on the old one.
 
 ## Same-value optimization
 
-Beacon uses `Object.is()` to compare old and new values. If the value hasn't changed, subscribers are not notified:
+Beacon uses `Object.is()` to compare old and new values. If the value has not changed, subscribers are not notified:
 
 ```typescript
 const $count = state(0)
@@ -100,7 +100,7 @@ $count.set(1) // different value
 // runs = 2
 ```
 
-This means reference equality matters for objects and arrays. Setting the same object reference won't trigger updates:
+This means reference equality matters for objects and arrays. Setting the same object reference does not trigger updates:
 
 ```typescript
 const $list = state([1, 2, 3])
@@ -113,7 +113,7 @@ $list.set([...arr]) // new reference — triggers update
 
 ## Working with objects
 
-Since signals use value-level (not property-level) tracking, you must replace the entire object to trigger updates:
+Signals use value-level tracking, not property-level tracking. You must replace the entire object to trigger updates:
 
 ```typescript
 const $user = state({ name: 'Ada', age: 36 })
@@ -132,7 +132,7 @@ For property-level subscriptions, use `select()` to react only when a specific p
 
 ## Working with arrays
 
-Same principle — create a new array reference:
+The same principle applies. Create a new array reference:
 
 ```typescript
 const $items = state<string[]>([])

@@ -16,10 +16,10 @@ When you read a signal inside an effect, Beacon records the dependency. When the
 
 ## Constraints
 
-Beacon is a single TypeScript file under 200 lines with zero dependencies. It targets Node.js 20+ and provides full type inference out of the box. Dependencies are tracked at the signal level and cleaned up automatically on each re-run.
+Beacon is a single TypeScript file under 200 lines with zero dependencies. It targets Node.js 20+ and provides full type inference out of the box. Beacon tracks dependencies at the signal level and cleans them up automatically on each re-run.
 
 ## Use cases
 
-Beacon is for backend developers who want reactive patterns on the server. Configuration objects that trigger side effects on change. In-memory caches that recompute derived data when inputs update. Event-driven pipelines where state changes propagate through a dependency graph.
+Beacon is for backend developers who want reactive patterns on the server. Typical uses include configuration objects that trigger side effects on change and in-memory caches that recompute derived data when inputs update. Event-driven pipelines, where state changes flow through a dependency graph, are another fit.
 
 It is not a frontend framework. There are no DOM bindings and no component model. It tracks plain JavaScript values.

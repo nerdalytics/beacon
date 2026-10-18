@@ -3,7 +3,7 @@ title: v1000.1.0 → v1000.1.1
 description: Migrating from Beacon v1000.1.0 to v1000.1.1
 ---
 
-No API changes. No breaking changes. Drop-in upgrade.
+There are no API changes and no breaking changes. It is a drop-in upgrade.
 
 ## What changed
 
@@ -17,4 +17,4 @@ If your bundler or runtime resolved Beacon correctly in v1000.1.0, this patch ha
 npm install @nerdalytics/beacon@1000.1.1 --save-exact
 ```
 
-No code changes required.
+You do not need to change any code.

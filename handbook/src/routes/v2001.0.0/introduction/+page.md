@@ -8,7 +8,7 @@ Beacon is a reactive state management library for Node.js backends. It tracks wh
 
 ## What it does
 
-Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. No manual subscriptions. No event names. No selectors.
+Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. You need no manual subscriptions, event names, or selectors.
 
 Four primitives cover the reactive graph:
 
@@ -17,10 +17,10 @@ Four primitives cover the reactive graph:
 - `derive(fn)` computes a value that stays in sync with its dependencies
 - `batch(fn)` groups multiple state changes into a single update cycle
 
-Two settle points bridge imperative code into the graph:
+Two settle points connect imperative code to the graph:
 
-- **`until(predicate)`** — resolves once a settled evaluation of the predicate is truthy
-- **`onSettled(callback)`** — runs the callback whenever the graph reaches quiescence
+- `until(predicate)` resolves once a settled evaluation of the predicate is truthy
+- `onSettled(callback)` runs the callback whenever the graph finishes its work and goes quiet
 
 That's the whole library.
 
@@ -35,7 +35,7 @@ That's the whole library.
 
 ## Who this is for
 
-Backend developers who want reactive patterns on the server. If you've used signals or observables on the frontend and wished you had the same thing in your Node.js services, Beacon fills that gap.
+Backend developers who want reactive patterns on the server. If you have used signals or observables on the frontend and want the same thing in your Node.js services, Beacon provides it.
 
 Common use cases:
 

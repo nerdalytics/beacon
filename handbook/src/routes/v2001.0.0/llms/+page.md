@@ -16,7 +16,7 @@ The Beacon handbook is available as plain text at every version. These endpoints
 | `/{version}/llms-full.txt` | All pages concatenated into one document |
 | `/{version}/{page}.md` | Single page as raw Markdown |
 
-Replace `{version}` with a version number (e.g. `v2001.0.0`) or `latest`.
+Replace `{version}` with a version number, such as `v2001.0.0`, or with `latest`.
 
 ## Examples
 

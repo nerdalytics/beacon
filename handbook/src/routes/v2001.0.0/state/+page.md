@@ -70,7 +70,7 @@ $items[0] = 10 // Index assignment works
 
 When you call `state(obj)`, Beacon:
 
-1. Checks if a proxy already exists for this object (cache lookup)
+1. Checks the cache for an existing proxy of this object
 2. Creates a new Proxy with handler traps
 3. Stores the proxy-target relationship
 4. Returns the proxy
@@ -203,7 +203,7 @@ console.log(original.count === $reactive.count) // true (same value)
 
 ### Class instances
 
-Methods may not work as expected due to `this` binding issues:
+Methods may not work as expected because of `this` binding issues:
 
 ```typescript
 class Counter {

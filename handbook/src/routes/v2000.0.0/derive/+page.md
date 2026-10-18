@@ -8,7 +8,7 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-`derive()` creates computed values that update automatically when their dependencies change. It memoizes the result and only recalculates when necessary.
+`derive()` creates computed values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
 
 ## API
 
@@ -21,8 +21,8 @@ type ComputedValue<T> = {
 }
 ```
 
-- `value` — the cached computed result (read-only)
-- `reactive` — controls the internal effect lifecycle; set to `false` to dispose, `true` to recreate
+- `value` is the cached computed result (read-only)
+- `reactive` controls the internal effect lifecycle. Set it to `false` to dispose the effect and `true` to recreate it.
 
 See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
 
@@ -61,7 +61,7 @@ console.log(expensive.value) // No recomputation, returns cached value
 
 ## How it works
 
-`derive()` uses an internal `state()` + `effect()` pair:
+`derive()` uses an internal `state()` and `effect()` pair:
 
 1. Creates an effect that runs the compute function immediately
 2. Executes the function, tracks dependencies, caches the result
@@ -220,9 +220,9 @@ const v3 = expensive.value // computeCount: 2 (recomputed)
 
 ### Batch optimization
 
-When multiple mutations change different dependencies, `batch()` ensures the derive recomputes once instead of once per mutation.
+When multiple mutations change different dependencies, `batch()` makes the derive recompute once instead of once per mutation.
 
-A single mutation already propagates consistently through a derive chain without batch — effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
+A single mutation already propagates consistently through a derive chain without batch. Effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
 
 ```typescript
 const $a = state({ value: 1 })
@@ -251,7 +251,7 @@ batch(() => {
 
 ### Derive vs. effect
 
-Both run eagerly, but serve different purposes:
+Both run eagerly. They serve different purposes:
 
 ```typescript
 // derive: computes and caches a value
@@ -277,7 +277,7 @@ dispose()
 
 ### Disposal via `reactive` toggle
 
-Derived values create an internal `state()` + `effect()` pair. Set `reactive` to `false` to dispose the internal effect:
+Derived values create an internal `state()` and `effect()` pair. Set `reactive` to `false` to dispose the internal effect:
 
 ```typescript
 const $local = state({ value: 10 })
@@ -323,7 +323,7 @@ function createManagedDerived() {
 
 ### Circular references
 
-This code fails at runtime because `c` is not yet defined when `b` is created — a JavaScript `ReferenceError`, not a Beacon-specific check:
+This code throws a JavaScript `ReferenceError` at runtime because `c` is not yet defined when `b` is created. Beacon has no check of its own for this case:
 
 ```typescript
 const $a = state({ value: 1 })
@@ -336,7 +336,7 @@ const c = derive(() => b.value + 1)
 
 ### Don't mutate in derive
 
-Derived values should be pure — no side effects:
+Derived values should be pure, with no side effects:
 
 ```typescript
 // Bad: has side effects
@@ -428,10 +428,10 @@ test('derive supports disposal via reactive toggle', () => {
 
 ## Performance tips
 
-1. **Set `reactive = false` on unused derives** — prevents memory leaks
-2. **Use batch for multiple updates** — derive recomputes once per batch
-3. **Keep computations simple** — complex derives run on every dependency change
-4. **Avoid deep nesting** — chains of derives add overhead
-5. **Cache external data** — don't refetch in derive functions
-6. **Use effects for side effects** — keep derives pure
-7. **Consider lifecycle** — short-lived derives should set `reactive = false` promptly
+1. **Set `reactive = false` on unused derives.** This prevents memory leaks
+2. **Use batch for multiple updates.** Derive recomputes once per batch
+3. **Keep computations simple.** Complex derives run on every dependency change
+4. **Avoid deep nesting.** Chains of derives add overhead
+5. **Cache external data.** Don't refetch in derive functions
+6. **Use effects for side effects.** Keep derives pure
+7. **Consider lifecycle.** Short-lived derives should set `reactive = false` promptly

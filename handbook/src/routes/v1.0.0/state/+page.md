@@ -21,7 +21,7 @@ interface Signal<T> {
 }
 ```
 
-A signal is a function. Call it to read. Use its methods to write.
+A signal is a function. Call it to read and use its methods to write.
 
 ## Creating signals
 
@@ -74,7 +74,7 @@ $count.update((n) => n + 1)
 console.log($count()) // => 1
 ```
 
-Useful when the new value depends on the old one.
+Use it when the new value depends on the old one.
 
 ## Same-value optimization
 
@@ -110,7 +110,7 @@ $list.set([...arr]) // new reference — triggers update
 
 ## Working with objects
 
-Since signals use value-level (not property-level) tracking, you must replace the entire object to trigger updates:
+Signals track values, not properties, so you must replace the entire object to trigger updates:
 
 ```typescript
 const $user = state({ name: 'Ada', age: 36 })
@@ -127,7 +127,7 @@ $user.update((u) => ({ ...u, name: 'Grace' }))
 
 ## Working with arrays
 
-Same principle — create a new array reference:
+The same principle applies. Create a new array reference:
 
 ```typescript
 const $items = state<string[]>([])

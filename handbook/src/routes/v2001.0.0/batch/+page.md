@@ -99,7 +99,7 @@ batch(() => {
 
 ### Benchmarks
 
-For 1,000,000 iterations (median of 7 runs):
+These benchmarks run 1,000,000 iterations and report the median of 7 runs:
 
 | Scenario | Time |
 |----------|------|
