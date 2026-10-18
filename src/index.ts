@@ -1456,9 +1456,7 @@ function runUntil<T>(
 	const cleanup = (): void => {
 		if (timer !== undefined) clearTimeout(timer)
 		if (signal) signal.removeEventListener('abort', onAbort)
-		const unsubscribe = stop
-		stop = (): void => {}
-		unsubscribe()
+		stop()
 	}
 	const fail = (reason: unknown): void => {
 		if (done) return
