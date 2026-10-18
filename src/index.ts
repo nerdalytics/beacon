@@ -462,45 +462,20 @@ function cleanupEffect(effect: EffectFunction): void {
 	resetEffectTracking(effect)
 }
 
-function cleanupChildEffect(child: EffectFunction, toCleanup: EffectFunction[]): void {
-	cleanupEffect(child)
-
-	const grandchildren = child.__children
-	if (grandchildren) {
-		for (const gc of grandchildren) toCleanup.push(gc)
-		grandchildren.clear()
-		child.__children = undefined
-	}
-
-	child.__parent = undefined
-	child.__active = false
-}
-
+// Iterative, not recursive: deep effect trees must not overflow the stack
 function cleanupEffectCompletely(effect: EffectFunction): void {
-	cleanupEffect(effect)
-
-	const toCleanup: EffectFunction[] = []
-	const children = effect.__children
-	if (children) {
-		for (const c of children) toCleanup.push(c)
-		children.clear()
-		effect.__children = undefined
+	const pending: EffectFunction[] = [effect]
+	while (pending.length > 0) {
+		const eff = pending.pop() as EffectFunction
+		cleanupEffect(eff)
+		if (eff.__children) {
+			for (const c of eff.__children) pending.push(c)
+			eff.__children = undefined
+		}
+		eff.__parent?.__children?.delete(eff)
+		eff.__parent = undefined
+		eff.__active = false
 	}
-
-	while (toCleanup.length > 0) {
-		cleanupChildEffect(toCleanup.pop() as EffectFunction, toCleanup)
-	}
-
-	// Clean up parent relationship
-	const parent = effect.__parent
-	if (parent) {
-		const pchildren = parent.__children
-		pchildren?.delete(effect)
-	}
-
-	// Final cleanup
-	effect.__parent = undefined
-	effect.__active = false
 }
 
 function setContainsAll(superset: Set<PropertyKey>, subset: Set<PropertyKey>): boolean {

@@ -87,6 +87,61 @@ describe('Cleanup', {
 		assert.strictEqual(innerCount, 2)
 	})
 
+	it('cleans up grandchild effects when the root is disposed', (): void => {
+		const $root = state({ value: 0 })
+		const $child = state({ value: 0 })
+		const $grandchild = state({ value: 0 })
+		const runs = { child: 0, grandchild: 0, root: 0 }
+
+		const disposeRoot = effect((): void => {
+			runs.root++
+			$root.value
+			effect((): void => {
+				runs.child++
+				$child.value
+				effect((): void => {
+					runs.grandchild++
+					$grandchild.value
+				})
+			})
+		})
+
+		$grandchild.value = 1
+		assert.deepStrictEqual(runs, { child: 1, grandchild: 2, root: 1 })
+
+		disposeRoot()
+
+		$root.value = 1
+		$child.value = 1
+		$grandchild.value = 2
+		assert.deepStrictEqual(runs, { child: 1, grandchild: 2, root: 1 })
+	})
+
+	it('disposes a nested effect while its parent stays active', (): void => {
+		const $parent = state({ value: 0 })
+		const $child = state({ value: 0 })
+		const runs = { child: 0, parent: 0 }
+		let disposeChild: () => void = (): void => undefined
+
+		const disposeParent = effect((): void => {
+			runs.parent++
+			$parent.value
+			disposeChild = effect((): void => {
+				runs.child++
+				$child.value
+			})
+		})
+
+		disposeChild()
+		$child.value = 1
+		assert.deepStrictEqual(runs, { child: 1, parent: 1 })
+
+		$parent.value = 1
+		assert.deepStrictEqual(runs, { child: 2, parent: 2 })
+
+		disposeParent()
+	})
+
 	it('handles multiple disposals safely', (): void => {
 		const $state = state({
 			value: 0,
