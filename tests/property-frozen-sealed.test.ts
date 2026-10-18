@@ -13,12 +13,10 @@ import { batch, derive, effect, state } from '../src/index.ts'
  * subscriber fallback path works correctly.
  *
  * Key behavior notes:
- * - The set handler fast path (outside effects/batches) checks only
- *   rawTarget[SUBSCRIBERS], not proxyCacheSubs. So direct writes to
- *   sealed objects do not trigger effect notifications.
- * - Writes from within effect execution go through performWrite →
- *   scheduleSubscribersForTarget → findSubscribers, which DOES check
- *   proxyCacheSubs. So cross-effect writes on sealed objects work.
+ * - Every write path resolves subscribers by checking rawTarget[SUBSCRIBERS]
+ *   first and proxyCacheSubs second. So direct writes, batched writes and
+ *   cross-effect writes to sealed objects all notify the effects that read
+ *   the written property.
  * - Frozen objects cannot be written to (properties are non-writable).
  *
  * @see tests/PROPERTY_BASED_TESTING.md — Opportunity #11
@@ -272,8 +270,7 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
 				})
 				const $s = state(sealed) as SealedState
 
-				// Direct write outside any effect — the value DOES get stored
-				// even though effect notifications are skipped by the fast path
+				// Direct write outside any effect stores the value on the sealed target
 				$s[key] = newValue
 				assert.strictEqual($s[key], newValue, 'proxy should reflect updated value')
 				assert.strictEqual(sealed[key], newValue, 'underlying sealed object should be updated')
@@ -282,6 +279,112 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
 				numRuns: 300,
 			}
 		)
+	})
+
+	it('sealed objects: direct writes outside effects notify subscribers', (): void => {
+		fc.assert(
+			fc.property(shallowObjArb, intArb, (obj: SealedState, newValue: number): void => {
+				const key = firstKey(Object.keys(obj))
+				fc.pre(!Object.is(obj[key], newValue))
+				const $s = state(Object.seal({ ...obj })) as SealedState
+
+				let runs = 0
+				const dispose = effect((): void => {
+					runs++
+					void $s[key]
+				})
+				runs = 0
+
+				$s[key] = newValue
+
+				assert.strictEqual(runs, 1, 'direct write should re-run the effect')
+				dispose()
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
+
+	it('sealed objects: writes inside batch notify subscribers once after the batch', (): void => {
+		fc.assert(
+			fc.property(shallowObjArb, intArb, (obj: SealedState, newValue: number): void => {
+				const key = firstKey(Object.keys(obj))
+				fc.pre(!Object.is(obj[key], newValue))
+				const $s = state(Object.seal({ ...obj })) as SealedState
+
+				let runs = 0
+				const dispose = effect((): void => {
+					runs++
+					void $s[key]
+				})
+				runs = 0
+
+				batch((): void => {
+					$s[key] = newValue
+					assert.strictEqual(runs, 0, 'effect should not run inside the batch')
+				})
+
+				assert.strictEqual(runs, 1, 'batched write should re-run the effect exactly once')
+				dispose()
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
+
+	it('sealed objects: writing an unchanged value does not notify', (): void => {
+		fc.assert(
+			fc.property(shallowObjArb, (obj: SealedState): void => {
+				const key = firstKey(Object.keys(obj))
+				const $s = state(Object.seal({ ...obj })) as SealedState
+
+				let runs = 0
+				const dispose = effect((): void => {
+					runs++
+					void $s[key]
+				})
+				runs = 0
+
+				$s[key] = obj[key] as number
+				batch((): void => {
+					$s[key] = obj[key] as number
+				})
+
+				assert.strictEqual(runs, 0, 'unchanged value should not re-run the effect')
+				dispose()
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
+
+	it('extensible targets that reject symbol properties notify via proxyCacheSubs', (): void => {
+		const target = new Proxy(
+			{ a: 1 },
+			{
+				defineProperty: (t: object, key: PropertyKey, desc: PropertyDescriptor): boolean =>
+					typeof key !== 'symbol' && Reflect.defineProperty(t, key, desc),
+			}
+		)
+		const $s = state(target)
+
+		let runs = 0
+		const dispose = effect((): void => {
+			runs++
+			void $s.a
+		})
+		runs = 0
+
+		$s.a = 2
+		batch((): void => {
+			$s.a = 3
+		})
+
+		assert.strictEqual(runs, 2, 'direct and batched writes should each re-run the effect')
+		dispose()
 	})
 
 	it('sealed arrays: mutating methods work via WeakMap method cache', (): void => {

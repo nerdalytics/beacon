@@ -27,6 +27,7 @@ Global mutable state driving the reactive system:
 | `effectQueue` | `EffectFunction[]` | Reused array `runPendingEffectBatch` drains when more than one effect is pending |
 | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
 | `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
+| `hasFallbackSubs` | `boolean` | Set once any subscriber set is stored in `proxyCacheSubs`, never reset; until then subscriber lookups skip the WeakMap |
 | `rerunReadList`, `rerunReadIndex`, `rerunStable` | | Re-run fast path: replays the effect's `__readList` and advances while reads match |
 | `rerunTempDeps`, `rerunTempReads`, `buildingReadList` | | Re-run slow path: collect fresh deps/reads and build a new read list |
 | `settledCallbacks` | `Set<SettledCallback>` | `onSettled` subscribers |
@@ -98,7 +99,7 @@ Handler helpers:
 | `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
 | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check) |
+| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check); inlines the `findSubscribers` lookup |
 | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
 | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
 
@@ -162,8 +163,8 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `getSubscribers` | Resolves subscriber set: `[SUBSCRIBERS]` symbol → `proxyCacheSubs` → create new |
-| `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (frozen) |
-| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol or `proxyCacheSubs` |
+| `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (frozen/sealed), setting `hasFallbackSubs` |
+| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol, then `proxyCacheSubs` once `hasFallbackSubs` is set |
 
 ### Batch Internals
 

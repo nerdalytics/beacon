@@ -78,6 +78,9 @@ let untilSawPending = false
 // Proxy caching
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
+// ponytail: process-wide and never reset; once any non-extensible target has subscribers, every hookless
+// write to a target without subscribers pays the proxyCacheSubs lookup again. Per-target marking if that shows up
+let hasFallbackSubs = false
 // Effects by the property they read, per subscriber Set. It may hold stale entries: scheduling re-checks __reads,
 // so it only has to be a superset of the true readers. Kept off the Set: an own property there cost ~8% on
 // single-subscriber writes in the benchmark suite
@@ -159,9 +162,11 @@ function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>):
 			})
 		} else {
 			proxyCacheSubs.set(target, subscriberSet)
+			hasFallbackSubs = true
 		}
 	} catch {
 		proxyCacheSubs.set(target, subscriberSet)
+		hasFallbackSubs = true
 	}
 }
 
@@ -299,7 +304,7 @@ function callHookSafe<Args extends unknown[]>(hook: HookFunction<Args> | undefin
 
 function findSubscribers(target: object): Set<EffectFunction> | undefined {
 	const t = target as SubscribersObject
-	return t[SUBSCRIBERS] ?? proxyCacheSubs.get(target)
+	return t[SUBSCRIBERS] ?? (hasFallbackSubs ? proxyCacheSubs.get(target) : undefined)
 }
 
 function armMicrotaskFlush(): void {
@@ -633,7 +638,10 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 
 	rawTarget[prop] = value
 
-	if (!(rawTarget as SubscribersObject)[SUBSCRIBERS]?.size) return true
+	// inlined, not findSubscribers: the call cost ~5% on the batch + derive benchmarks
+	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+	if (subs === undefined && hasFallbackSubs) subs = proxyCacheSubs.get(rawTarget)
+	if (!subs?.size) return true
 
 	let props = dirtyTargets.get(rawTarget)
 	if (!props) {
@@ -669,7 +677,7 @@ function createSetHandler<T>(
 			if (!currentEffect) {
 				const oldValue = rawTarget[prop]
 				if (Object.is(oldValue, value)) return true
-				const subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+				const subs = findSubscribers(rawTarget)
 				if (!subs?.size) {
 					rawTarget[prop] = value
 					return true
