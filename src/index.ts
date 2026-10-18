@@ -330,18 +330,13 @@ function armMicrotaskFlush(): void {
 }
 
 function addPendingEffect(subscriber: EffectFunction): void {
-	if (subscriber.__schedule === 'microtask') {
-		const prevMicro = pendingMicroEffects.size
-		pendingMicroEffects.add(subscriber)
-		if (pendingMicroEffects.size === prevMicro) return
-		callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
-		armMicrotaskFlush()
-		return
-	}
-	const prevSize = pendingEffects.size
-	pendingEffects.add(subscriber)
-	if (pendingEffects.size === prevSize) return
+	const isMicro = subscriber.__schedule === 'microtask'
+	const queue = isMicro ? pendingMicroEffects : pendingEffects
+	const prevSize = queue.size
+	queue.add(subscriber)
+	if (queue.size === prevSize) return
 	callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
+	if (isMicro) armMicrotaskFlush()
 }
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
