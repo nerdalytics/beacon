@@ -1302,8 +1302,6 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 	let reactiveInternal: typeof internalState | null = null
 
 	const createEffect = (): void => {
-		if (dispose) return
-
 		reactiveInternal = state(internalState)
 
 		const internalEffectHooks: EffectHooks | undefined = onDependencyChange
@@ -1356,19 +1354,15 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 		)
 	}
 
-	const disposeEffect = (): void => {
-		if (dispose) {
-			callHookSafe(onDeriveDispose)
-			dispose()
-			dispose = null
-			setDerivePending(internalState, reactiveInternal, false)
-			reactiveInternal = null
-		}
+	const disposeEffect = (d: Unsubscribe): void => {
+		callHookSafe(onDeriveDispose)
+		d()
+		dispose = null
+		setDerivePending(internalState, reactiveInternal, false)
+		reactiveInternal = null
 	}
 
-	if (internalState.reactive) {
-		createEffect()
-	}
+	createEffect()
 
 	const readValue = (): T | undefined | null => {
 		if (untilEvaluating) {
@@ -1398,7 +1392,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
 				if (value && !wasReactive && !dispose) createEffect()
-				else if (!value && wasReactive && dispose) disposeEffect()
+				else if (!value && wasReactive && dispose) disposeEffect(dispose)
 				return true
 			}
 			return false
