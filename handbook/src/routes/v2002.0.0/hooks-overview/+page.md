@@ -131,7 +131,7 @@ dispose()
 ### DeriveHooks
 
 ```typescript
-function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
+function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
 ```
 
 | Hook | Arguments | Fires when |

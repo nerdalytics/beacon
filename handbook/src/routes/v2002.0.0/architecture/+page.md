@@ -124,8 +124,8 @@ An effect that reads and writes the same state throws immediately:
 
 ```typescript
 effect(() => {
-  const value = signal.count
-  signal.count = value + 1 // Error: Infinite loop detected!
+  const value = counter.count
+  counter.count = value + 1 // Error: Infinite loop detected!
 })
 ```
 

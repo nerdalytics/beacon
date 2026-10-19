@@ -315,7 +315,7 @@ $state.count++ // "Scheduling counter for re-run"
 
 ## DeriveHooks
 
-Hooks for monitoring computed values.
+Hooks for monitoring derived values.
 
 ```typescript
 interface DeriveHooks<T = any> {
@@ -335,7 +335,7 @@ Fired when a derived value is recomputed.
 
 | Parameter | Type | Description |
 | --- | --- | --- |
-| `previousValue` | `T \| undefined` | The previous computed value |
+| `previousValue` | `T \| undefined` | The previous value |
 
 ```typescript
 const $count = state({ value: 0 })
@@ -536,7 +536,7 @@ const dispose = effect(
 ### derive()
 
 ```typescript
-function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
+function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
 ```
 
 ```typescript

@@ -1,6 +1,6 @@
 ---
 title: Settle
-description: Await reactive convergence from imperative code
+description: Wait on the reactive graph from imperative code
 ---
 
 <script>
@@ -47,16 +47,16 @@ const warm = until(() => cache.warm, { signal: controller.signal }).catch((err) 
 controller.abort('deadline')
 ```
 
-## onSettled
+## onIdle
 
-`onSettled(callback)` calls the callback each time the reactive graph finishes its work and goes quiet. That happens after a synchronous flush or an async settlement. It returns an unsubscribe function.
+`onIdle(callback)` calls the callback each time the reactive graph becomes idle after doing work: no effect queued and no microtask flush armed. That happens after a synchronous flush or an async settlement. A pending async computation does not keep the graph from being idle, so the callback runs after the flush that started the computation and again when it settles. It returns an unsubscribe function.
 
 ```typescript
-import { batch, onSettled, state } from '@nerdalytics/beacon'
+import { batch, onIdle, state } from '@nerdalytics/beacon'
 
 const metrics = state({ flushes: 0 })
 
-const stop = onSettled(() => {
+const stop = onIdle(() => {
   metrics.flushes++
 })
 
@@ -76,5 +76,5 @@ Behavior:
 
 ## See also
 
-- <VersionLink path="/derive">Derive</VersionLink> covers async computations whose settlements trigger quiescence
+- <VersionLink path="/derive">Derive</VersionLink> covers async computations whose settlements leave the graph idle
 - <VersionLink path="/effects">Effects</VersionLink> covers reactive runners, including microtask scheduling

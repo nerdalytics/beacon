@@ -45,7 +45,7 @@ Beacon tracks that this effect reads `$app.users` and `$app.errors`. Changes to 
 
 ## 3. Compute derived values
 
-`derive()` creates a computed value that stays in sync with its dependencies. It returns an object with a `.value` property.
+`derive()` creates a derived value that stays in sync with its dependencies. It returns an object with a `.value` property.
 
 ```typescript
 import { state, derive, effect } from '@nerdalytics/beacon'

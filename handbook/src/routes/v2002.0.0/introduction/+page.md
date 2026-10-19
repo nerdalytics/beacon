@@ -17,10 +17,10 @@ Four primitives cover the reactive graph:
 - `derive(fn)` computes a value that stays in sync with its dependencies
 - `batch(fn)` groups multiple state changes into a single update cycle
 
-Two settle points connect imperative code to the graph:
+Two functions connect imperative code to the graph:
 
 - `until(predicate)` resolves once a settled evaluation of the predicate is truthy
-- `onSettled(callback)` runs the callback whenever the graph finishes its work and goes quiet
+- `onIdle(callback)` runs the callback each time the graph becomes idle after doing work
 
 That's the whole library.
 

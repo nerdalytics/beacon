@@ -8,15 +8,15 @@ import VersionLink from '#lib/components/VersionLink.svelte'
 
 
 
-`derive()` creates computed values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
+`derive()` creates derived values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
 
 ## API
 
 ```typescript
-function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
-function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
+function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<Awaited<T>>
+function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
 
-type ComputedValue<T> = {
+type DerivedValue<T> = {
   readonly pending: boolean
   readonly value: T | undefined | null
   reactive: boolean
@@ -24,7 +24,7 @@ type ComputedValue<T> = {
 ```
 
 - `value` is the cached computed result and is read-only
-- `pending` is `true` while an async compute is in flight. It is always `false` for synchronous derives, and it is read-only.
+- `pending` is `true` while an async computation has not settled. It is always `false` for synchronous derives, and it is read-only.
 - `reactive` controls the internal effect lifecycle. Set it to `false` to dispose and `true` to recreate
 
 See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
@@ -291,7 +291,7 @@ console.log(computed.value) // 20
 // Dispose: stop reacting to changes
 computed.reactive = false
 
-// .value still returns the last computed value
+// .value still returns the last value
 console.log(computed.value) // 20 (retained)
 
 // Re-enable: recreates the internal effect and recomputes
@@ -416,7 +416,7 @@ test('derive supports disposal via reactive toggle', () => {
 
   computed.reactive = false
 
-  // .value still returns the last computed value
+  // .value still returns the last value
   expect(computed.value).toBe(20)
 
   // Changes no longer trigger recomputation
@@ -455,9 +455,9 @@ effect(() => {
 })
 ```
 
-While a recompute is in flight, the computed value keeps its last settled result and `pending` is `true`. This is stale-while-pending behavior. Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run each time `pending` changes.
+While a computation is pending, the derived value keeps its last settled result and `pending` is `true`. This is stale-while-pending behavior. Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run each time `pending` changes.
 
 - **Superseded computations are discarded.** If a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing. A superseded rejection does not call `onError`. The latest computation wins
 - **Rejections route to `onError`.** A rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
 - **Synchronous derives are unchanged.** A synchronous compute function still yields its value immediately, with `pending` always `false`
-- **Disposing discards in-flight computations.** Setting `reactive` to `false` clears `pending`. A settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`
+- **Disposing discards pending computations.** Setting `reactive` to `false` clears `pending`. A settlement that arrives afterwards writes nothing, calls no hook, and does not notify `onIdle`
