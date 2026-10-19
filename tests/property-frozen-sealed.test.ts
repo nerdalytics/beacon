@@ -403,6 +403,30 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
 		dispose()
 	})
 
+	it('targets sealed after state() notify on direct and batched writes', (): void => {
+		const raw = { a: 1 }
+		const $s = state(raw)
+		Object.seal(raw)
+
+		let runs = 0
+		const dispose = effect((): void => {
+			runs++
+			void $s.a
+		})
+		runs = 0
+
+		$s.a = 2
+		assert.strictEqual(runs, 1, 'direct write should re-run the effect')
+
+		batch((): void => {
+			$s.a = 3
+			$s.a = 4
+		})
+		assert.strictEqual(runs, 2, 'batched writes should re-run the effect once')
+		assert.strictEqual(raw.a, 4)
+		dispose()
+	})
+
 	it('sealed arrays: mutating methods work via WeakMap method cache', (): void => {
 		fc.assert(
 			fc.property(

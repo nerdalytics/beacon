@@ -32,6 +32,7 @@ Global mutable state driving the reactive system:
 | `settledCallbacks` | `Set<SettledCallback>` | `onSettled` subscribers |
 | `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last settle notification (a flush ran, or an async derive settled) |
 | `untilEvaluating`, `untilSawPending` | `boolean` | Set while an `until` predicate runs; records whether it read a pending derive |
+| `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the hookless fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
 
 ## EffectFunction Properties
 
@@ -65,7 +66,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | Symbol | Purpose |
 |--------|---------|
 | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
-| `SUBSCRIBERS` | Stores the subscriber Set on target objects. Defined as a writable `null` placeholder at `state()` time on extensible targets, so the hookless write paths can tell "no subscribers yet" (null) from "set lives in `proxyCacheSubs`" (absent) without a flag or an `Object.isExtensible` call |
+| `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
 | `PROXY` | Stores Proxy reference on target objects |
 | `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
 
@@ -162,8 +163,8 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `getSubscribers` | Resolves subscriber set: `[SUBSCRIBERS]` symbol → `proxyCacheSubs` → create new |
-| `storeSubscriberSet` | Assigns into the `[SUBSCRIBERS]` placeholder when it is present (also on a target sealed after `state()`); otherwise, or when the assignment throws (frozen after `state()`), stores in `proxyCacheSubs` |
-| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` absent → `proxyCacheSubs`; `null` placeholder → `undefined`; else the set |
+| `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (non-extensible, or a Proxy target rejecting the define); arms `hasFallbackSubs` when a target that carries `[PROXY]` lands in the WeakMap |
+| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol, else `proxyCacheSubs` only when `hasFallbackSubs` is set or the target has no `[PROXY]` (it never took symbols) |
 
 ### Batch Internals
 
@@ -201,7 +202,7 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; falls back to `storeHooksForFrozenTarget` otherwise |
-| `definePropertyOnTarget` | `Object.defineProperty` for `PROXY`, the `SUBSCRIBERS` null placeholder, and `HOOKS` symbols |
+| `definePropertyOnTarget` | `Object.defineProperty` for `PROXY` and `HOOKS` symbols |
 | `storeHooksForFrozenTarget` | Writes hooks to `frozenHooksCache` for non-extensible targets |
 
 ### Utilities

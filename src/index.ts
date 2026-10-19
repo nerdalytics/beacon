@@ -74,6 +74,9 @@ let microtaskFlushChain = 0
 let effectErrorHandled = false
 let untilEvaluating = false
 let untilSawPending = false
+// ponytail: process-wide flag, armed only by a target sealed or frozen after state() and before its first
+// subscription; once armed, every hookless no-subscriber write pays a proxyCacheSubs miss (~+10% on that path)
+let hasFallbackSubs = false
 
 // Proxy caching
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
@@ -120,12 +123,9 @@ type EffectFunction = {
 	effectName?: string
 }
 
-// Helper types for objects with internal symbols.
-// [SUBSCRIBERS] is null on an extensible target nobody has subscribed to yet (placeholder defined by
-// definePropertyOnTarget), and absent on a target that could not take the slot: non-extensible at state() time,
-// or a Proxy that rejected the define. Absent means the set lives in proxyCacheSubs.
+// Helper types for objects with internal symbols
 type SubscribersObject = ProxyTarget & {
-	[SUBSCRIBERS]?: Set<EffectFunction> | null
+	[SUBSCRIBERS]?: Set<EffectFunction>
 }
 
 type ProxyObject = ProxyTarget & {
@@ -152,17 +152,23 @@ function wrapArrayMethod(target: object, prop: PropertyKey, originalMethod: Cach
 }
 
 function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>): void {
-	const t = target as SubscribersObject
 	try {
-		if (t[SUBSCRIBERS] === null) {
-			// the placeholder slot is writable, so this also works on a target sealed after state()
-			t[SUBSCRIBERS] = subscriberSet
+		if (Object.isExtensible(target)) {
+			Object.defineProperty(target, SUBSCRIBERS, {
+				configurable: true,
+				enumerable: false,
+				value: subscriberSet,
+				writable: false,
+			})
 			return
 		}
 	} catch {
-		// frozen after state(): the slot is non-writable now
+		// a Proxy target that rejects symbol defines
 	}
 	proxyCacheSubs.set(target, subscriberSet)
+	// the hookless fast paths consult proxyCacheSubs only for targets without PROXY; a target that took PROXY at
+	// state() time and cannot take SUBSCRIBERS now was sealed or frozen in between, so arm the lookup for everyone
+	if ((target as ProxyObject)[PROXY] !== undefined) hasFallbackSubs = true
 }
 
 function getSubscribers(target: object): Set<EffectFunction> {
@@ -299,7 +305,8 @@ function callHookSafe<Args extends unknown[]>(hook: HookFunction<Args> | undefin
 
 function findSubscribers(target: object): Set<EffectFunction> | undefined {
 	const subs = (target as SubscribersObject)[SUBSCRIBERS]
-	return subs === undefined ? proxyCacheSubs.get(target) : (subs ?? undefined)
+	if (subs !== undefined) return subs
+	return hasFallbackSubs || (target as ProxyObject)[PROXY] === undefined ? proxyCacheSubs.get(target) : undefined
 }
 
 function armMicrotaskFlush(): void {
@@ -635,7 +642,9 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 
 	// inlined, not findSubscribers: the call cost ~5% on the batch + derive benchmarks
 	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
-	if (subs === undefined) subs = proxyCacheSubs.get(rawTarget)
+	if (subs === undefined && (hasFallbackSubs || (rawTarget as ProxyObject)[PROXY] === undefined)) {
+		subs = proxyCacheSubs.get(rawTarget)
+	}
 	if (!subs?.size) return true
 
 	let props = dirtyTargets.get(rawTarget)
@@ -726,12 +735,6 @@ function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: Stat
 		enumerable: false,
 		value: proxy,
 		writable: false,
-	})
-	Object.defineProperty(target, SUBSCRIBERS, {
-		configurable: true,
-		enumerable: false,
-		value: null,
-		writable: true,
 	})
 	if (hooks) {
 		Object.defineProperty(target, HOOKS, {
