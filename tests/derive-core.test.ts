@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import type { DerivedValue } from '../src/index.ts'
 import { derive, state } from '../src/index.ts'
 
 describe('Derive Core', {
@@ -13,6 +14,19 @@ describe('Derive Core', {
 		const $doubled = derive((): number => $count.value * 2)
 
 		assert.strictEqual($doubled.value, 10)
+	})
+
+	it('returns a DerivedValue', (): void => {
+		const $count = state({
+			value: 5,
+		})
+		const $doubled: DerivedValue<number> = derive((): number => $count.value * 2)
+
+		assert.strictEqual($doubled.value, 10)
+		assert.strictEqual($doubled.pending, false)
+		assert.strictEqual($doubled.reactive, true)
+
+		$doubled.reactive = false
 	})
 
 	it('caches computed value', (): void => {

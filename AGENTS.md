@@ -21,11 +21,11 @@ Single-file core: `src/index.ts` (~1400 lines). Zero external dependencies. Prox
 **Exports:**
 - `state<T extends object>(initial: T, hooks?: StateHooks<T>): T` — Proxy-wrapped reactive objects with per-property tracking
 - `effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks, options?: EffectOptions): Unsubscribe` — side effects with automatic dependency tracking; `options.schedule` is `'sync'` (default) or `'microtask'`
-- `derive<T>(fn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T>` — eagerly-computed values, returns `{ value, pending, reactive }`, requires disposal; async results set `pending` until they settle, stale promises are dropped
+- `derive<T>(fn: () => T | Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<T>` — eagerly computed derived values, returns `{ value, pending, reactive }`, requires disposal; an async computation sets `pending` until it settles, superseded computations are discarded
 - `batch<T>(fn: () => T, hooks?: BatchHooks): T` — groups updates, flushes effects once at outermost batch boundary
 - `onIdle(callback: IdleCallback): Unsubscribe` — runs the callback each time the graph goes idle after doing work (no effect queued, no microtask flush armed); a pending async computation does not keep the graph busy
 - `until<T>(predicate: () => T, options?: UntilOptions): Promise<T>` — resolves once the predicate is truthy with no derive pending; `timeout` and `signal` reject; throws inside a reactive scope
-- Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+- Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `DerivedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
 - Subpath `@nerdalytics/beacon/hooks`: hook types and `composeHook`
 
 **Key behaviors:**

@@ -1,6 +1,6 @@
 import { performance } from 'node:perf_hooks'
 import { parseArgs } from 'node:util'
-import type { ComputedValue, Unsubscribe } from '../src/index.ts'
+import type { DerivedValue, Unsubscribe } from '../src/index.ts'
 import { batch, derive, effect, state } from '../src/index.ts'
 
 const DEFAULT_RUN_COUNT = 10
@@ -122,7 +122,7 @@ function statePlusDeriveNoEffects(): number {
 	const s = state({
 		count: 0,
 	})
-	const totals: ComputedValue<number> = derive((): number => s.count * 2)
+	const totals: DerivedValue<number> = derive((): number => s.count * 2)
 	const start = performance.now()
 	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
 	const end = performance.now()
@@ -140,7 +140,7 @@ function statePlusDerivePlusEffects(): number {
 	const d2: Unsubscribe = effect((): void => {
 		void s.count
 	})
-	const totals: ComputedValue<number> = derive((): number => s.count * 2)
+	const totals: DerivedValue<number> = derive((): number => s.count * 2)
 	const start = performance.now()
 	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
 	const end = performance.now()
@@ -157,7 +157,7 @@ function batchPlusDeriveNoEffects(): number {
 	const processed = state({
 		count: 0,
 	})
-	const totals: ComputedValue<number> = derive((): number => errors.count + processed.count)
+	const totals: DerivedValue<number> = derive((): number => errors.count + processed.count)
 	const start = performance.now()
 	batch((): void => {
 		for (let i = 0; i <= LOOP_LENGTH; i++) {
@@ -186,7 +186,7 @@ function batchPlusDerivePlusEffects(): number {
 	const d2: Unsubscribe = effect((): void => {
 		void processed.count
 	})
-	const totals: ComputedValue<number> = derive((): number => errors.count + processed.count)
+	const totals: DerivedValue<number> = derive((): number => errors.count + processed.count)
 	const start = performance.now()
 	batch((): void => {
 		for (let i = 0; i <= LOOP_LENGTH; i++) {
@@ -306,7 +306,7 @@ function manyDependencies(): number {
 				v: i,
 			})
 	)
-	const sum: ComputedValue<number> = derive((): number => {
+	const sum: DerivedValue<number> = derive((): number => {
 		let acc = 0
 		for (const src of sources) acc += src.v as number
 		return acc
@@ -332,8 +332,8 @@ function deriveChainDepth10(): number {
 	const source = state({
 		v: 0,
 	})
-	const chain: ComputedValue<number>[] = []
-	let current: ComputedValue<number> = derive((): number => source.v as number)
+	const chain: DerivedValue<number>[] = []
+	let current: DerivedValue<number> = derive((): number => source.v as number)
 	chain.push(current)
 	for (let i = 1; i < DERIVE_CHAIN_DEPTH; i++) {
 		const prev = current

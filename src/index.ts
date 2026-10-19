@@ -16,8 +16,8 @@ export type EffectCallback = () => void
 /** Optional name for an effect, used in hook callbacks for identification. */
 export type EffectName = string
 
-/** Value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
-export type ComputedValue<T> = {
+/** Derived value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
+export type DerivedValue<T> = {
 	readonly pending: boolean
 	readonly value: T | undefined | null
 	reactive: boolean
@@ -1249,10 +1249,10 @@ function computeDerive<T>(
 	}
 }
 
-/** Eagerly compute a value from reactive dependencies. Returns a {@linkcode ComputedValue} — set `reactive` to `false` to dispose. */
-export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
-export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
-export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T> {
+/** Eagerly compute a derived value from reactive dependencies. Returns a {@linkcode DerivedValue} — set `reactive` to `false` to dispose. */
+export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<Awaited<T>>
+export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
+export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<T> {
 	const onCompute = composeHook(hooks?.onCompute)
 	const onCacheHit = composeHook(hooks?.onCacheHit)
 	const onDeriveDispose = composeHook(hooks?.onDispose)
@@ -1361,7 +1361,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 			}
 			return false
 		},
-	}) as ComputedValue<T>
+	}) as DerivedValue<T>
 }
 
 function notifyIfIdle(): void {

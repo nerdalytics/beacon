@@ -58,7 +58,7 @@ doubled.reactive = false;
 
 ### Async derive and `pending`
 
-`derive` accepts async compute functions. While a computation is in flight the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
+`derive` accepts async compute functions. While a computation is pending the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
 
 ```typescript
 const user = derive(async () => (await db.users.find(signal.id)) ?? null);
@@ -84,7 +84,7 @@ await until(() => cache.warm, { timeout: 5000 });
 
 `effect(fn, name, hooks, { schedule: 'microtask' })` defers re-runs to a microtask, coalescing writes across await boundaries into one run. The default `'sync'` preserves v2000 timing exactly.
 
-**Migration note:** synchronous `derive` and default-schedule effects behave exactly as in v2000; the only consumer-visible changes are the new `pending` field on computed values and async compute support.
+**Migration note:** synchronous `derive` and default-schedule effects behave exactly as in v2000; the only consumer-visible changes are the new `pending` field on derived values and async compute support.
 
 ## Documentation
 

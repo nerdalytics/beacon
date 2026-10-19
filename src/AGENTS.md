@@ -6,7 +6,7 @@ Single file: `index.ts`. The entire reactive system. Do not split into modules.
 
 Functions: `state`, `effect`, `batch`, `derive`, `onIdle`, `until`
 
-Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `DerivedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
 
 ## Internal State (Module-Level)
 

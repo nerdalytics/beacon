@@ -91,7 +91,7 @@ function logEffect(options?: {
 
 #### `logDerive` — `open`
 
-Returns a `DeriveHooks` object. The computed value is only available in `onCacheHit` (contract fact 6).
+Returns a `DeriveHooks` object. The derived value is only available in `onCacheHit` (contract fact 6).
 
 ```ts
 function logDerive<T>(options?: {
