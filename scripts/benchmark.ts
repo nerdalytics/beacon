@@ -225,10 +225,7 @@ function stateReadNoEffect(): number {
 	return performance.now() - start
 }
 
-function stateWrite1Sub(): number {
-	const s = state({
-		v: 0,
-	})
+function write1Sub(s: { v: number }): number {
 	const cleanup: Unsubscribe = effect((): void => {
 		void s.v
 	})
@@ -240,6 +237,22 @@ function stateWrite1Sub(): number {
 	cleanup()
 	return end - start
 }
+
+const stateWrite1Sub = (): number =>
+	write1Sub(
+		state({
+			v: 0,
+		})
+	)
+
+const sealedWrite1Sub = (): number =>
+	write1Sub(
+		state(
+			Object.seal({
+				v: 0,
+			})
+		)
+	)
 
 function stateWrite100Subs(): number {
 	const s = state({
@@ -500,6 +513,17 @@ const suite: SuiteEntry[] = [
 	{
 		fn: disjointSubscribers,
 		name: '100 subs disjoint props   ',
+	},
+	{
+		header: '--- Non-extensible targets (subscriber set lives in the WeakMap fallback) ---',
+	},
+	{
+		fn: sealedWrite1Sub,
+		name: 'sealed write 1 sub        ',
+	},
+	{
+		fn: stateNoSubscribers,
+		name: 'state no subs after seal  ',
 	},
 ]
 

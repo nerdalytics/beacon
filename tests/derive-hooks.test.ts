@@ -59,6 +59,47 @@ describe('Derive Hooks', {
 		assert.strictEqual(disposed, true)
 	})
 
+	it('re-creates and disposes one effect across reactive toggles', () => {
+		let computes = 0
+		let disposals = 0
+		const $s = state({
+			count: 1,
+		})
+		const $d = derive(() => $s.count * 10, {
+			onCompute: () => {
+				computes++
+			},
+			onDispose: () => {
+				disposals++
+			},
+		})
+		assert.strictEqual(computes, 1)
+
+		$d.reactive = true
+		assert.strictEqual(computes, 1)
+
+		$d.reactive = false
+		$d.reactive = false
+		assert.strictEqual(disposals, 1)
+		$s.count = 2
+		assert.strictEqual(computes, 1)
+		assert.strictEqual($d.value, 10)
+
+		$d.reactive = true
+		$d.reactive = true
+		assert.strictEqual(computes, 2)
+		assert.strictEqual($d.value, 20)
+		$s.count = 3
+		assert.strictEqual(computes, 3)
+		assert.strictEqual($d.value, 30)
+
+		$d.reactive = false
+		assert.strictEqual(disposals, 2)
+		$s.count = 4
+		assert.strictEqual(computes, 3)
+		assert.strictEqual($d.value, 30)
+	})
+
 	it('fires onError when computeFn throws and re-throws', () => {
 		const errors: Error[] = []
 		assert.throws(
@@ -98,6 +139,47 @@ describe('Derive Hooks', {
 			changes.some((c) => c[1] === 'count'),
 			true
 		)
+		$d.reactive = false
+	})
+
+	it('fires every onDependencyChange in an array after re-enabling reactivity', () => {
+		const changes: string[] = []
+		const $s = state({
+			count: 0,
+		})
+		const $d = derive(() => $s.count * 2, {
+			onDependencyChange: [
+				(_target: object, prop: PropertyKey) => {
+					changes.push(`a:${String(prop)}`)
+				},
+				(_target: object, prop: PropertyKey) => {
+					changes.push(`b:${String(prop)}`)
+				},
+			],
+		})
+		$d.reactive = false
+		$d.reactive = true
+		changes.length = 0
+		$s.count = 1
+		assert.deepStrictEqual(changes, ['a:count', 'b:count'])
+		assert.strictEqual($d.value, 2)
+		$d.reactive = false
+	})
+
+	it('recomputes on dependency writes when hooks omit onDependencyChange', () => {
+		const computed: (number | undefined)[] = []
+		const $s = state({
+			count: 1,
+		})
+		const $d = derive(() => $s.count * 10, {
+			onCompute: (prev: number | undefined) => {
+				computed.push(prev)
+			},
+		})
+		$s.count = 2
+		$s.count = 3
+		assert.deepStrictEqual(computed, [undefined, 10, 20])
+		assert.strictEqual($d.value, 30)
 		$d.reactive = false
 	})
 

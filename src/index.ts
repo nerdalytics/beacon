@@ -74,6 +74,9 @@ let microtaskFlushChain = 0
 let effectErrorHandled = false
 let untilEvaluating = false
 let untilSawPending = false
+// ponytail: process-wide flag, armed only by a target sealed or frozen after state() and before its first
+// subscription; once armed, every hookless no-subscriber write pays a proxyCacheSubs miss (~+10% on that path)
+let hasFallbackSubs = false
 
 // Proxy caching
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
@@ -157,12 +160,15 @@ function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>):
 				value: subscriberSet,
 				writable: false,
 			})
-		} else {
-			proxyCacheSubs.set(target, subscriberSet)
+			return
 		}
 	} catch {
-		proxyCacheSubs.set(target, subscriberSet)
+		// a Proxy target that rejects symbol defines
 	}
+	proxyCacheSubs.set(target, subscriberSet)
+	// the hookless fast paths consult proxyCacheSubs only for targets without PROXY; a target that took PROXY at
+	// state() time and cannot take SUBSCRIBERS now was sealed or frozen in between, so arm the lookup for everyone
+	if ((target as ProxyObject)[PROXY] !== undefined) hasFallbackSubs = true
 }
 
 function getSubscribers(target: object): Set<EffectFunction> {
@@ -298,8 +304,9 @@ function callHookSafe<Args extends unknown[]>(hook: HookFunction<Args> | undefin
 }
 
 function findSubscribers(target: object): Set<EffectFunction> | undefined {
-	const t = target as SubscribersObject
-	return t[SUBSCRIBERS] ?? proxyCacheSubs.get(target)
+	const subs = (target as SubscribersObject)[SUBSCRIBERS]
+	if (subs !== undefined) return subs
+	return hasFallbackSubs || (target as ProxyObject)[PROXY] === undefined ? proxyCacheSubs.get(target) : undefined
 }
 
 function armMicrotaskFlush(): void {
@@ -330,18 +337,13 @@ function armMicrotaskFlush(): void {
 }
 
 function addPendingEffect(subscriber: EffectFunction): void {
-	if (subscriber.__schedule === 'microtask') {
-		const prevMicro = pendingMicroEffects.size
-		pendingMicroEffects.add(subscriber)
-		if (pendingMicroEffects.size === prevMicro) return
-		callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
-		armMicrotaskFlush()
-		return
-	}
-	const prevSize = pendingEffects.size
-	pendingEffects.add(subscriber)
-	if (pendingEffects.size === prevSize) return
+	const isMicro = subscriber.__schedule === 'microtask'
+	const queue = isMicro ? pendingMicroEffects : pendingEffects
+	const prevSize = queue.size
+	queue.add(subscriber)
+	if (queue.size === prevSize) return
 	callHookSafe(subscriber.__hooks?.onSchedule, subscriber.effectName)
+	if (isMicro) armMicrotaskFlush()
 }
 
 function scheduleSubscriberWithProp(subscriber: EffectFunction, target: object, prop: PropertyKey): void {
@@ -462,45 +464,20 @@ function cleanupEffect(effect: EffectFunction): void {
 	resetEffectTracking(effect)
 }
 
-function cleanupChildEffect(child: EffectFunction, toCleanup: EffectFunction[]): void {
-	cleanupEffect(child)
-
-	const grandchildren = child.__children
-	if (grandchildren) {
-		for (const gc of grandchildren) toCleanup.push(gc)
-		grandchildren.clear()
-		child.__children = undefined
-	}
-
-	child.__parent = undefined
-	child.__active = false
-}
-
+// Iterative, not recursive: deep effect trees must not overflow the stack
 function cleanupEffectCompletely(effect: EffectFunction): void {
-	cleanupEffect(effect)
-
-	const toCleanup: EffectFunction[] = []
-	const children = effect.__children
-	if (children) {
-		for (const c of children) toCleanup.push(c)
-		children.clear()
-		effect.__children = undefined
+	const pending: EffectFunction[] = [effect]
+	while (pending.length > 0) {
+		const eff = pending.pop() as EffectFunction
+		cleanupEffect(eff)
+		if (eff.__children) {
+			for (const c of eff.__children) pending.push(c)
+			eff.__children = undefined
+		}
+		eff.__parent?.__children?.delete(eff)
+		eff.__parent = undefined
+		eff.__active = false
 	}
-
-	while (toCleanup.length > 0) {
-		cleanupChildEffect(toCleanup.pop() as EffectFunction, toCleanup)
-	}
-
-	// Clean up parent relationship
-	const parent = effect.__parent
-	if (parent) {
-		const pchildren = parent.__children
-		pchildren?.delete(effect)
-	}
-
-	// Final cleanup
-	effect.__parent = undefined
-	effect.__active = false
 }
 
 function setContainsAll(superset: Set<PropertyKey>, subset: Set<PropertyKey>): boolean {
@@ -560,11 +537,6 @@ function createDeleteHandler<T>(
 	}
 }
 
-function resolveValue(value: unknown, hooks: StateHooks<object> | undefined): unknown {
-	if (value === null || typeof value !== 'object') return value
-	return wrapNestedObject(value as object, hooks)
-}
-
 function isInternalSymbol(prop: PropertyKey): boolean {
 	return prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS
 }
@@ -622,7 +594,8 @@ function createGetHandler<T>(
 		const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
 		if (wrapped) return wrapped
 
-		return resolveValue(value, hooks as StateHooks<object> | undefined)
+		if (value === null || typeof value !== 'object') return value
+		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
 	}
 }
 
@@ -667,7 +640,12 @@ function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: u
 
 	rawTarget[prop] = value
 
-	if (!(rawTarget as SubscribersObject)[SUBSCRIBERS]?.size) return true
+	// inlined, not findSubscribers: the call cost ~5% on the batch + derive benchmarks
+	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+	if (subs === undefined && (hasFallbackSubs || (rawTarget as ProxyObject)[PROXY] === undefined)) {
+		subs = proxyCacheSubs.get(rawTarget)
+	}
+	if (!subs?.size) return true
 
 	let props = dirtyTargets.get(rawTarget)
 	if (!props) {
@@ -703,7 +681,7 @@ function createSetHandler<T>(
 			if (!currentEffect) {
 				const oldValue = rawTarget[prop]
 				if (Object.is(oldValue, value)) return true
-				const subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+				const subs = findSubscribers(rawTarget)
 				if (!subs?.size) {
 					rawTarget[prop] = value
 					return true
@@ -1124,13 +1102,11 @@ function clearBatchState(): void {
 
 function runDeferredEffects(): void {
 	const len = deferredEffectCreations.length
-	if (len > 0) {
-		for (let i = 0; i < len; i++) {
-			const eff = deferredEffectCreations[i]
-			if (eff) eff()
-		}
-		deferredEffectCreations.length = 0
+	for (let i = 0; i < len; i++) {
+		const eff = deferredEffectCreations[i]
+		if (eff) eff()
 	}
+	deferredEffectCreations.length = 0
 }
 
 function flushBatchEffects(): void {
@@ -1214,13 +1190,15 @@ function isThenable(value: unknown): value is Promise<unknown> {
 	return typeof (value as { then?: unknown }).then === 'function'
 }
 
+type DeriveInternal<T> = {
+	lastValue: T | undefined | null
+	pending: boolean
+	value: T | undefined | null
+}
+
 function writeDeriveValue<T>(
-	internalState: {
-		lastValue: T | undefined | null
-	},
-	reactiveInternal: {
-		value: T | undefined | null
-	} | null,
+	internalState: DeriveInternal<T>,
+	reactiveInternal: DeriveInternal<T> | null,
 	newValue: T
 ): void {
 	if (!Object.is(newValue, internalState.lastValue)) {
@@ -1232,12 +1210,8 @@ function writeDeriveValue<T>(
 }
 
 function setDerivePending(
-	internalState: {
-		pending: boolean
-	},
-	reactiveInternal: {
-		pending: boolean
-	} | null,
+	internalState: DeriveInternal<unknown>,
+	reactiveInternal: DeriveInternal<unknown> | null,
 	pending: boolean
 ): void {
 	if (internalState.pending === pending) return
@@ -1251,14 +1225,8 @@ function setDerivePending(
 
 function computeDerive<T>(
 	computeFn: () => T | Promise<T>,
-	internalState: {
-		lastValue: T | undefined | null
-		pending: boolean
-	},
-	reactiveInternal: {
-		pending: boolean
-		value: T | undefined | null
-	} | null,
+	internalState: DeriveInternal<T>,
+	reactiveInternal: DeriveInternal<T> | null,
 	onCompute: HookFunction<[T | undefined]> | undefined,
 	onError: HookFunction<[Error]> | undefined,
 	onAsync: (result: Promise<T>) => void,
@@ -1304,15 +1272,7 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 	let reactiveInternal: typeof internalState | null = null
 
 	const createEffect = (): void => {
-		if (dispose) return
-
 		reactiveInternal = state(internalState)
-
-		const internalEffectHooks: EffectHooks | undefined = onDependencyChange
-			? {
-					onDependencyChange,
-				}
-			: undefined
 
 		dispose = effect(
 			(): void => {
@@ -1354,23 +1314,13 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 				)
 			},
 			undefined,
-			internalEffectHooks
+			onDependencyChange && {
+				onDependencyChange,
+			}
 		)
 	}
 
-	const disposeEffect = (): void => {
-		if (dispose) {
-			callHookSafe(onDeriveDispose)
-			dispose()
-			dispose = null
-			setDerivePending(internalState, reactiveInternal, false)
-			reactiveInternal = null
-		}
-	}
-
-	if (internalState.reactive) {
-		createEffect()
-	}
+	createEffect()
 
 	const readValue = (): T | undefined | null => {
 		if (untilEvaluating) {
@@ -1400,7 +1350,13 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
 				if (value && !wasReactive && !dispose) createEffect()
-				else if (!value && wasReactive && dispose) disposeEffect()
+				else if (!value && wasReactive && dispose) {
+					callHookSafe(onDeriveDispose)
+					dispose()
+					dispose = null
+					setDerivePending(internalState, reactiveInternal, false)
+					reactiveInternal = null
+				}
 				return true
 			}
 			return false
@@ -1456,9 +1412,7 @@ function runUntil<T>(
 	const cleanup = (): void => {
 		if (timer !== undefined) clearTimeout(timer)
 		if (signal) signal.removeEventListener('abort', onAbort)
-		const unsubscribe = stop
-		stop = (): void => {}
-		unsubscribe()
+		stop()
 	}
 	const fail = (reason: unknown): void => {
 		if (done) return

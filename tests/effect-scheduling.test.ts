@@ -309,6 +309,64 @@ describe('Effect Scheduling', {
 		await turn()
 	})
 
+	it('onSchedule fires once per newly queued effect for sync and microtask effects', async (): Promise<void> => {
+		const $s = state({
+			a: 0,
+			b: 0,
+		})
+		const scheduled: (string | undefined)[] = []
+		const onSchedule = (name: string | undefined): void => {
+			scheduled.push(name)
+		}
+		let syncRuns = 0
+		let microRuns = 0
+		const stopSync = effect(
+			(): void => {
+				void $s.a
+				void $s.b
+				syncRuns++
+			},
+			'sync',
+			{
+				onSchedule,
+			}
+		)
+		const stopMicro = effect(
+			(): void => {
+				void $s.a
+				void $s.b
+				microRuns++
+			},
+			'micro',
+			{
+				onSchedule,
+			},
+			{
+				schedule: 'microtask',
+			}
+		)
+		batch((): void => {
+			$s.a = 1
+			$s.b = 1
+			$s.a = 2
+		})
+		assert.deepEqual(scheduled, ['sync', 'micro'])
+		assert.equal(syncRuns, 2)
+		assert.equal(microRuns, 1)
+		$s.b = 2
+		assert.deepEqual(scheduled, ['sync', 'micro', 'sync'])
+		assert.equal(syncRuns, 3)
+		await microtick()
+		assert.equal(microRuns, 2)
+		$s.a = 3
+		assert.deepEqual(scheduled, ['sync', 'micro', 'sync', 'sync', 'micro'])
+		await microtick()
+		assert.equal(microRuns, 3)
+		stopSync()
+		stopMicro()
+		await turn()
+	})
+
 	it('routes a microtask effect error to onError and keeps flushing its siblings', async (): Promise<void> => {
 		const $s = state({
 			n: 0,

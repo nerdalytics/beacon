@@ -171,6 +171,63 @@ describe('Settle Observation', {
 		await assert.rejects(p, /changed mind/)
 	})
 
+	it('until disposes its effect after the signal aborts', async (): Promise<void> => {
+		const controller = new AbortController()
+		const $s = state({
+			n: 0,
+		})
+		const p = until((): boolean => $s.n > 0, {
+			signal: controller.signal,
+		})
+		controller.abort(new Error('changed mind'))
+		await assert.rejects(p, /changed mind/)
+		let settled = 0
+		const stopSettled = onSettled((): void => {
+			settled++
+		})
+		$s.n = 1
+		await tick()
+		assert.equal(settled, 0)
+		stopSettled()
+	})
+
+	it('until disposes its effect after it times out', async (): Promise<void> => {
+		const $s = state({
+			n: 0,
+		})
+		await assert.rejects(
+			until((): boolean => $s.n > 0, {
+				timeout: 20,
+			}),
+			/timed out/
+		)
+		let settled = 0
+		const stopSettled = onSettled((): void => {
+			settled++
+		})
+		$s.n = 1
+		await tick()
+		assert.equal(settled, 0)
+		stopSettled()
+	})
+
+	it('until disposes its effect after it resolves', async (): Promise<void> => {
+		const $s = state({
+			n: 0,
+		})
+		const p = until((): boolean => $s.n > 0)
+		$s.n = 1
+		assert.equal(await p, true)
+		let settled = 0
+		const stopSettled = onSettled((): void => {
+			settled++
+		})
+		$s.n = 2
+		await tick()
+		assert.equal(settled, 0)
+		stopSettled()
+	})
+
 	it('onSettled keeps notifying other callbacks when one throws', async (): Promise<void> => {
 		const s = state({
 			n: 0,

@@ -32,6 +32,7 @@ Global mutable state driving the reactive system:
 | `settledCallbacks` | `Set<SettledCallback>` | `onSettled` subscribers |
 | `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last settle notification (a flush ran, or an async derive settled) |
 | `untilEvaluating`, `untilSawPending` | `boolean` | Set while an `until` predicate runs; records whether it read a pending derive |
+| `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the hookless fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
 
 ## EffectFunction Properties
 
@@ -65,7 +66,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | Symbol | Purpose |
 |--------|---------|
 | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
-| `SUBSCRIBERS` | Stores subscriber Set on target objects |
+| `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
 | `PROXY` | Stores Proxy reference on target objects |
 | `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
 
@@ -77,7 +78,7 @@ Five handler factories, each returns a ProxyHandler method. `state()` without ho
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
-| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads, `getWrappedArrayMethod` for mutating methods, `resolveValue` for nested wrapping |
+| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads, `getWrappedArrayMethod` for mutating methods, `wrapNestedObject` for nested wrapping |
 | `createSetHandler()` | `set` | Delegates to `handleBatchFastPath` during batch, `performWrite` otherwise |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
@@ -92,13 +93,13 @@ Handler helpers:
 | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
 | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
 | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
-| `resolveValue` | Wraps nested objects via `wrapNestedObject` → `state()` |
+| `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
 | `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
 | `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
 | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check) |
+| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check); inlines the `findSubscribers` lookup |
 | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
 | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
 
@@ -143,8 +144,7 @@ addPendingEffect(subscriber)
 |----------|---------|
 | `cleanupEffect` | Removes from subscribers, then `resetEffectTracking` |
 | `resetEffectTracking` | Dequeues from both pending sets, clears `__deps`/`__reads`/`__readList`/`__prevDeps`/`__prevReads` |
-| `cleanupEffectCompletely` | `cleanupEffect` + iterative child cleanup (avoids stack overflow) |
-| `cleanupChildEffect` | Cleans one child + pushes grandchildren onto iterative queue |
+| `cleanupEffectCompletely` | One iterative loop over the effect and all descendants: `cleanupEffect`, unlink parent/children, deactivate (avoids stack overflow) |
 | `cleanupEffectOnError` | Emergency cleanup on error — removes from all subscriber sets |
 | `removeEffectFromSubscribers` | Removes effect from all subscriber sets in a dep set |
 
@@ -163,8 +163,8 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `getSubscribers` | Resolves subscriber set: `[SUBSCRIBERS]` symbol → `proxyCacheSubs` → create new |
-| `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (frozen) |
-| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol or `proxyCacheSubs` |
+| `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (non-extensible, or a Proxy target rejecting the define); arms `hasFallbackSubs` when a target that carries `[PROXY]` lands in the WeakMap |
+| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol, else `proxyCacheSubs` only when `hasFallbackSubs` is set or the target has no `[PROXY]` (it never took symbols) |
 
 ### Batch Internals
 
