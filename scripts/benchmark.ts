@@ -225,10 +225,7 @@ function stateReadNoEffect(): number {
 	return performance.now() - start
 }
 
-function stateWrite1Sub(): number {
-	const s = state({
-		v: 0,
-	})
+function write1Sub(s: { v: number }): number {
 	const cleanup: Unsubscribe = effect((): void => {
 		void s.v
 	})
@@ -241,23 +238,21 @@ function stateWrite1Sub(): number {
 	return end - start
 }
 
-function sealedWrite1Sub(): number {
-	const s = state(
-		Object.seal({
+const stateWrite1Sub = (): number =>
+	write1Sub(
+		state({
 			v: 0,
 		})
 	)
-	const cleanup: Unsubscribe = effect((): void => {
-		void s.v
-	})
-	const start = performance.now()
-	for (let i = 0; i < SINGLE_SUB_WRITES; i++) {
-		s.v = i
-	}
-	const end = performance.now()
-	cleanup()
-	return end - start
-}
+
+const sealedWrite1Sub = (): number =>
+	write1Sub(
+		state(
+			Object.seal({
+				v: 0,
+			})
+		)
+	)
 
 function stateWrite100Subs(): number {
 	const s = state({

@@ -299,8 +299,7 @@ function callHookSafe<Args extends unknown[]>(hook: HookFunction<Args> | undefin
 
 function findSubscribers(target: object): Set<EffectFunction> | undefined {
 	const subs = (target as SubscribersObject)[SUBSCRIBERS]
-	if (subs === undefined) return proxyCacheSubs.get(target)
-	return subs ?? undefined
+	return subs === undefined ? proxyCacheSubs.get(target) : (subs ?? undefined)
 }
 
 function armMicrotaskFlush(): void {
@@ -1195,8 +1194,8 @@ type DeriveInternal<T> = {
 }
 
 function writeDeriveValue<T>(
-	internalState: Pick<DeriveInternal<T>, 'lastValue'>,
-	reactiveInternal: Pick<DeriveInternal<T>, 'value'> | null,
+	internalState: DeriveInternal<T>,
+	reactiveInternal: DeriveInternal<T> | null,
 	newValue: T
 ): void {
 	if (!Object.is(newValue, internalState.lastValue)) {
@@ -1208,8 +1207,8 @@ function writeDeriveValue<T>(
 }
 
 function setDerivePending(
-	internalState: Pick<DeriveInternal<unknown>, 'pending'>,
-	reactiveInternal: Pick<DeriveInternal<unknown>, 'pending'> | null,
+	internalState: DeriveInternal<unknown>,
+	reactiveInternal: DeriveInternal<unknown> | null,
 	pending: boolean
 ): void {
 	if (internalState.pending === pending) return
@@ -1223,8 +1222,8 @@ function setDerivePending(
 
 function computeDerive<T>(
 	computeFn: () => T | Promise<T>,
-	internalState: Pick<DeriveInternal<T>, 'lastValue' | 'pending'>,
-	reactiveInternal: Pick<DeriveInternal<T>, 'pending' | 'value'> | null,
+	internalState: DeriveInternal<T>,
+	reactiveInternal: DeriveInternal<T> | null,
 	onCompute: HookFunction<[T | undefined]> | undefined,
 	onError: HookFunction<[Error]> | undefined,
 	onAsync: (result: Promise<T>) => void,
@@ -1318,14 +1317,6 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 		)
 	}
 
-	const disposeEffect = (d: Unsubscribe): void => {
-		callHookSafe(onDeriveDispose)
-		d()
-		dispose = null
-		setDerivePending(internalState, reactiveInternal, false)
-		reactiveInternal = null
-	}
-
 	createEffect()
 
 	const readValue = (): T | undefined | null => {
@@ -1356,7 +1347,13 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 				const wasReactive = target.reactive
 				target.reactive = value as boolean
 				if (value && !wasReactive && !dispose) createEffect()
-				else if (!value && wasReactive && dispose) disposeEffect(dispose)
+				else if (!value && wasReactive && dispose) {
+					callHookSafe(onDeriveDispose)
+					dispose()
+					dispose = null
+					setDerivePending(internalState, reactiveInternal, false)
+					reactiveInternal = null
+				}
 				return true
 			}
 			return false
