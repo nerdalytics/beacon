@@ -185,7 +185,8 @@ const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
 	return groups
 }
 
-// /latest serves the current version under its own URL; both prefixes share one nav config.
+// /latest serves the current version under its own URL, so /latest and /v2002.0.0 share currentConfig.
+// Older entries are frozen literals so a flag flip here never changes a historical sidebar.
 const currentConfig: NavConfig = {
 	hasDebugging: true,
 	hasHooks: true,
@@ -203,7 +204,13 @@ const versionConfigs: [string, NavConfig][] = [
 	[
 		'/v2001.0.1',
 		{
-			...currentConfig,
+			hasDebugging: true,
+			hasHooks: true,
+			hasLens: false,
+			hasPerformance: true,
+			hasRecipes: true,
+			hasSelect: false,
+			hasSettle: true,
 			migration: 'v2000.0.0 \u2192 v2001.0.1',
 		},
 	],
