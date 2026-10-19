@@ -5,8 +5,8 @@
 	import { version } from '$app/env'
 	import { asset, resolve } from '$app/paths'
 	import { page, updated } from '$app/state'
-	import { onMount, untrack } from 'svelte'
-	import { onNavigate } from '$app/navigation'
+	import { untrack } from 'svelte'
+	import { afterNavigate, onNavigate } from '$app/navigation'
 	import { resolveHref } from '#lib/resolve-href'
 	import { getVersionPrefix } from '#lib/navigation'
 	import { currentVersion } from '#lib/versions'
@@ -33,7 +33,9 @@
 		if (keys.length === 1 && keys[0] === `cache-${serverVersion}` && serverVersion !== version) location.reload()
 	}
 
-	onMount(() => {
+	// The page renders from the worker's cache; each navigation then asks the server for its build version in the background.
+	// A check that lands on a stale CDN copy right after a deploy is retried by the next navigation.
+	afterNavigate(() => {
 		if (!('serviceWorker' in navigator)) return
 		updated.check()
 	})
