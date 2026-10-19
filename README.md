@@ -76,9 +76,9 @@ effect(() => {
 await until(() => cache.warm, { timeout: 5000 });
 ```
 
-### `onSettled`
+### `onIdle`
 
-`onSettled(callback)` invokes the callback whenever the graph reaches quiescence after processing work (a flush or an async settlement). Returns an unsubscribe function.
+`onIdle(callback)` invokes the callback each time the graph goes idle after processing work (a flush or an async settlement): no effect is queued and no microtask flush is armed. A pending async computation does not keep the graph busy, so the callback fires after the flush that started the computation and again once it settles. Returns an unsubscribe function.
 
 ### Effect `schedule` option
 

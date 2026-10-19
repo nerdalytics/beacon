@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { derive, effect, onSettled, state, until } from '../src/index.ts'
+import { derive, effect, onIdle, state, until } from '../src/index.ts'
 
 interface Deferred<T> {
 	promise: Promise<T>
@@ -307,18 +307,18 @@ describe('Derive Async', {
 		computed.reactive = false
 	})
 
-	it('does not notify onSettled for a settlement that arrives after dispose', async (): Promise<void> => {
+	it('does not notify onIdle for a settlement that arrives after dispose', async (): Promise<void> => {
 		const slow = deferred<number>()
 		const computed = derive((): Promise<number> => slow.promise)
 		computed.reactive = false
 		await tick()
-		let settled = 0
-		const off = onSettled((): void => {
-			settled++
+		let idle = 0
+		const off = onIdle((): void => {
+			idle++
 		})
 		slow.resolve(1)
 		await tick()
 		off()
-		assert.equal(settled, 0)
+		assert.equal(idle, 0)
 	})
 })

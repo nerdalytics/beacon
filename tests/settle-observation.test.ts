@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { getEventListeners } from 'node:events'
 import { describe, it, type TestContext } from 'node:test'
-import { batch, derive, effect, onSettled, state, until } from '../src/index.ts'
+import { batch, derive, effect, onIdle, state, until } from '../src/index.ts'
 
 interface Deferred<T> {
 	promise: Promise<T>
@@ -133,7 +133,7 @@ describe('Settle Observation', {
 		assert.equal(evaluations, after)
 	})
 
-	it('onSettled fires once per batched flush and stops after unsubscribe', async (): Promise<void> => {
+	it('onIdle fires once per batched flush and stops after unsubscribe', async (): Promise<void> => {
 		const s = state({
 			a: 0,
 			b: 0,
@@ -143,7 +143,7 @@ describe('Settle Observation', {
 			void s.b
 		})
 		let calls = 0
-		const stop = onSettled((): void => {
+		const stop = onIdle((): void => {
 			calls++
 		})
 		batch((): void => {
@@ -157,6 +157,35 @@ describe('Settle Observation', {
 		await tick()
 		assert.equal(calls, 1)
 		stopReader()
+	})
+
+	it('onIdle fires while an async derived value is pending and again after it settles', async (): Promise<void> => {
+		const $s = state({
+			n: 0,
+		})
+		let current = deferred<number>()
+		const derived = derive((): Promise<number> => {
+			void $s.n
+			return current.promise
+		})
+		current.resolve(0)
+		await tick()
+		let idle = 0
+		const stop = onIdle((): void => {
+			idle++
+		})
+		current = deferred<number>()
+		batch((): void => {
+			$s.n = 1
+		})
+		assert.equal(derived.pending, true)
+		assert.equal(idle, 1)
+		current.resolve(1)
+		await tick()
+		assert.equal(derived.pending, false)
+		assert.equal(idle, 2)
+		stop()
+		derived.reactive = false
 	})
 
 	it('until rejects when the signal aborts mid-wait', async (): Promise<void> => {
@@ -181,14 +210,14 @@ describe('Settle Observation', {
 		})
 		controller.abort(new Error('changed mind'))
 		await assert.rejects(p, /changed mind/)
-		let settled = 0
-		const stopSettled = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stopIdle = onIdle((): void => {
+			idle++
 		})
 		$s.n = 1
 		await tick()
-		assert.equal(settled, 0)
-		stopSettled()
+		assert.equal(idle, 0)
+		stopIdle()
 	})
 
 	it('until disposes its effect after it times out', async (): Promise<void> => {
@@ -201,14 +230,14 @@ describe('Settle Observation', {
 			}),
 			/timed out/
 		)
-		let settled = 0
-		const stopSettled = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stopIdle = onIdle((): void => {
+			idle++
 		})
 		$s.n = 1
 		await tick()
-		assert.equal(settled, 0)
-		stopSettled()
+		assert.equal(idle, 0)
+		stopIdle()
 	})
 
 	it('until disposes its effect after it resolves', async (): Promise<void> => {
@@ -218,17 +247,17 @@ describe('Settle Observation', {
 		const p = until((): boolean => $s.n > 0)
 		$s.n = 1
 		assert.equal(await p, true)
-		let settled = 0
-		const stopSettled = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stopIdle = onIdle((): void => {
+			idle++
 		})
 		$s.n = 2
 		await tick()
-		assert.equal(settled, 0)
-		stopSettled()
+		assert.equal(idle, 0)
+		stopIdle()
 	})
 
-	it('onSettled keeps notifying other callbacks when one throws', async (): Promise<void> => {
+	it('onIdle keeps notifying other callbacks when one throws', async (): Promise<void> => {
 		const s = state({
 			n: 0,
 		})
@@ -236,10 +265,10 @@ describe('Settle Observation', {
 			void s.n
 		})
 		let calls = 0
-		const stopThrower = onSettled((): void => {
+		const stopThrower = onIdle((): void => {
 			throw new Error('cb boom')
 		})
-		const stop = onSettled((): void => {
+		const stop = onIdle((): void => {
 			calls++
 		})
 		s.n = 1
@@ -290,7 +319,7 @@ describe('Settle Observation', {
 			n: 0,
 		})
 		let staleRuns = 0
-		let settled = 0
+		let idle = 0
 		const stopFailing = effect((): void => {
 			if ($s.n > 0) throw new Error('boom')
 		})
@@ -307,25 +336,25 @@ describe('Settle Observation', {
 		const stopM2 = effect((): void => {
 			void $s.m
 		})
-		const stopSettled = onSettled((): void => {
-			settled++
+		const stopIdle = onIdle((): void => {
+			idle++
 		})
 		assert.throws((): void => {
 			$s.n = 1
 		}, /boom/)
 		assert.equal(staleRuns, 1)
-		settled = 0
+		idle = 0
 		$s.k = 1
-		assert.equal(settled, 1)
+		assert.equal(idle, 1)
 		$s.m = 1
 		assert.equal(staleRuns, 1)
-		assert.equal(settled, 2)
+		assert.equal(idle, 2)
 		stopFailing()
 		stopStale()
 		stopK()
 		stopM1()
 		stopM2()
-		stopSettled()
+		stopIdle()
 	})
 	it('until rejects with the error a re-run predicate throws and clears its timer', async (): Promise<void> => {
 		const $s = state({
@@ -434,14 +463,14 @@ describe('Settle Observation', {
 		const stopReader = effect((): void => {
 			seen.push(`${$s.a},${$s.b}`)
 		})
-		let settled = 0
-		const stop = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stop = onIdle((): void => {
+			idle++
 			if ($s.a === 1 && $s.b === 0) $s.b = 99
 		})
 		$s.a = 1
 		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
-		assert.equal(settled, 2)
+		assert.equal(idle, 2)
 		stop()
 		stopReader()
 	})
@@ -455,16 +484,16 @@ describe('Settle Observation', {
 		const stopReader = effect((): void => {
 			seen.push(`${$s.a},${$s.b}`)
 		})
-		let settled = 0
-		const stop = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stop = onIdle((): void => {
+			idle++
 			if ($s.a === 1 && $s.b === 0) $s.b = 99
 		})
 		batch((): void => {
 			$s.a = 1
 		})
 		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
-		assert.equal(settled, 2)
+		assert.equal(idle, 2)
 		stop()
 		stopReader()
 	})
@@ -491,15 +520,15 @@ describe('Settle Observation', {
 		const stopReader = effect((): void => {
 			seen.push(`${$s.a},${$s.b}`)
 		})
-		let settled = 0
-		const stop = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stop = onIdle((): void => {
+			idle++
 			if ($s.a === 1 && $s.b === 0) $s.b = 99
 		})
 		$trigger.go = 1
 		await tick()
 		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
-		assert.equal(settled, 2)
+		assert.equal(idle, 2)
 		stop()
 		stopReader()
 		stopWriter()
@@ -515,9 +544,9 @@ describe('Settle Observation', {
 		const stopReader = effect((): void => {
 			log.push(`effect b=${$s.b}`)
 		})
-		let settled = 0
-		const stop = onSettled((): void => {
-			const call = ++settled
+		let idle = 0
+		const stop = onIdle((): void => {
+			const call = ++idle
 			log.push(`enter ${call}`)
 			if (call === 1) $s.b = 99
 			log.push(`exit ${call}`)
@@ -539,9 +568,9 @@ describe('Settle Observation', {
 		const stopReader = effect((): void => {
 			log.push(`effect ${$s.a},${$s.b}`)
 		})
-		let settled = 0
-		const stop = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stop = onIdle((): void => {
+			idle++
 			if ($s.b !== 0) return
 			batch((): void => {
 				$s.b = 99
@@ -550,12 +579,12 @@ describe('Settle Observation', {
 		})
 		$s.a = 1
 		assert.deepEqual(log, ['effect 0,0', 'effect 1,0', 'batch returned', 'effect 1,99'])
-		assert.equal(settled, 2)
+		assert.equal(idle, 2)
 		stop()
 		stopReader()
 	})
 
-	it('until resolves on a write made inside an onSettled callback', async (): Promise<void> => {
+	it('until resolves on a write made inside an onIdle callback', async (): Promise<void> => {
 		const $s = state({
 			a: 0,
 			b: 0,
@@ -563,7 +592,7 @@ describe('Settle Observation', {
 		const stopReader = effect((): void => {
 			void $s.a
 		})
-		const stop = onSettled((): void => {
+		const stop = onIdle((): void => {
 			if ($s.a === 1) $s.b = 99
 		})
 		const p = until((): boolean => $s.b === 99, {
@@ -575,7 +604,7 @@ describe('Settle Observation', {
 		stopReader()
 	})
 
-	it('throws when onSettled callbacks keep scheduling effects', (): void => {
+	it('throws when onIdle callbacks keep scheduling effects', (): void => {
 		const $s = state({
 			a: 0,
 			n: 0,
@@ -586,15 +615,15 @@ describe('Settle Observation', {
 			void $s.n
 			runs++
 		})
-		let settled = 0
-		const stop = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stop = onIdle((): void => {
+			idle++
 			$s.n++
 		})
 		assert.throws((): void => {
 			$s.a = 1
-		}, /Infinite loop detected: onSettled callbacks kept scheduling effects/)
-		assert.equal(settled, 100)
+		}, /Infinite loop detected: onIdle callbacks kept scheduling effects/)
+		assert.equal(idle, 100)
 		assert.equal(runs, 101)
 		stop()
 		$s.a = 2
@@ -602,7 +631,7 @@ describe('Settle Observation', {
 		stopReader()
 	})
 
-	it('reports a runaway onSettled callback in a microtask flush', async (t: TestContext): Promise<void> => {
+	it('reports a runaway onIdle callback in a microtask flush', async (t: TestContext): Promise<void> => {
 		const logged = t.mock.method(console, 'error', (): void => {})
 		const $trigger = state({
 			go: 0,
@@ -625,16 +654,16 @@ describe('Settle Observation', {
 			void $s.a
 			void $s.n
 		})
-		let settled = 0
-		const stop = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stop = onIdle((): void => {
+			idle++
 			$s.n++
 		})
 		$trigger.go = 1
 		await tick()
-		assert.equal(settled, 100)
+		assert.equal(idle, 100)
 		assert.equal(logged.mock.callCount(), 1)
-		assert.match(String(logged.mock.calls[0]?.arguments[0]), /Infinite loop detected: onSettled/)
+		assert.match(String(logged.mock.calls[0]?.arguments[0]), /Infinite loop detected: onIdle/)
 		stop()
 		stopReader()
 		stopWriter()

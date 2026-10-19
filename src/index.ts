@@ -37,8 +37,8 @@ export interface UntilOptions {
 	timeout?: number
 }
 
-/** Callback for {@linkcode onSettled}, invoked when the graph reaches quiescence. */
-export type SettledCallback = () => void
+/** Callback for {@linkcode onIdle}, invoked when the graph goes idle: no effect queued and no microtask flush armed. */
+export type IdleCallback = () => void
 
 type ProxyTarget = Record<PropertyKey, unknown>
 
@@ -64,7 +64,7 @@ let rerunReadIndex = 0
 let rerunStable = false
 let buildingReadList: (object | PropertyKey)[] | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
-const settledCallbacks: Set<SettledCallback> = new Set<SettledCallback>()
+const idleCallbacks: Set<IdleCallback> = new Set<IdleCallback>()
 let settleProcessed = false
 let flushProcessed = false
 let microtaskFlushArmed = false
@@ -95,7 +95,7 @@ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'un
 type CachedMethod = (...args: unknown[]) => unknown
 const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
-const MAX_SETTLE_CYCLES = 100
+const MAX_IDLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
 // Up to this many subscribers a scan is cheaper than the per-property index lookups
 const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
@@ -329,7 +329,7 @@ function armMicrotaskFlush(): void {
 		microtaskFlushing = true
 		try {
 			flushEffects()
-			notifySettledOutsideFlush()
+			notifyIdleOutsideFlush()
 		} finally {
 			microtaskFlushing = false
 		}
@@ -429,18 +429,18 @@ function flushEffects(): void {
 	isNotifying = true
 
 	try {
-		// A cycle after the first drains effects scheduled by onSettled callbacks, then notifies again
-		for (let cycle = 0; cycle < MAX_SETTLE_CYCLES; cycle++) {
+		// A cycle after the first drains effects scheduled by onIdle callbacks, then notifies again
+		for (let cycle = 0; cycle < MAX_IDLE_CYCLES; cycle++) {
 			flushProcessed = true
 			while (pendingEffects.size > 0) {
 				runPendingEffectBatch()
 			}
-			notifySettledIfQuiet()
+			notifyIfIdle()
 			if (pendingEffects.size === 0) return
 		}
 		pendingEffects.clear()
 		const err = new Error(
-			`Infinite loop detected: onSettled callbacks kept scheduling effects for ${MAX_SETTLE_CYCLES} notifications`
+			`Infinite loop detected: onIdle callbacks kept scheduling effects for ${MAX_IDLE_CYCLES} notifications`
 		)
 		if (!microtaskFlushing) throw err
 		console.error(err)
@@ -1113,7 +1113,7 @@ function flushBatchEffects(): void {
 	try {
 		runDeferredEffects()
 		if (pendingEffects.size > 0) flushEffects()
-		notifySettledOutsideFlush()
+		notifyIdleOutsideFlush()
 	} catch (err) {
 		clearBatchState()
 		throw err
@@ -1364,14 +1364,14 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 	}) as ComputedValue<T>
 }
 
-function notifySettledIfQuiet(): void {
+function notifyIfIdle(): void {
 	if (pendingEffects.size > 0 || effectQueue.length > 0 || microtaskFlushArmed) return
 	if (!flushProcessed && !settleProcessed) return
 	flushProcessed = false
 	settleProcessed = false
 	// runs on every flush: skip creating an iterator when nothing listens
-	if (settledCallbacks.size === 0) return
-	for (const callback of settledCallbacks) {
+	if (idleCallbacks.size === 0) return
+	for (const callback of idleCallbacks) {
 		try {
 			callback()
 		} catch {}
@@ -1379,22 +1379,22 @@ function notifySettledIfQuiet(): void {
 }
 
 // Callback writes queue while isNotifying is set; outside a flush they are flushed once every callback has returned
-function notifySettledOutsideFlush(): void {
+function notifyIdleOutsideFlush(): void {
 	if (isNotifying) {
-		notifySettledIfQuiet()
+		notifyIfIdle()
 		return
 	}
 	isNotifying = true
-	notifySettledIfQuiet()
+	notifyIfIdle()
 	isNotifying = false
 	flushEffects()
 }
 
-/** Invoke a callback whenever the reactive graph reaches quiescence after processing work. Returns an unsubscribe. */
-export function onSettled(callback: SettledCallback): Unsubscribe {
-	settledCallbacks.add(callback)
+/** Invoke a callback whenever the reactive graph goes idle after processing work. A pending async computation does not keep the graph busy. Returns an unsubscribe. */
+export function onIdle(callback: IdleCallback): Unsubscribe {
+	idleCallbacks.add(callback)
 	return (): void => {
-		settledCallbacks.delete(callback)
+		idleCallbacks.delete(callback)
 	}
 }
 
