@@ -20,7 +20,7 @@ Status-tracked plan and catalog for Beacon's hooks system. Every "shipped" row a
 | Public entry `@nerdalytics/beacon/hooks` exporting the types and `composeHook` | `package.json` exports, `jsr.json` exports |
 | All 19 slots wired in core through `callHookSafe` | `src/index.ts` |
 | 41 tests across state, effect, derive, batch, and compose | `tests/*-hooks.test.ts`, `tests/hooks-compose.test.ts` |
-| Handbook pages: hooks-overview, hooks-api, hooks-catalog (including the custom-hook guide) | `handbook/src/routes/v2001.0.1/` |
+| Handbook pages: hooks-overview, hooks-api, hooks-catalog (including the custom-hook guide) | `handbook/src/routes/v2002.0.0/` |
 
 ## Hook contract
 
