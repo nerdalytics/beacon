@@ -241,6 +241,24 @@ function stateWrite1Sub(): number {
 	return end - start
 }
 
+function sealedWrite1Sub(): number {
+	const s = state(
+		Object.seal({
+			v: 0,
+		})
+	)
+	const cleanup: Unsubscribe = effect((): void => {
+		void s.v
+	})
+	const start = performance.now()
+	for (let i = 0; i < SINGLE_SUB_WRITES; i++) {
+		s.v = i
+	}
+	const end = performance.now()
+	cleanup()
+	return end - start
+}
+
 function stateWrite100Subs(): number {
 	const s = state({
 		v: 0,
@@ -500,6 +518,17 @@ const suite: SuiteEntry[] = [
 	{
 		fn: disjointSubscribers,
 		name: '100 subs disjoint props   ',
+	},
+	{
+		header: '--- Non-extensible targets (subscriber set lives in the WeakMap fallback) ---',
+	},
+	{
+		fn: sealedWrite1Sub,
+		name: 'sealed write 1 sub        ',
+	},
+	{
+		fn: stateNoSubscribers,
+		name: 'state no subs after seal  ',
 	},
 ]
 

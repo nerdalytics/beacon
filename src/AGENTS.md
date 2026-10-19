@@ -27,7 +27,6 @@ Global mutable state driving the reactive system:
 | `effectQueue` | `EffectFunction[]` | Reused array `runPendingEffectBatch` drains when more than one effect is pending |
 | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
 | `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
-| `hasFallbackSubs` | `boolean` | Set once any subscriber set is stored in `proxyCacheSubs`, never reset; until then subscriber lookups skip the WeakMap |
 | `rerunReadList`, `rerunReadIndex`, `rerunStable` | | Re-run fast path: replays the effect's `__readList` and advances while reads match |
 | `rerunTempDeps`, `rerunTempReads`, `buildingReadList` | | Re-run slow path: collect fresh deps/reads and build a new read list |
 | `settledCallbacks` | `Set<SettledCallback>` | `onSettled` subscribers |
@@ -66,7 +65,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | Symbol | Purpose |
 |--------|---------|
 | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
-| `SUBSCRIBERS` | Stores subscriber Set on target objects |
+| `SUBSCRIBERS` | Stores the subscriber Set on target objects. Defined as a writable `null` placeholder at `state()` time on extensible targets, so the hookless write paths can tell "no subscribers yet" (null) from "set lives in `proxyCacheSubs`" (absent) without a flag or an `Object.isExtensible` call |
 | `PROXY` | Stores Proxy reference on target objects |
 | `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
 
@@ -163,8 +162,8 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `getSubscribers` | Resolves subscriber set: `[SUBSCRIBERS]` symbol → `proxyCacheSubs` → create new |
-| `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (frozen/sealed), setting `hasFallbackSubs` |
-| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol, then `proxyCacheSubs` once `hasFallbackSubs` is set |
+| `storeSubscriberSet` | Assigns into the `[SUBSCRIBERS]` placeholder when it is present (also on a target sealed after `state()`); otherwise, or when the assignment throws (frozen after `state()`), stores in `proxyCacheSubs` |
+| `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` absent → `proxyCacheSubs`; `null` placeholder → `undefined`; else the set |
 
 ### Batch Internals
 
@@ -202,7 +201,7 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; falls back to `storeHooksForFrozenTarget` otherwise |
-| `definePropertyOnTarget` | `Object.defineProperty` for `PROXY` and `HOOKS` symbols |
+| `definePropertyOnTarget` | `Object.defineProperty` for `PROXY`, the `SUBSCRIBERS` null placeholder, and `HOOKS` symbols |
 | `storeHooksForFrozenTarget` | Writes hooks to `frozenHooksCache` for non-extensible targets |
 
 ### Utilities

@@ -387,6 +387,22 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
 		dispose()
 	})
 
+	it('targets frozen after state() can still be subscribed', (): void => {
+		const raw = { a: 1 }
+		const $s = state(raw)
+		Object.freeze(raw)
+
+		let runs = 0
+		const dispose = effect((): void => {
+			runs++
+			void $s.a
+		})
+
+		assert.strictEqual(runs, 1)
+		assert.strictEqual($s.a, 1)
+		dispose()
+	})
+
 	it('sealed arrays: mutating methods work via WeakMap method cache', (): void => {
 		fc.assert(
 			fc.property(
