@@ -23,7 +23,7 @@ type DerivedValue<T> = {
 }
 ```
 
-- `value` is the cached computed result and is read-only
+- `value` is the cached result of the latest settled computation and is read-only
 - `pending` is `true` while an async computation has not settled. It is always `false` for synchronous derives, and it is read-only.
 - `reactive` controls the internal effect lifecycle. Set it to `false` to dispose and `true` to recreate
 
