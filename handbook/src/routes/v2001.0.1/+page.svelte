@@ -5,9 +5,9 @@
 	import { resolveHref } from '#lib/resolve-href'
 	import { resolveVersionLabel, versions } from '#lib/versions'
 
-	// Rendered at /v2001.0.0 and, via latest/+page.svelte, at /latest.
-	let prefix = $derived(getVersionPrefix(page.url.pathname) ?? '/v2001.0.0')
-	const pkgVersion = '2001.0.0'
+	// Rendered at /v2001.0.1 and, via latest/+page.svelte, at /latest.
+	let prefix = $derived(getVersionPrefix(page.url.pathname) ?? '/v2001.0.1')
+	const pkgVersion = '2001.0.1'
 	let nodeBadge = $derived(versions.find((v) => v.prefix === prefix)?.badges.node)
 </script>
 

@@ -16,20 +16,20 @@ The Beacon handbook is available as plain text at every version. These endpoints
 | `/{version}/llms-full.txt` | All pages concatenated into one document |
 | `/{version}/{page}.md` | Single page as raw Markdown |
 
-Replace `{version}` with a version number, such as `v2001.0.0`, or with `latest`.
+Replace `{version}` with a version number, such as `v2001.0.1`, or with `latest`.
 
 ## Examples
 
 Full documentation context:
 
 ```
-Read https://nerdalytics.github.io/beacon/v2001.0.0/llms-full.txt and explain how state() works.
+Read https://nerdalytics.github.io/beacon/v2001.0.1/llms-full.txt and explain how state() works.
 ```
 
 Single page reference:
 
 ```
-Read https://nerdalytics.github.io/beacon/v2001.0.0/state.md and show me how to use nested reactivity.
+Read https://nerdalytics.github.io/beacon/v2001.0.1/state.md and show me how to use nested reactivity.
 ```
 
 ## Tool integration
