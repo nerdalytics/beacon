@@ -1,0 +1,439 @@
+# Review package: ticket 02, dac81694d577f844a3a1d1b85936e1dd8bf3257a..ae8240a3564d0fdb8141e3c00039ac9fe0a857ed
+
+## Commits
+### ae8240a
+breaking(api): rename ComputedValue to DerivedValue
+
+Name the type after what derive returns: a derived value with value,
+pending and the reactive switch. "Computed value" is the term the
+glossary avoids, so the core's doc comments, the benchmark, the agent
+docs, the README and the hooks roadmap follow the rename and say
+"derived value", "pending" and "computation" in prose. The shape and
+both derive overloads are unchanged; a new test pins the exported type
+as the annotation of a derive result.
+
+BREAKING CHANGE: ComputedValue is now DerivedValue. No behavior change.
+
+
+## Files changed
+ AGENTS.md                 |  4 ++--
+ HOOKS_TODO.md             |  2 +-
+ README.md                 |  4 ++--
+ scripts/benchmark.ts      | 16 ++++++++--------
+ src/AGENTS.md             |  2 +-
+ src/index.ts              | 14 +++++++-------
+ tests/derive-core.test.ts | 14 ++++++++++++++
+ 7 files changed, 35 insertions(+), 21 deletions(-)
+
+## Diff
+diff --git a/AGENTS.md b/AGENTS.md
+index 4c1095f..ab9e43c 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -14,25 +14,25 @@ ## Quick Commands
+ | `npm run check` | Run all Biome checks (`check:fix` to apply) |
+ | `npm run benchmark` | Run performance benchmarks |
+ 
+ ## Architecture
+ 
+ Single-file core: `src/index.ts` (~1400 lines). Zero external dependencies. Proxy-based reactive system.
+ 
+ **Exports:**
+ - `state<T extends object>(initial: T, hooks?: StateHooks<T>): T` — Proxy-wrapped reactive objects with per-property tracking
+ - `effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks, options?: EffectOptions): Unsubscribe` — side effects with automatic dependency tracking; `options.schedule` is `'sync'` (default) or `'microtask'`
+-- `derive<T>(fn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T>` — eagerly-computed values, returns `{ value, pending, reactive }`, requires disposal; async results set `pending` until they settle, stale promises are dropped
++- `derive<T>(fn: () => T | Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<T>` — eagerly computed derived values, returns `{ value, pending, reactive }`, requires disposal; an async computation sets `pending` until it settles, superseded computations are discarded
+ - `batch<T>(fn: () => T, hooks?: BatchHooks): T` — groups updates, flushes effects once at outermost batch boundary
+ - `onIdle(callback: IdleCallback): Unsubscribe` — runs the callback each time the graph goes idle after doing work (no effect queued, no microtask flush armed); a pending async computation does not keep the graph busy
+ - `until<T>(predicate: () => T, options?: UntilOptions): Promise<T>` — resolves once the predicate is truthy with no derive pending; `timeout` and `signal` reject; throws inside a reactive scope
+-- Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
++- Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `DerivedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+ - Subpath `@nerdalytics/beacon/hooks`: hook types and `composeHook`
+ 
+ **Key behaviors:**
+ - Dependency tracking via WeakMaps + Symbols at the property level
+ - Nested objects automatically wrapped in Proxies (deep reactivity)
+ - Infinite loop detection: throws if effect writes to a state property it reads from (child effects and microtask effects are exempt; microtask re-runs stop after 100 chained microtask flushes with a `console.error`)
+ - Cyclic dependencies between different effects: allowed via queue-based non-recursive `flushEffects`
+ - Array mutating methods intercepted: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
+ - Frozen/sealed objects: fallback to WeakMap storage
+ - `derive()` must be disposed to prevent memory leaks (creates internal state + effect pair)
+diff --git a/HOOKS_TODO.md b/HOOKS_TODO.md
+index 5f1fd25..9abf7d9 100644
+--- a/HOOKS_TODO.md
++++ b/HOOKS_TODO.md
+@@ -84,21 +84,21 @@ #### `logEffect` — `open`, `logTiming` `blocked`
+ function logEffect(options?: {
+ 	logRun?: boolean // default true, via onRun
+ 	logDispose?: boolean // default true, via onDispose
+ 	logDependencies?: boolean // default false, via onDependencyAdd
+ 	logTiming?: boolean // blocked: contract fact 5, no post-run slot
+ }): EffectHooks
+ ```
+ 
+ #### `logDerive` — `open`
+ 
+-Returns a `DeriveHooks` object. The computed value is only available in `onCacheHit` (contract fact 6).
++Returns a `DeriveHooks` object. The derived value is only available in `onCacheHit` (contract fact 6).
+ 
+ ```ts
+ function logDerive<T>(options?: {
+ 	logCompute?: boolean // default true, via onCompute
+ 	logCache?: boolean // default true, via onCacheHit
+ 	logValue?: boolean // default false, via onCacheHit only
+ 	maxValueLength?: number // default 100
+ }): DeriveHooks<T>
+ ```
+ 
+diff --git a/README.md b/README.md
+index 902c6e2..27176b4 100644
+--- a/README.md
++++ b/README.md
+@@ -51,21 +51,21 @@ ## Quick Start
+ // => "Count: 5, Doubled: 10"
+ 
+ dispose();
+ doubled.reactive = false;
+ ```
+ 
+ ## Async API (v2001)
+ 
+ ### Async derive and `pending`
+ 
+-`derive` accepts async compute functions. While a computation is in flight the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
++`derive` accepts async compute functions. While a computation is pending the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
+ 
+ ```typescript
+ const user = derive(async () => (await db.users.find(signal.id)) ?? null);
+ effect(() => {
+   if (user.pending) return;
+   console.log(user.value);
+ });
+ ```
+ 
+ ### `until`
+@@ -77,21 +77,21 @@ ### `until`
+ ```
+ 
+ ### `onIdle`
+ 
+ `onIdle(callback)` invokes the callback each time the graph goes idle after processing work (a flush or an async settlement): no effect is queued and no microtask flush is armed. A pending async computation does not keep the graph busy, so the callback fires after the flush that started the computation and again once it settles. Returns an unsubscribe function.
+ 
+ ### Effect `schedule` option
+ 
+ `effect(fn, name, hooks, { schedule: 'microtask' })` defers re-runs to a microtask, coalescing writes across await boundaries into one run. The default `'sync'` preserves v2000 timing exactly.
+ 
+-**Migration note:** synchronous `derive` and default-schedule effects behave exactly as in v2000; the only consumer-visible changes are the new `pending` field on computed values and async compute support.
++**Migration note:** synchronous `derive` and default-schedule effects behave exactly as in v2000; the only consumer-visible changes are the new `pending` field on derived values and async compute support.
+ 
+ ## Documentation
+ 
+ Full documentation, API reference, and examples available at:
+ **[nerdalytics.github.io/beacon](https://nerdalytics.github.io/beacon/)**
+ 
+ ### LLM-friendly docs
+ 
+ The handbook has plain-text endpoints for LLMs:
+ 
+diff --git a/scripts/benchmark.ts b/scripts/benchmark.ts
+index baac7b2..d9780cf 100644
+--- a/scripts/benchmark.ts
++++ b/scripts/benchmark.ts
+@@ -1,13 +1,13 @@
+ import { performance } from 'node:perf_hooks'
+ import { parseArgs } from 'node:util'
+-import type { ComputedValue, Unsubscribe } from '../src/index.ts'
++import type { DerivedValue, Unsubscribe } from '../src/index.ts'
+ import { batch, derive, effect, state } from '../src/index.ts'
+ 
+ const DEFAULT_RUN_COUNT = 10
+ const LOOP_LENGTH = 1_000_000
+ const ERROR_FREQUENCY = 1000
+ const WARMUP_RUNS = 3
+ const BENCH_RUNS = 7
+ 
+ const EFFECT_TRIGGER_WRITES = 50_000
+ const MULTI_SOURCE_COUNT = 100
+@@ -115,56 +115,56 @@ function stateNoSubscribers(): number {
+ 	})
+ 	const start = performance.now()
+ 	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
+ 	return performance.now() - start
+ }
+ 
+ function statePlusDeriveNoEffects(): number {
+ 	const s = state({
+ 		count: 0,
+ 	})
+-	const totals: ComputedValue<number> = derive((): number => s.count * 2)
++	const totals: DerivedValue<number> = derive((): number => s.count * 2)
+ 	const start = performance.now()
+ 	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
+ 	const end = performance.now()
+ 	if (totals.value !== s.count * 2) throw new Error('mismatch')
+ 	return end - start
+ }
+ 
+ function statePlusDerivePlusEffects(): number {
+ 	const s = state({
+ 		count: 0,
+ 	})
+ 	const d1: Unsubscribe = effect((): void => {
+ 		void s.count
+ 	})
+ 	const d2: Unsubscribe = effect((): void => {
+ 		void s.count
+ 	})
+-	const totals: ComputedValue<number> = derive((): number => s.count * 2)
++	const totals: DerivedValue<number> = derive((): number => s.count * 2)
+ 	const start = performance.now()
+ 	for (let i = 0; i < LOOP_LENGTH; i++) s.count++
+ 	const end = performance.now()
+ 	if (totals.value !== s.count * 2) throw new Error('mismatch')
+ 	d1()
+ 	d2()
+ 	return end - start
+ }
+ 
+ function batchPlusDeriveNoEffects(): number {
+ 	const errors = state({
+ 		count: 0,
+ 	})
+ 	const processed = state({
+ 		count: 0,
+ 	})
+-	const totals: ComputedValue<number> = derive((): number => errors.count + processed.count)
++	const totals: DerivedValue<number> = derive((): number => errors.count + processed.count)
+ 	const start = performance.now()
+ 	batch((): void => {
+ 		for (let i = 0; i <= LOOP_LENGTH; i++) {
+ 			if (i % ERROR_FREQUENCY === 0) {
+ 				errors.count++
+ 			} else {
+ 				processed.count++
+ 			}
+ 		}
+ 	})
+@@ -179,21 +179,21 @@ function batchPlusDerivePlusEffects(): number {
+ 	})
+ 	const processed = state({
+ 		count: 0,
+ 	})
+ 	const d1: Unsubscribe = effect((): void => {
+ 		void errors.count
+ 	})
+ 	const d2: Unsubscribe = effect((): void => {
+ 		void processed.count
+ 	})
+-	const totals: ComputedValue<number> = derive((): number => errors.count + processed.count)
++	const totals: DerivedValue<number> = derive((): number => errors.count + processed.count)
+ 	const start = performance.now()
+ 	batch((): void => {
+ 		for (let i = 0; i <= LOOP_LENGTH; i++) {
+ 			if (i % ERROR_FREQUENCY === 0) {
+ 				errors.count++
+ 			} else {
+ 				processed.count++
+ 			}
+ 		}
+ 	})
+@@ -299,21 +299,21 @@ function manyDependencies(): number {
+ 		(
+ 			_: unknown,
+ 			i: number
+ 		): {
+ 			v: number
+ 		} =>
+ 			state({
+ 				v: i,
+ 			})
+ 	)
+-	const sum: ComputedValue<number> = derive((): number => {
++	const sum: DerivedValue<number> = derive((): number => {
+ 		let acc = 0
+ 		for (const src of sources) acc += src.v as number
+ 		return acc
+ 	})
+ 	const cleanup: Unsubscribe = effect((): void => {
+ 		void sum.value
+ 	})
+ 	const start = performance.now()
+ 	for (let iter = 0; iter < MULTI_SOURCE_ITERATIONS; iter++) {
+ 		batch((): void => {
+@@ -325,22 +325,22 @@ function manyDependencies(): number {
+ 	const end = performance.now()
+ 	cleanup()
+ 	sum.reactive = false
+ 	return end - start
+ }
+ 
+ function deriveChainDepth10(): number {
+ 	const source = state({
+ 		v: 0,
+ 	})
+-	const chain: ComputedValue<number>[] = []
+-	let current: ComputedValue<number> = derive((): number => source.v as number)
++	const chain: DerivedValue<number>[] = []
++	let current: DerivedValue<number> = derive((): number => source.v as number)
+ 	chain.push(current)
+ 	for (let i = 1; i < DERIVE_CHAIN_DEPTH; i++) {
+ 		const prev = current
+ 		current = derive((): number => (prev.value as number) + 1)
+ 		chain.push(current)
+ 	}
+ 	const cleanup: Unsubscribe = effect((): void => {
+ 		void current.value
+ 	})
+ 	const start = performance.now()
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 834e693..159b57a 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -1,19 +1,19 @@
+ # src/ — Beacon Core
+ 
+ Single file: `index.ts`. The entire reactive system. Do not split into modules.
+ 
+ ## Exports
+ 
+ Functions: `state`, `effect`, `batch`, `derive`, `onIdle`, `until`
+ 
+-Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
++Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `DerivedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+ 
+ ## Internal State (Module-Level)
+ 
+ Global mutable state driving the reactive system:
+ 
+ | Variable | Type | Purpose |
+ |----------|------|---------|
+ | `currentEffect` | `EffectFunction \| null` | Currently executing effect (for dependency tracking) |
+ | `batchDepth` | `number` | Nesting depth counter for batch operations |
+ | `isNotifying` | `boolean` | Prevents re-entrant `flushEffects` calls; also set while idle callbacks run, so their writes queue |
+diff --git a/src/index.ts b/src/index.ts
+index 64fc0b9..c13b59f 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -9,22 +9,22 @@
+ import { composeHook } from './hooks/compose.ts'
+ import type { BatchHooks, DeriveHooks, EffectHooks, HookFunction, StateHooks } from './types.ts'
+ 
+ /** Disposal function returned by {@linkcode effect}. Calling it removes the effect and cleans up its dependencies. */
+ export type Unsubscribe = () => void
+ /** Function signature accepted by {@linkcode effect}. */
+ export type EffectCallback = () => void
+ /** Optional name for an effect, used in hook callbacks for identification. */
+ export type EffectName = string
+ 
+-/** Value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
+-export type ComputedValue<T> = {
++/** Derived value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
++export type DerivedValue<T> = {
+ 	readonly pending: boolean
+ 	readonly value: T | undefined | null
+ 	reactive: boolean
+ }
+ 
+ /** Scheduling strategy for {@linkcode effect}: run during the write, or on a later microtask. */
+ export type EffectSchedule = 'microtask' | 'sync'
+ 
+ /** Options for {@linkcode effect}. */
+ export interface EffectOptions {
+@@ -1242,24 +1242,24 @@ function computeDerive<T>(
+ 			setDerivePending(internalState, reactiveInternal, false)
+ 		}
+ 	} catch (err) {
+ 		callHookSafe(onError, err as Error)
+ 		throw err
+ 	} finally {
+ 		cleanup()
+ 	}
+ }
+ 
+-/** Eagerly compute a value from reactive dependencies. Returns a {@linkcode ComputedValue} — set `reactive` to `false` to dispose. */
+-export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
+-export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
+-export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T> {
++/** Eagerly compute a derived value from reactive dependencies. Returns a {@linkcode DerivedValue} — set `reactive` to `false` to dispose. */
++export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<Awaited<T>>
++export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
++export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<T> {
+ 	const onCompute = composeHook(hooks?.onCompute)
+ 	const onCacheHit = composeHook(hooks?.onCacheHit)
+ 	const onDeriveDispose = composeHook(hooks?.onDispose)
+ 	const onError = composeHook(hooks?.onError)
+ 	const onDependencyChange = composeHook(hooks?.onDependencyChange)
+ 
+ 	const internalState = {
+ 		lastValue: undefined as T | undefined | null,
+ 		pending: false,
+ 		reactive: true,
+@@ -1354,21 +1354,21 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
+ 					callHookSafe(onDeriveDispose)
+ 					dispose()
+ 					dispose = null
+ 					setDerivePending(internalState, reactiveInternal, false)
+ 					reactiveInternal = null
+ 				}
+ 				return true
+ 			}
+ 			return false
+ 		},
+-	}) as ComputedValue<T>
++	}) as DerivedValue<T>
+ }
+ 
+ function notifyIfIdle(): void {
+ 	if (pendingEffects.size > 0 || effectQueue.length > 0 || microtaskFlushArmed) return
+ 	if (!flushProcessed && !settleProcessed) return
+ 	flushProcessed = false
+ 	settleProcessed = false
+ 	// runs on every flush: skip creating an iterator when nothing listens
+ 	if (idleCallbacks.size === 0) return
+ 	for (const callback of idleCallbacks) {
+diff --git a/tests/derive-core.test.ts b/tests/derive-core.test.ts
+index 27ddc7f..97301f3 100644
+--- a/tests/derive-core.test.ts
++++ b/tests/derive-core.test.ts
+@@ -1,27 +1,41 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
++import type { DerivedValue } from '../src/index.ts'
+ import { derive, state } from '../src/index.ts'
+ 
+ describe('Derive Core', {
+ 	concurrency: true,
+ 	timeout: 1000,
+ }, (): void => {
+ 	it('computes derived value', (): void => {
+ 		const $count = state({
+ 			value: 5,
+ 		})
+ 		const $doubled = derive((): number => $count.value * 2)
+ 
+ 		assert.strictEqual($doubled.value, 10)
+ 	})
+ 
++	it('returns a DerivedValue', (): void => {
++		const $count = state({
++			value: 5,
++		})
++		const $doubled: DerivedValue<number> = derive((): number => $count.value * 2)
++
++		assert.strictEqual($doubled.value, 10)
++		assert.strictEqual($doubled.pending, false)
++		assert.strictEqual($doubled.reactive, true)
++
++		$doubled.reactive = false
++	})
++
+ 	it('caches computed value', (): void => {
+ 		let computeCount = 0
+ 		const $count = state({
+ 			value: 5,
+ 		})
+ 
+ 		const $doubled = derive((): number => {
+ 			computeCount++
+ 			return $count.value * 2
+ 		})

@@ -1,0 +1,6 @@
+# `npm run test:coverage` never applies the thresholds in `node.config.json`
+
+**Category:** tooling
+**Status:** needs-triage
+
+`node.config.json` sets `test-coverage-branches: 100`, `test-coverage-functions: 100` and `test-coverage-lines: 90` under `nodeOptions`, and the root `AGENTS.md` describes those as the project's coverage gate. The `test:coverage` script in `package.json` (line 65) runs `node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.test.ts` with no `--experimental-config-file` or `--experimental-default-config-file` flag, and nothing in `package.json`, `.github/workflows/*.yml`, `.github/scripts/*.sh` or `mise.toml` names `node.config.json` (grep on 2026-10-20). The ticket 01 implementer of change `rename-on-idle-and-derived-value` reported that the script exited 0 while `lcov.info` showed 515 of 538 branches and 108 of 109 functions covered for `src/index.ts`, both below the configured 100, with every uncovered line outside its diff. So the thresholds are documentation, not a gate. Options: pass `--experimental-default-config-file` in the script so Node reads `node.config.json`, or drop the thresholds and the `AGENTS.md` sentence. Either way, the current numbers would fail a 100% branch gate, so enforcing it also means covering or excluding the 23 uncovered branches first.

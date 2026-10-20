@@ -1,0 +1,4234 @@
+# Review package: ticket 03, ae8240a3564d0fdb8141e3c00039ac9fe0a857ed..70f36fd5761dc0d5ec4cbd7a8d5e1d2d382fced2
+
+## Commits
+### 70f36fd
+docs(handbook): freeze the v2001.0.1 nav config as literals
+
+The v2001.0.1 entry spread currentConfig, so a flag flip for the
+current version would have changed the historical sidebar. Spell its
+flags out like the v2000.0.0 entry and say in the comment that only
+/latest and /v2002.0.0 share currentConfig.
+
+### 1927e27
+docs(handbook): add the v2002.0.0 tree as the current version
+
+Copy the v2001.0.1 tree to v2002.0.0 and point latestSource, the
+/latest glob and landing import, navigation.ts, the root landing links,
+the llms examples, handbook/AGENTS.md and HOOKS_TODO.md at it. The
+v2001.0.1 entry keeps its own frozen nav config with the v2000.0.0 to
+v2001.0.1 migration label. The new migration page covers the v2001 to
+v2002 renames: onSettled to onIdle, SettledCallback to IdleCallback and
+ComputedValue to DerivedValue, with timing and shape unchanged. Other
+page content is unchanged; the vocabulary sweep is a separate change.
+
+
+## Files changed
+ HOOKS_TODO.md                                      |   2 +-
+ handbook/AGENTS.md                                 |   4 +-
+ handbook/src/lib/navigation.ts                     |  20 +-
+ handbook/src/lib/versions.ts                       |  10 +-
+ handbook/src/routes/+page.svelte                   |   6 +-
+ handbook/src/routes/latest/+page.svelte            |   2 +-
+ handbook/src/routes/latest/[page=slug]/+page.ts    |   2 +-
+ handbook/src/routes/v2002.0.0/+layout.svelte       |   5 +
+ handbook/src/routes/v2002.0.0/+page.svelte         |  89 +++
+ .../src/routes/v2002.0.0/architecture/+page.md     | 172 +++++
+ handbook/src/routes/v2002.0.0/batch/+page.md       | 322 +++++++++
+ handbook/src/routes/v2002.0.0/debugging/+page.md   | 131 ++++
+ handbook/src/routes/v2002.0.0/derive/+page.md      | 463 +++++++++++++
+ handbook/src/routes/v2002.0.0/effects/+page.md     | 427 ++++++++++++
+ handbook/src/routes/v2002.0.0/hooks-api/+page.md   | 723 +++++++++++++++++++++
+ .../src/routes/v2002.0.0/hooks-catalog/+page.md    | 241 +++++++
+ .../src/routes/v2002.0.0/hooks-overview/+page.md   | 291 +++++++++
+ .../src/routes/v2002.0.0/installation/+page.md     |  97 +++
+ .../src/routes/v2002.0.0/introduction/+page.md     |  49 ++
+ handbook/src/routes/v2002.0.0/links/+page.md       |  14 +
+ handbook/src/routes/v2002.0.0/llms/+page.md        |  41 ++
+ handbook/src/routes/v2002.0.0/migration/+page.md   |  23 +
+ handbook/src/routes/v2002.0.0/performance/+page.md | 163 +++++
+ handbook/src/routes/v2002.0.0/quick-start/+page.md | 137 ++++
+ handbook/src/routes/v2002.0.0/settle/+page.md      |  80 +++
+ handbook/src/routes/v2002.0.0/state/+page.md       | 359 ++++++++++
+ 26 files changed, 3861 insertions(+), 12 deletions(-)
+
+## Diff
+diff --git a/HOOKS_TODO.md b/HOOKS_TODO.md
+index 9abf7d9..4502669 100644
+--- a/HOOKS_TODO.md
++++ b/HOOKS_TODO.md
+@@ -13,21 +13,21 @@ # Hooks Roadmap
+ 
+ ## Shipped
+ 
+ | Item | Where |
+ |------|-------|
+ | Hook interfaces: `StateHooks` (5 slots), `EffectHooks` (6), `DeriveHooks` (5), `BatchHooks` (3) | `src/types.ts` |
+ | Single-or-array hook values; `composeHook` normalizer with per-hook error isolation | `src/hooks/compose.ts` |
+ | Public entry `@nerdalytics/beacon/hooks` exporting the types and `composeHook` | `package.json` exports, `jsr.json` exports |
+ | All 19 slots wired in core through `callHookSafe` | `src/index.ts` |
+ | 41 tests across state, effect, derive, batch, and compose | `tests/*-hooks.test.ts`, `tests/hooks-compose.test.ts` |
+-| Handbook pages: hooks-overview, hooks-api, hooks-catalog (including the custom-hook guide) | `handbook/src/routes/v2001.0.1/` |
++| Handbook pages: hooks-overview, hooks-api, hooks-catalog (including the custom-hook guide) | `handbook/src/routes/v2002.0.0/` |
+ 
+ ## Hook contract
+ 
+ Facts from `src/index.ts` that decide whether a catalog entry can be built as a plain hook:
+ 
+ 1. Hooks return `void`. Nothing a hook returns reaches core.
+ 2. Hook errors are swallowed by `callHookSafe`. A hook cannot throw to the caller.
+ 3. `onWrite` fires after `rawTarget[prop] = value`. A hook cannot veto, alter, or delay a write.
+ 4. Same-value writes return before `onWrite` (`Object.is` check). A hook never sees an unchanged write.
+ 5. `onRun` fires before the effect body. There is no post-run slot, so a hook cannot time an effect.
+diff --git a/handbook/AGENTS.md b/handbook/AGENTS.md
+index 462603f..5df1218 100644
+--- a/handbook/AGENTS.md
++++ b/handbook/AGENTS.md
+@@ -7,18 +7,18 @@ ## Commands
+ | Command | Purpose |
+ |---------|---------|
+ | `npm run dev` | Dev server (base path empty) |
+ | `npm run build` | Static build to `build/` (CI sets `BASE_PATH=/beacon`) |
+ | `npm run check` | `svelte-check` + service-worker `tsc` |
+ 
+ ## Key Patterns
+ 
+ - **Pages are Markdown**: `src/routes/v{version}/{page}/+page.md`, compiled by mdsvex with `src/lib/components/DocLayout.svelte` as layout, Shiki highlighting (`src/lib/shiki-beacon-theme.json`), `rehype-slug` anchors
+ - **Runes**: `.svelte` files compile with runes on, `.md` files with runes off (`vite.config.ts` `dynamicCompileOptions`)
+-- **Versions are frozen route trees**: one directory per release (`v1.0.0` … `v2001.0.1`). Edit the newest one for current docs; older trees are historical
+-- **`/latest`** has no copy of the docs. `src/routes/latest/[page=slug]/+page.ts` globs `../../v2001.0.1/*/+page.md`; that glob must match `latestSource` in `src/lib/versions.ts`
++- **Versions are frozen route trees**: one directory per release (`v1.0.0` … `v2002.0.0`). Edit the newest one for current docs; older trees are historical
++- **`/latest`** has no copy of the docs. `src/routes/latest/[page=slug]/+page.ts` globs `../../v2002.0.0/*/+page.md`; that glob must match `latestSource` in `src/lib/versions.ts`
+ - **Adding a version** touches: a new `src/routes/v{version}/` tree, `versions` + `latestSource` in `src/lib/versions.ts`, `versionConfigs` in `src/lib/navigation.ts` (sidebar sections via `has*` flags), and the `/latest` glob
+ - **LLM endpoints**: `[version]/llms.txt`, `[version]/llms-full.txt`, `[version]/[page].md` are `+server.ts` routes built from `src/lib/llm-docs.ts` (root `llms.txt` has its own `+server.ts`); it strips `<script>` blocks and rewrites `<Version />` / `<VersionLink>` in page source
+ - **Import alias**: `#lib/*` → `./src/lib/*` (`package.json` `imports`)
+ - **Deploy**: `.github/workflows/deploy-handbook.yml` on pushes to `trunk` that touch `handbook/**`
+ 
+ <!-- BEACON-START -->[Handbook Index]|root: ./handbook|IMPORTANT: Docs for a new release go in a new src/routes/v{version}/ tree; keep versions.ts, navigation.ts and the /latest glob in sync|src/routes:{v*/,latest/,[version]/,*.svelte,*.ts}|src/lib:{*.ts,shiki-beacon-theme.json}|src/lib/components:{*.svelte}|src:{app.html,app.css,params.ts,service-worker.ts}|static:{favicon.svg,fonts/}|.:{package.json,vite.config.ts,tsconfig.json}<!-- BEACON-END -->
+diff --git a/handbook/src/lib/navigation.ts b/handbook/src/lib/navigation.ts
+index cbf78f3..51db495 100644
+--- a/handbook/src/lib/navigation.ts
++++ b/handbook/src/lib/navigation.ts
+@@ -178,35 +178,49 @@ const buildNav = (prefix: string, config: NavConfig = {}): NavGroup[] => {
+ 				href: `${prefix}/links`,
+ 				title: 'Resources',
+ 			},
+ 		],
+ 		title: 'Links',
+ 	})
+ 
+ 	return groups
+ }
+ 
+-// /latest serves the current version under its own URL; both prefixes share one nav config.
++// /latest serves the current version under its own URL, so /latest and /v2002.0.0 share currentConfig.
++// Older entries are frozen literals so a flag flip here never changes a historical sidebar.
+ const currentConfig: NavConfig = {
+ 	hasDebugging: true,
+ 	hasHooks: true,
+ 	hasLens: false,
+ 	hasPerformance: true,
+ 	hasRecipes: true,
+ 	hasSelect: false,
+ 	hasSettle: true,
+-	migration: 'v2000.0.0 \u2192 v2001.0.1',
++	migration: 'v2001.0.1 \u2192 v2002.0.0',
+ }
+ 
+ const versionConfigs: [string, NavConfig][] = [
+ 	['/latest', currentConfig],
+-	['/v2001.0.1', currentConfig],
++	['/v2002.0.0', currentConfig],
++	[
++		'/v2001.0.1',
++		{
++			hasDebugging: true,
++			hasHooks: true,
++			hasLens: false,
++			hasPerformance: true,
++			hasRecipes: true,
++			hasSelect: false,
++			hasSettle: true,
++			migration: 'v2000.0.0 \u2192 v2001.0.1',
++		},
++	],
+ 	[
+ 		'/v2000.0.0',
+ 		{
+ 			hasDebugging: true,
+ 			hasHooks: true,
+ 			hasLens: false,
+ 			hasPerformance: true,
+ 			hasRecipes: true,
+ 			hasSelect: false,
+ 			migration: 'v1000.3.3 \u2192 v2000.0.0',
+diff --git a/handbook/src/lib/versions.ts b/handbook/src/lib/versions.ts
+index ab47cb3..44551f0 100644
+--- a/handbook/src/lib/versions.ts
++++ b/handbook/src/lib/versions.ts
+@@ -1,31 +1,39 @@
+ export interface Version {
+ 	badges: {
+ 		node: string
+ 	}
+ 	current: boolean
+ 	label: string
+ 	prefix: string
+ }
+ 
+ /** Route directory whose pages /latest serves. Must match the glob in routes/latest/[page=slug]/+page.ts. */
+-export const latestSource = 'v2001.0.1'
++export const latestSource = 'v2002.0.0'
+ 
+ export const versions: Version[] = [
+ 	{
+ 		badges: {
+ 			node: 'https://img.shields.io/badge/node-%3E%3D24.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
+ 		},
+ 		current: true,
+ 		label: 'latest',
+ 		prefix: '/latest',
+ 	},
++	{
++		badges: {
++			node: 'https://img.shields.io/badge/node-%3E%3D24.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
++		},
++		current: false,
++		label: 'v2002.0.0',
++		prefix: '/v2002.0.0',
++	},
+ 	{
+ 		badges: {
+ 			node: 'https://img.shields.io/badge/node-%3E%3D24.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
+ 		},
+ 		current: false,
+ 		label: 'v2001.0.1',
+ 		prefix: '/v2001.0.1',
+ 	},
+ 	{
+ 		badges: {
+diff --git a/handbook/src/routes/+page.svelte b/handbook/src/routes/+page.svelte
+index c6470da..b7c22ff 100644
+--- a/handbook/src/routes/+page.svelte
++++ b/handbook/src/routes/+page.svelte
+@@ -19,22 +19,22 @@
+ 	<div class="mb-3 flex items-center gap-3 flex-wrap justify-center">
+ 		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
+ 			<img src="https://flat.badgen.net/static/license/MIT/blue" alt="MIT License" />
+ 		</a>
+ 		<a href="https://www.npmjs.com/package/@nerdalytics/beacon">
+ 			<img src="https://img.shields.io/npm/v/@nerdalytics/beacon.svg" alt="npm version" />
+ 		</a>
+ 		<a href="https://jsr.io/@nerdalytics/beacon">
+ 			<img src="https://jsr.io/badges/@nerdalytics/beacon" alt="JSR" />
+ 		</a>
+-		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/2001.0.1">
+-			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2001.0.1" alt="Socket Badge" />
++		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/2002.0.0">
++			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2002.0.0" alt="Socket Badge" />
+ 		</a>
+ 	</div>
+ 	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
+ 		<a href="https://nodejs.org/">
+ 			<img src="https://img.shields.io/badge/Node.js-339933?style=flat-square&logo=nodedotjs&logoColor=white" alt="Node.js" />
+ 		</a>
+ 		<a href="https://typescriptlang.org/">
+ 			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=flat-square&logo=typescript&logoColor=white" alt="TypeScript" />
+ 		</a>
+ 		<a href="https://biomejs.dev/">
+@@ -73,16 +73,16 @@
+ 		</div>
+ 		<div>
+ 			<span class="text-blue-mid">effect</span>(() =&gt; <span class="text-blue-mid">console</span>.<span class="text-blue-mid">log</span>($app.count))
+ 		</div>
+ 		<div>
+ 			$app.count++ <span class="text-lime">// logs: 1</span>
+ 		</div>
+ 	</div>
+ 
+ 	<a
+-		href={resolve('/v2001.0.1/introduction')}
++		href={resolve('/v2002.0.0/introduction')}
+ 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
+ 	>
+ 		Get Started
+ 	</a>
+ </div>
+diff --git a/handbook/src/routes/latest/+page.svelte b/handbook/src/routes/latest/+page.svelte
+index 442fcf9..884994f 100644
+--- a/handbook/src/routes/latest/+page.svelte
++++ b/handbook/src/routes/latest/+page.svelte
+@@ -1,5 +1,5 @@
+ <script lang="ts">
+-	import Landing from '../v2001.0.1/+page.svelte'
++	import Landing from '../v2002.0.0/+page.svelte'
+ </script>
+ 
+ <Landing />
+diff --git a/handbook/src/routes/latest/[page=slug]/+page.ts b/handbook/src/routes/latest/[page=slug]/+page.ts
+index c6234ef..17e0032 100644
+--- a/handbook/src/routes/latest/[page=slug]/+page.ts
++++ b/handbook/src/routes/latest/[page=slug]/+page.ts
+@@ -4,21 +4,21 @@ import type { Component } from 'svelte'
+ export const prerender = true
+ 
+ // /latest serves the current version's pages under its own URL; no copy of the docs.
+ const pages: Record<
+ 	string,
+ 	() => Promise<{
+ 		default: Component
+ 	}>
+ > = import.meta.glob<{
+ 	default: Component
+-}>('../../v2001.0.1/*/+page.md')
++}>('../../v2002.0.0/*/+page.md')
+ 
+ const slugOf = (path: string): string => path.split('/').at(-2) ?? ''
+ 
+ export function entries(): {
+ 	page: string
+ }[] {
+ 	return Object.keys(pages).map(
+ 		(
+ 			path
+ 		): {
+diff --git a/handbook/src/routes/v2002.0.0/+layout.svelte b/handbook/src/routes/v2002.0.0/+layout.svelte
+new file mode 100644
+index 0000000..0815f6b
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/+layout.svelte
+@@ -0,0 +1,5 @@
++<script lang="ts">
++	let { children } = $props()
++</script>
++
++{@render children()}
+diff --git a/handbook/src/routes/v2002.0.0/+page.svelte b/handbook/src/routes/v2002.0.0/+page.svelte
+new file mode 100644
+index 0000000..ca62091
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/+page.svelte
+@@ -0,0 +1,89 @@
++<script lang="ts">
++	import { asset } from '$app/paths'
++	import { page } from '$app/state'
++	import { getVersionPrefix } from '#lib/navigation'
++	import { resolveHref } from '#lib/resolve-href'
++	import { resolveVersionLabel, versions } from '#lib/versions'
++
++	// Rendered at /v2002.0.0 and, via latest/+page.svelte, at /latest.
++	let prefix = $derived(getVersionPrefix(page.url.pathname) ?? '/v2002.0.0')
++	const pkgVersion = '2002.0.0'
++	let nodeBadge = $derived(versions.find((v) => v.prefix === prefix)?.badges.node)
++</script>
++
++<svelte:head>
++	<title>Beacon {resolveVersionLabel(prefix)} — Reactive dependency graph runtime for Node.js</title>
++	<meta
++		name="description"
++		content="Zero-dependency reactive dependency graph runtime for Node.js backends. Automatic dependency tracking and efficient updates."
++	/>
++</svelte:head>
++
++<div class="flex-1 flex flex-col items-center justify-center text-center px-4 py-10 lg:py-20 min-h-0 lg:min-h-[80vh] page-enter">
++	<img src={asset('favicon.svg')} alt="Beacon logo" class="w-28 h-28 mb-3"  />
++	<div class="mb-3 text-7xl font-extrabold beacon-gradient-text">
++		Beacon
++	</div>
++
++	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
++		<a href="https://yarnpkg.com/">
++			<img src="https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white" alt="yarn" />
++		</a>
++		<a href="https://pnpm.io/">
++			<img src="https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white" alt="pnpm" />
++		</a>
++		<a href="https://jsr.io/@nerdalytics/beacon">
++			<img src="https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black" alt="jsr" />
++		</a>
++		<a href="https://vlt.sh/">
++			<img src="https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white" alt="vlt" />
++		</a>
++		<a href={`https://www.npmjs.com/package/@nerdalytics/beacon/v/${pkgVersion}`}>
++			<img src={`https://flat.badgen.net/static/npm/v${pkgVersion}/blue`} alt={`npm v${pkgVersion}`} />
++		</a>
++		<a href={`https://socket.dev/npm/package/@nerdalytics/beacon/overview/${pkgVersion}`}>
++			<img src={`https://badge.socket.dev/npm/package/@nerdalytics/beacon/${pkgVersion}`} alt="Socket" />
++		</a>
++	</div>
++	<div class="mb-5 flex items-center gap-1.5 flex-wrap justify-center">
++		<a href="https://nodejs.org/">
++			<img src={nodeBadge} alt="Node.js" />
++		</a>
++		<a href="https://typescriptlang.org/">
++			<img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
++		</a>
++		<a href="https://biomejs.dev/">
++			<img src="https://img.shields.io/badge/Biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white" alt="Biome" />
++		</a>
++		<a href="https://github.com/nerdalytics/beacon/blob/trunk/LICENSE">
++			<img src="https://img.shields.io/badge/MIT-blue?style=for-the-badge" alt="MIT License" />
++		</a>
++	</div>
++
++	<p class="text-lg text-text-muted max-w-lg mb-8 font-serif leading-relaxed">
++		Reactive dependency graph runtime for Node.js
++	</p>
++
++	<div
++		class="mb-8 w-full max-w-md text-left rounded-lg border border-navy-border bg-navy-light p-5 text-sm font-mono leading-relaxed"
++	>
++		<div class="text-lime mb-1">// reactive in three lines</div>
++		<div>
++			<span class="text-teal">const</span> $app = <span class="text-blue-mid">state</span>({'{'}
++			count: <span class="text-[#e8a46e]">0</span> {'}'})
++		</div>
++		<div>
++			<span class="text-blue-mid">effect</span>(() =&gt; <span class="text-blue-mid">console</span>.<span class="text-blue-mid">log</span>($app.count))
++		</div>
++		<div>
++			$app.count++ <span class="text-lime">// logs: 1</span>
++		</div>
++	</div>
++
++	<a
++		href={resolveHref(`${prefix}/introduction`)}
++		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
++	>
++		Get Started
++	</a>
++</div>
+diff --git a/handbook/src/routes/v2002.0.0/architecture/+page.md b/handbook/src/routes/v2002.0.0/architecture/+page.md
+new file mode 100644
+index 0000000..7ba0553
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/architecture/+page.md
+@@ -0,0 +1,172 @@
++---
++title: Architecture
++description: How Beacon's reactive system works under the hood
++---
++
++
++Beacon is a single-file reactive system built on ES Proxies. It has no virtual DOM, no compiler, and no framework runtime. A state mutation passes through a Proxy trap into a dependency graph, which re-runs the effects that read the changed property.
++
++## Design principles
++
++1. **Natural syntax.** Standard property access, such as `state.value`, not function calls
++2. **Fine-grained tracking.** Dependencies are tracked per property, not per object
++3. **Automatic cleanup.** Subscriptions are managed through WeakMaps and parent-child relationships
++4. **Zero-cost instrumentation.** Optional hooks observe internals without affecting behavior
++
++## Proxy-based state
++
++Every object passed to `state()` gets wrapped in a Proxy. The Proxy intercepts five operations:
++
++```
++   User Code
++  state.count++
++        |
++        ↓
++      Proxy
++        |
++     get           → Track dependencies
++     set           → Notify subscribers
++     has           → Track 'in' operator
++     deleteProperty → Delete with notification
++     ownKeys       → Track key enumeration
++        |
++        ↓
++   Raw Target   (actual data storage)
++```
++
++Nested objects are wrapped lazily. The first access to a nested property makes Beacon wrap the child object in its own Proxy. A proxy cache prevents duplicate wrapping.
++
++## Dependency tracking
++
++The system uses a three-level tracking mechanism:
++
++```typescript
++// Level 1: Per-property reads
++effectStateReads: WeakMap<Subscriber, WeakMap<object, Set<PropertyKey>>>
++
++// Level 2: Object dependencies
++effectDependencies: WeakMap<Subscriber, Set<object>>
++
++// Level 3: Subscriber sets
++subscriberCache: WeakMap<object, Set<Subscriber>>
++```
++
++When an effect runs:
++
++1. Beacon sets `currentEffect` to the running effect
++2. Every property read hits the Proxy `get` trap
++3. The trap records: this effect reads this property of this object
++4. When a property changes, only effects that read that specific property re-run
++
++### Stable dependency skip
++
++On re-runs, effects compare new dependencies against the previous run via `depsMatch`. If dependencies haven't changed, Beacon restores previous tracking structures with no subscriber set teardown or rebuild. If dependencies did change, only stale deps are removed.
++
++Subsequent runs set an `isTrackingOnly` flag. Proxy handlers then call `recordEffectRead` with `silent` set to `true`, which skips `getSubscribers` and `Set.add`.
++
++## Effect execution
++
++Effects run in a controlled environment:
++
++```
++Effect Creation → Run Function → Compare Deps → Stable? → Restore previous tracking
++      ↑                                         → Changed? → Clean stale deps only
++      ╰--------------------------- Dependency Change ←-------- Queue Re-runs ←--╯
++```
++
++1. Set `currentEffect`
++2. Save the previous dependency snapshot in `__prevDeps` and `__prevReads`
++3. Run the effect function. Dependencies are auto-tracked via proxy traps
++4. Compare new deps against previous
++5. Handle nested effects via parent-child relationships
++6. Queue for re-execution on dependency changes
++
++## The flush queue
++
++Beacon uses non-recursive, queue-based propagation:
++
++1. A state property changes, and `Object.is` detects the difference
++2. All subscribers are added to `pendingSubscribers`
++3. If not in a batch, `flushEffects` processes them
++4. Effects copy to an array, `pendingEffects` is cleared, array is iterated
++5. New effects triggered during iteration go into `pendingEffects` for the next loop iteration
++6. Processing continues until no more effects fire
++
++This queue-based approach prevents stack overflows from deep dependency chains and handles cyclical dependencies between different effects.
++
++## Batch internals
++
++Both batched and unbatched paths use direct property access. They differ in notification timing:
++
++```
++Unbatched:
++  set trap → Object.is → direct set → scheduleSubscribers → flushEffects
++
++Batched:
++  set trap → Object.is → direct set → track in dirtyTargets → [batch end] → flush once
++```
++
++The batch fast path applies when `!onWrite && !currentEffect`:
++
++1. Entering a batch increments `batchDepth`
++2. Set handler skips subscriber scheduling and only tracks dirty target-property pairs in `dirtyTargets`
++3. Effects created during batch go into `deferredEffectCreations`
++4. At `batchDepth === 1`, before the decrement, process `dirtyTargets`, call `scheduleSubscribersForTarget` once per unique property
++5. When outermost batch completes: run deferred effects, then `flushEffects()`
++
++State objects with write hooks always use the normal path, because hooks fire on every mutation.
++
++## Cycle handling
++
++### Direct loops are blocked
++
++An effect that reads and writes the same state throws immediately:
++
++```typescript
++effect(() => {
++  const value = signal.count
++  signal.count = value + 1 // Error: Infinite loop detected!
++})
++```
++
++Beacon detects this by checking three things. The update runs inside an effect. The effect also reads that same state. The pattern is not a nested effect chain.
++
++### Indirect cycles are allowed
++
++Cyclic dependencies across different effects are allowed because queue-based propagation handles them:
++
++```typescript
++effect(() => { target.value = source.value * 2 })
++effect(() => { source.value = target.value / 2 })
++```
++
++Value equality checks (`Object.is`) break the loop when values stabilize. Converging values stop at floating-point precision limits. Unbounded values continue until they hit JavaScript limits, such as `Infinity`.
++
++## Memory management
++
++### Subscription cleanup
++
++```
++Effect Disposed
++       |
++       ├→ cleanupEffect() — removes from subscribers, clears __prevDeps/__prevReads
++       ╰→ cleanupEffectCompletely() — also cleans up children
++```
++
++### WeakMap usage
++
++All tracking maps use WeakMaps:
++
++- Allows garbage collection of unused objects
++- No manual cleanup needed for object references
++- Handles frozen/sealed objects via fallback storage
++
++### Proxy edge cases
++
++**Array methods.** Beacon intercepts `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, and `reverse` to trigger reactivity.
++
++**Frozen/sealed objects.** WeakMap fallbacks store metadata when objects are not extensible.
++
++**Symbol properties.** Beacon handles internal symbols such as `[[beacon_subscribers]]` and `[[beacon_proxy]]` specially, so they do not interfere with user code.
++
++**Spread operations.** Beacon handles them without triggering stack overflows.
+diff --git a/handbook/src/routes/v2002.0.0/batch/+page.md b/handbook/src/routes/v2002.0.0/batch/+page.md
+new file mode 100644
+index 0000000..e932b99
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/batch/+page.md
+@@ -0,0 +1,322 @@
++---
++title: Batch
++description: Group multiple state updates into a single notification cycle
++---
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++
++
++`batch()` collapses multiple state mutations into a single notification cycle. Without batch, each mutation triggers its own propagation, so effects see intermediate states. With batch, all mutations apply first, then effects run once with the final state.
++
++## API
++
++```typescript
++function batch<T>(fn: () => T, hooks?: BatchHooks): T
++```
++
++Returns the value returned by `fn`. See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
++
++## Basic usage
++
++```typescript
++import { state, effect, batch } from '@nerdalytics/beacon'
++
++const $user = state({ name: 'John', role: 'user' })
++const $app = state({ theme: 'light', sidebarOpen: true })
++
++effect(() => {
++  console.log(`User ${$user.name} changed`)
++})
++
++effect(() => {
++  console.log(`Theme is now ${$app.theme}`)
++})
++
++// Without batch: triggers effects separately
++$user.name = 'Jane' // Log: "User Jane changed"
++$app.theme = 'dark' // Log: "Theme is now dark"
++
++// With batch: triggers effects after all updates
++batch(() => {
++  $user.name = 'Bob'
++  $user.role = 'admin'
++  $app.theme = 'light'
++  $app.sidebarOpen = false
++})
++// Then logs:
++// "User Bob changed"
++// "Theme is now light"
++```
++
++A single property mutation already propagates consistently through derive chains without batch. Batch is for coordinating multiple mutations into one notification cycle.
++
++## How it works
++
++1. **Batch start.** Increments `batchDepth` counter
++2. **Fast path.** Applies when `!onWrite && !currentEffect`. Mutations skip subscriber scheduling and only track dirty target-property pairs in `dirtyTargets`
++3. **Normal path.** Applies when write hooks exist or inside an effect. Standard scheduling with hooks and infinite loop detection
++4. **Effect creation.** Effects created inside batch go into `deferredEffectCreations` instead of running immediately
++5. **Dirty target processing.** At `batchDepth === 1`, iterate `dirtyTargets` and call `scheduleSubscribersForTarget` once per unique property
++6. **Batch end.** Decrements `batchDepth`
++7. **Flush.** When depth reaches 0, run deferred effects, then flush all pending effects
++
++```
++batch() -> batchDepth++ -> Execute fn -> fast path: track dirty targets
++                                       -> normal path: schedule subscribers
++                                       -> effect() calls deferred
++         depth === 1? -> process dirtyTargets
++         batchDepth-- -> depth === 0? -> run deferred effects -> flushEffects()
++                                      -> otherwise wait for outer batch
++```
++
++### Nested batches
++
++Batches nest. Notifications fire only when the outermost batch completes:
++
++```typescript
++const $s = state({ a: 0, b: 0, c: 0 })
++
++effect(() => console.log(`Sum: ${$s.a + $s.b + $s.c}`))
++
++batch(() => {
++  $s.a = 1
++
++  batch(() => {
++    $s.b = 2
++    batch(() => {
++      $s.c = 3
++    }) // Inner batch - no notification
++  }) // Middle batch - no notification
++
++  $s.a = 10
++}) // Outer batch completes - single notification
++// Logs once: "Sum: 15"
++```
++
++## Performance
++
++### Benchmarks
++
++These benchmarks run 1,000,000 iterations and report the median of 7 runs:
++
++| Scenario | Time |
++|----------|------|
++| batch + derive | 36ms |
++| batch + derive + 2 effects | 35ms |
++| state + derive (unbatched) | 294ms |
++| state + derive + 2 effects (unbatched) | 671ms |
++
++### Why batch is fast
++
++1. **Deferred scheduling.** The set handler fast path skips subscriber scheduling entirely during batch and only tracks dirty target-property pairs
++2. **Single notification cycle.** N mutations produce 1 flush instead of N flushes
++3. **Reduced effect executions.** Effects depending on multiple changed properties run once
++4. **Predictable timing.** All updates complete before any effects run
++
++```typescript
++// Without batch: 3 effect executions
++state1.value = 10 // scheduleSubscribers -> flushEffects()
++state2.value = 20 // scheduleSubscribers -> flushEffects()
++state3.value = 30 // scheduleSubscribers -> flushEffects()
++
++// With batch: 1 flush at the end
++batch(() => {
++  state1.value = 10 // scheduleSubscribers (deferred)
++  state2.value = 20 // scheduleSubscribers (deferred)
++  state3.value = 30 // scheduleSubscribers (deferred)
++}) // flushEffects() once
++```
++
++## Patterns
++
++### Coordinating multiple states
++
++```typescript
++const $account1 = state({ balance: 1000 })
++const $account2 = state({ balance: 500 })
++const $ledger = state({ entries: [] })
++
++// Without batch: observers see inconsistent state during transfer
++function transfer(amount) {
++  $account1.balance -= amount // Effect fires: "Account 1: $900"
++  $account2.balance += amount // Effect fires: "Account 2: $600"
++  $ledger.entries.push({ from: 'account1', to: 'account2', amount })
++}
++
++// With batch: atomic update
++function transferBatched(amount) {
++  batch(() => {
++    $account1.balance -= amount
++    $account2.balance += amount
++    $ledger.entries.push({ from: 'account1', to: 'account2', amount })
++  })
++  // All effects run AFTER the complete transfer
++}
++```
++
++### Bulk updates with loops
++
++```typescript
++const $items = state([])
++const $stats = state({ total: 0, average: 0 })
++
++effect(() => {
++  console.log(`Stats: total=${$stats.total}, avg=${$stats.average}`)
++})
++
++// Without batch: effects run on every iteration (~300 executions for 100 items)
++function addManyItems(newItems) {
++  for (const item of newItems) {
++    $items.push(item)
++    $stats.total += item.value
++    $stats.average = $stats.total / $items.length
++  }
++}
++
++// With batch: effects run once (2 executions for 100 items)
++function addManyItemsBatched(newItems) {
++  batch(() => {
++    for (const item of newItems) {
++      $items.push(item)
++      $stats.total += item.value
++      $stats.average = $stats.total / $items.length
++    }
++  })
++}
++```
++
++### Conditional batching
++
++```typescript
++function processItems(data, immediate = false) {
++  const update = () => {
++    ui.processing = true
++    data.forEach((item) => {
++      items.list.push(item)
++      ui.processedCount++
++    })
++    ui.processing = false
++  }
++
++  if (immediate) {
++    update() // Effects run per-iteration for live feedback
++  } else {
++    batch(update) // Effects run once after all updates
++  }
++}
++```
++
++## Integration with derive
++
++```typescript
++const $list = state({ items: [], filter: '', sort: 'name' })
++
++const filtered = derive(() => {
++  return $list.items
++    .filter((item) => item.name.includes($list.filter))
++    .sort((a, b) => a[$list.sort].localeCompare(b[$list.sort]))
++})
++
++function updateFilters(newFilter, newSort) {
++  batch(() => {
++    $list.filter = newFilter
++    $list.sort = newSort
++  }) // Single recomputation
++}
++```
++
++## Best practices
++
++### Batch related updates
++
++```typescript
++// Good: related updates together
++batch(() => {
++  $user.firstName = 'Jane'
++  $user.lastName = 'Doe'
++  $user.fullName = 'Jane Doe'
++})
++
++// Avoid: unrelated updates mixed with side effects
++batch(() => {
++  $user.name = 'Jane'
++  $app.theme = 'dark' // Unrelated
++  socket.connect() // Side effect
++})
++```
++
++### Don't overuse
++
++```typescript
++// Unnecessary for a single update
++batch(() => {
++  s.value = 10
++})
++
++// Just update directly
++s.value = 10
++
++// Good use: multiple updates
++batch(() => {
++  s.x = 10
++  s.y = 20
++  s.z = 30
++})
++```
++
++## Pitfalls
++
++### Async operations break the batch context
++
++```typescript
++// Won't batch: async breaks out of batch
++batch(async () => {
++  form.email = email
++  const isValid = await validateEmail(email) // API call
++  form.emailValid = isValid // NOT batched
++  form.canSubmit = isValid // Triggers effects immediately
++})
++
++// Correct: await first, then batch
++const isValid = await validateEmail(email)
++batch(() => {
++  form.email = email
++  form.emailValid = isValid
++  form.canSubmit = isValid
++})
++```
++
++## Testing
++
++```typescript
++test('batch groups notifications', () => {
++  const $s = state({ a: 0, b: 0 })
++  let effectCount = 0
++
++  effect(() => {
++    effectCount++
++    const sum = $s.a + $s.b
++  })
++
++  expect(effectCount).toBe(1) // Initial run
++
++  batch(() => {
++    $s.a = 5
++    $s.b = 10
++  })
++
++  expect(effectCount).toBe(2) // Only one additional run
++  expect($s.a).toBe(5)
++  expect($s.b).toBe(10)
++})
++```
++
++## Tips
++
++1. **Batch multiple state objects** when updating different states that trigger the same effects
++2. **Batch for derive** when changing filter/sort/pagination that a derive depends on
++3. **Keep batches synchronous.** Async operations break the batch context
++4. **Use for bulk operations**, such as loops that update state repeatedly
++5. **Don't nest unnecessarily.** Nested batches work but add no benefit
+diff --git a/handbook/src/routes/v2002.0.0/debugging/+page.md b/handbook/src/routes/v2002.0.0/debugging/+page.md
+new file mode 100644
+index 0000000..6b7d70d
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/debugging/+page.md
+@@ -0,0 +1,131 @@
++---
++title: Debugging
++description: Tools and patterns for debugging reactive state
++---
++
++
++## Named effects
++
++Give effects a name as the second parameter:
++
++```typescript
++import { state, effect } from '@nerdalytics/beacon'
++
++const $counter = state({ count: 0 })
++
++const dispose = effect(() => {
++  console.log(`Count: ${$counter.count}`)
++}, 'CountLogger')
++```
++
++The name is passed to the `onRun`, `onError`, `onDispose`, and `onSchedule` hook callbacks, and it appears in infinite loop error messages.
++
++## Tracing state access
++
++Use `StateHooks` to observe property reads and writes:
++
++```typescript
++import { state } from '@nerdalytics/beacon'
++
++const $user = state({ name: 'Alice', age: 30 }, {
++  onRead: (prop, value) => {
++    console.log(`[read] ${String(prop)} →`, value)
++  },
++  onWrite: (prop, oldValue, newValue) => {
++    console.log(`[write] ${String(prop)}: ${oldValue} → ${newValue}`)
++  }
++})
++
++$user.name = 'Bob'      // [write] name: Alice → Bob
++console.log($user.age)  // [read] age → 30
++```
++
++Additional state hooks: `onDelete`, `onHas`, `onOwnKeys`.
++
++## Tracing effect lifecycle
++
++Use `EffectHooks` to observe when effects run, what they depend on, and when they clean up:
++
++```typescript
++import { state, effect } from '@nerdalytics/beacon'
++
++const $counter = state({ count: 0 })
++
++const dispose = effect(() => {
++  console.log($counter.count)
++}, 'MyEffect', {
++  onRun: (name) => console.log(`[${name}] running`),
++  onDispose: (name) => console.log(`[${name}] disposed`),
++  onError: (err, name) => console.error(`[${name}] threw:`, err),
++  onDependencyAdd: (target, prop, name) => {
++    console.log(`[${name}] tracking ${String(prop)}`)
++  }
++})
++
++$counter.count++
++dispose()
++```
++
++## Tracing derived values
++
++Use `DeriveHooks` to measure how often a derive recomputes versus returns cached values:
++
++```typescript
++import { state, derive } from '@nerdalytics/beacon'
++
++let computes = 0
++let cacheHits = 0
++
++const $items = state({ list: [1, 2, 3] })
++
++const total = derive(() => $items.list.reduce((a, b) => a + b, 0), {
++  onCompute: () => { computes++ },
++  onCacheHit: (_value, fromCache) => { if (fromCache) cacheHits++ }
++})
++
++console.log(total.value) // computes: 1, cacheHits: 0
++console.log(total.value) // computes: 1, cacheHits: 1
++
++$items.list = [1, 2, 3, 4]
++console.log(total.value) // computes: 2, cacheHits: 1
++```
++
++Additional derive hooks: `onDispose`, `onError`, `onDependencyChange`.
++
++## Debugging batch operations
++
++Use `BatchHooks` to time batch execution and catch errors:
++
++```typescript
++import { state, batch } from '@nerdalytics/beacon'
++
++const $s1 = state({ value: 0 })
++const $s2 = state({ value: 0 })
++
++batch(() => {
++  $s1.value = 10
++  $s2.value = 20
++}, {
++  onBatchStart: (depth) => console.time(`batch-${depth}`),
++  onBatchEnd: (depth) => console.timeEnd(`batch-${depth}`),
++  onBatchError: (err) => console.error('batch failed:', err)
++})
++```
++
++## Common patterns
++
++**Why did this effect re-run?**
++Use `onSchedule` to see when an effect is queued for re-execution. Combine with state `onWrite` to trace which mutation triggered it.
++
++**What's reading this property?**
++Use state `onRead` to log every access. Run your code and inspect the output.
++
++**Is my derive recomputing too often?**
++Use the `onCompute` and `onCacheHit` counters in the example above. A high compute-to-cache-hit ratio means dependencies change frequently.
++
++**Which effect threw?**
++Use `onError` with named effects. The effect name is passed as the second argument.
++
++## Production use
++
++Hooks are opt-in per call site. When you omit the hooks parameter, the internal composition function returns `undefined` and hook call sites are skipped entirely. There is no global debug mode that could ship by accident.
+diff --git a/handbook/src/routes/v2002.0.0/derive/+page.md b/handbook/src/routes/v2002.0.0/derive/+page.md
+new file mode 100644
+index 0000000..f5e8005
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/derive/+page.md
+@@ -0,0 +1,463 @@
++---
++title: Derive
++description: Compute derived values that cache results and auto-update
++---
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++
++
++`derive()` creates computed values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
++
++## API
++
++```typescript
++function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
++function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
++
++type ComputedValue<T> = {
++  readonly pending: boolean
++  readonly value: T | undefined | null
++  reactive: boolean
++}
++```
++
++- `value` is the cached computed result and is read-only
++- `pending` is `true` while an async compute is in flight. It is always `false` for synchronous derives, and it is read-only.
++- `reactive` controls the internal effect lifecycle. Set it to `false` to dispose and `true` to recreate
++
++See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
++
++## Basic usage
++
++```typescript
++import { state, derive } from '@nerdalytics/beacon'
++
++const $items = state({ list: [1, 2, 3] })
++
++const sum = derive(() => $items.list.reduce((a, b) => a + b, 0))
++
++console.log(sum.value) // 6
++
++$items.list.push(4)
++console.log(sum.value) // 10 (automatically updated)
++```
++
++## Eager evaluation
++
++Derived values compute immediately on creation and again when dependencies change:
++
++```typescript
++const expensive = derive(() => {
++  console.log('Computing...')
++  return $items.list.filter((x) => x > 10).length
++})
++// Logs: "Computing..." immediately
++
++$items.list.push(15)
++// Logs: "Computing..." again
++
++console.log(expensive.value) // No recomputation, returns cached value
++// Returns: 1
++```
++
++## How it works
++
++`derive()` uses an internal `state()` + `effect()` pair:
++
++1. Creates an effect that runs the compute function immediately
++2. Executes the function, tracks dependencies, caches the result
++3. When a dependency changes, the effect re-runs and updates the cache
++4. Accessing `.value` returns the cached result without recomputation
++
++```
++Create Derive -> Create Effect -> Run Compute -> Track Deps -> Cache Result
++                                       |
++                   Dependency Changes -> Effect Re-runs -> Update Cache
++                                       |
++                   Access .value -> Return Cached Value (no computation)
++```
++
++### Dependency tracking
++
++Like effects, derive tracks only what it reads:
++
++```typescript
++const $user = state({ firstName: 'Jane', lastName: 'Doe', age: 30 })
++
++// Only tracks firstName and lastName
++const fullName = derive(() => `${$user.firstName} ${$user.lastName}`)
++
++$user.age = 31 // Doesn't invalidate fullName
++$user.firstName = 'John' // Invalidates and recomputes
++```
++
++## Patterns
++
++### Chained derivations
++
++Derived values can depend on other derived values:
++
++```typescript
++const $prices = state({ items: [10, 20, 30] })
++
++const subtotal = derive(() => $prices.items.reduce((a, b) => a + b, 0))
++const tax = derive(() => subtotal.value * 0.08)
++const total = derive(() => subtotal.value + tax.value)
++
++console.log(total.value) // 64.8
++```
++
++### Conditional computations
++
++```typescript
++const $config = state({ useCache: true, data: null })
++const $cache = state({ data: 'cached' })
++
++const result = derive(() => {
++  if ($config.useCache && $cache.data) {
++    return $cache.data // Only depends on $cache when useCache is true
++  }
++  return $config.data
++})
++```
++
++### Collection transformations
++
++```typescript
++const $todos = state([
++  { id: 1, text: 'Learn Beacon', done: false },
++  { id: 2, text: 'Build app', done: true },
++])
++
++const activeTodos = derive(() => $todos.filter((t) => !t.done))
++const completedCount = derive(() => $todos.filter((t) => t.done).length)
++const progress = derive(() => {
++  const total = $todos.length
++  return total ? (completedCount.value / total) * 100 : 0
++})
++```
++
++### Search and filtering
++
++```typescript
++const $products = state([
++  { id: 1, name: 'Laptop', price: 999, category: 'electronics' },
++  { id: 2, name: 'Shirt', price: 29, category: 'clothing' },
++])
++
++const $filters = state({
++  search: '',
++  category: 'all',
++  maxPrice: 1000,
++})
++
++const filteredProducts = derive(() => {
++  let result = $products
++
++  if ($filters.search) {
++    result = result.filter((p) => p.name.toLowerCase().includes($filters.search.toLowerCase()))
++  }
++
++  if ($filters.category !== 'all') {
++    result = result.filter((p) => p.category === $filters.category)
++  }
++
++  return result.filter((p) => p.price <= $filters.maxPrice)
++})
++```
++
++### Form validation
++
++```typescript
++const $form = state({
++  email: '',
++  password: '',
++  confirmPassword: '',
++})
++
++const validation = derive(() => {
++  const errors = []
++
++  if (!$form.email.includes('@')) {
++    errors.push('Invalid email')
++  }
++
++  if ($form.password.length < 8) {
++    errors.push('Password too short')
++  }
++
++  if ($form.password !== $form.confirmPassword) {
++    errors.push('Passwords do not match')
++  }
++
++  return {
++    isValid: errors.length === 0,
++    errors,
++  }
++})
++```
++
++## Performance
++
++### Memoization
++
++Derived values cache their results:
++
++```typescript
++const $data = state({ value: 100 })
++let computeCount = 0
++
++const expensive = derive(() => {
++  computeCount++
++  return $data.value * Math.random()
++})
++
++const v1 = expensive.value // computeCount: 1
++const v2 = expensive.value // computeCount: 1 (cached)
++
++$data.value = 200
++const v3 = expensive.value // computeCount: 2 (recomputed)
++```
++
++### Batch optimization
++
++When multiple mutations change different dependencies, `batch()` ensures the derive recomputes once instead of once per mutation.
++
++A single mutation already propagates consistently through a derive chain without batch. Effects run in creation order, which matches dependency order. Batch optimizes the multi-mutation case.
++
++```typescript
++const $a = state({ value: 1 })
++const $b = state({ value: 2 })
++const $c = state({ value: 3 })
++
++let computeCount = 0
++const sum = derive(() => {
++  computeCount++
++  return $a.value + $b.value + $c.value
++})
++
++// Without batch: recomputes for each change
++$a.value = 10 // Recomputes (count: 1)
++$b.value = 20 // Recomputes (count: 2)
++$c.value = 30 // Recomputes (count: 3)
++
++// With batch: recomputes once
++batch(() => {
++  $a.value = 100
++  $b.value = 200
++  $c.value = 300
++})
++// Total: 1 computation
++```
++
++### Derive vs. effect
++
++Both run eagerly, but serve different purposes:
++
++```typescript
++// derive: computes and caches a value
++const computedSum = derive(() => {
++  return $items.list.reduce((a, b) => a + b, 0)
++})
++
++// effect: performs side effects
++let effectSum = 0
++const dispose = effect(() => {
++  effectSum = $items.list.reduce((a, b) => a + b, 0)
++})
++
++// Key difference: derive provides a cached value
++console.log(computedSum.value) // No recomputation
++computedSum.reactive = false // Stop tracking
++
++// Effect must be manually disposed
++dispose()
++```
++
++## Memory management
++
++### Disposal via `reactive` toggle
++
++Derived values create an internal `state()` + `effect()` pair. Set `reactive` to `false` to dispose the internal effect:
++
++```typescript
++const $local = state({ value: 10 })
++const computed = derive(() => $local.value * 2)
++
++console.log(computed.value) // 20
++
++// Dispose: stop reacting to changes
++computed.reactive = false
++
++// .value still returns the last computed value
++console.log(computed.value) // 20 (retained)
++
++// Re-enable: recreates the internal effect and recomputes
++computed.reactive = true
++```
++
++### Preventing memory leaks
++
++Without disposal, derived values accumulate and their internal effects keep running:
++
++```typescript
++// Bad: memory leak
++function createLeakyDerived() {
++  const computed = derive(() => globalState.value * 2)
++  return computed.value // Effect keeps running
++}
++
++// Good: clean up after getting value
++function createCleanDerived() {
++  const computed = derive(() => globalState.value * 2)
++  const value = computed.value
++  computed.reactive = false
++  return value
++}
++
++// Better: return derive for caller to manage lifecycle
++function createManagedDerived() {
++  return derive(() => globalState.value * 2)
++  // Caller sets reactive = false when done
++}
++```
++
++### Circular references
++
++This code fails at runtime because `c` is not yet defined when `b` is created. The failure is a JavaScript `ReferenceError`, not a Beacon-specific check:
++
++```typescript
++const $a = state({ value: 1 })
++
++const b = derive(() => c.value + 1) // ReferenceError: c is not defined
++const c = derive(() => b.value + 1)
++```
++
++## Gotchas
++
++### Don't mutate in derive
++
++Derived values should be pure, with no side effects:
++
++```typescript
++// Bad: has side effects
++const bad = derive(() => {
++  localStorage.setItem('value', s.value) // Side effect
++  return s.value * 2
++})
++
++// Good: pure computation
++const good = derive(() => s.value * 2)
++
++// Use effect for side effects
++effect(() => {
++  localStorage.setItem('value', good.value)
++})
++```
++
++### Avoid creating objects unnecessarily
++
++```typescript
++// Creates new object every access
++const bad = derive(() => ({
++  x: s.x,
++  y: s.y,
++}))
++
++// Only creates new object when values change
++const good = derive(() => {
++  const x = s.x
++  const y = s.y
++  return { x, y } // Memoized until x or y changes
++})
++```
++
++## Testing
++
++```typescript
++test('derive updates when dependencies change', () => {
++  const $source = state({ value: 10 })
++  const doubled = derive(() => $source.value * 2)
++
++  expect(doubled.value).toBe(20)
++
++  $source.value = 15
++  expect(doubled.value).toBe(30)
++
++  doubled.reactive = false
++})
++
++test('derive computes eagerly', () => {
++  let computeCount = 0
++  const $source = state({ value: 10 })
++
++  const computed = derive(() => {
++    computeCount++
++    return $source.value * 2
++  })
++
++  expect(computeCount).toBe(1) // Computed immediately
++  computed.value // No additional computation
++  expect(computeCount).toBe(1)
++
++  $source.value = 20
++  expect(computeCount).toBe(2) // Recomputed
++
++  computed.reactive = false
++})
++
++test('derive supports disposal via reactive toggle', () => {
++  const $source = state({ value: 10 })
++  const computed = derive(() => $source.value * 2)
++
++  expect(computed.value).toBe(20)
++
++  computed.reactive = false
++
++  // .value still returns the last computed value
++  expect(computed.value).toBe(20)
++
++  // Changes no longer trigger recomputation
++  $source.value = 30
++  expect(computed.value).toBe(20)
++
++  // Re-enable
++  computed.reactive = true
++  expect(computed.value).toBe(60)
++})
++```
++
++## Performance tips
++
++1. **Set `reactive = false` on unused derives.** This prevents memory leaks
++2. **Use batch for multiple updates.** The derive recomputes once per batch
++3. **Keep computations simple.** Complex derives run on every dependency change
++4. **Avoid deep nesting.** Chains of derives add overhead
++5. **Cache external data.** Don't refetch in derive functions
++6. **Use effects for side effects.** Keep derives pure
++7. **Consider lifecycle.** Short-lived derives should set `reactive = false` as soon as they are no longer needed
++
++## Async computations (v2001)
++
++`derive` accepts compute functions that return promises. Dependencies read before the first await are tracked as usual; the value updates when the promise settles.
++
++```typescript
++const user = derive(async () => {
++  const res = await fetch(`/api/users/${session.userId}`)
++  return (await res.json()) as User
++})
++
++effect(() => {
++  if (user.pending) return
++  render(user.value)
++})
++```
++
++While a recompute is in flight, the computed value keeps its last settled result and `pending` is `true`. This is stale-while-pending behavior. Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run each time `pending` changes.
++
++- **Superseded computations are discarded.** If a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing. A superseded rejection does not call `onError`. The latest computation wins
++- **Rejections route to `onError`.** A rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
++- **Synchronous derives are unchanged.** A synchronous compute function still yields its value immediately, with `pending` always `false`
++- **Disposing discards in-flight computations.** Setting `reactive` to `false` clears `pending`. A settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`
+diff --git a/handbook/src/routes/v2002.0.0/effects/+page.md b/handbook/src/routes/v2002.0.0/effects/+page.md
+new file mode 100644
+index 0000000..41d26ee
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/effects/+page.md
+@@ -0,0 +1,427 @@
++---
++title: Effects
++description: Write side effects that auto-run when their dependencies change
++---
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++
++
++`effect()` creates reactive functions that re-run automatically when their dependencies change. Effects connect reactive state to side effects such as logging, network requests, and DOM updates.
++
++## API
++
++```typescript
++function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks, options?: EffectOptions): Unsubscribe
++
++type EffectCallback = () => void
++type EffectName = string
++type Unsubscribe = () => void
++type EffectSchedule = 'microtask' | 'sync'
++
++interface EffectOptions {
++  schedule?: EffectSchedule
++}
++```
++
++Returns a dispose function. Call it to stop the effect and clean up all subscriptions. See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
++
++## Basic usage
++
++```typescript
++import { state, effect } from '@nerdalytics/beacon'
++
++const $counter = state({ count: 0 })
++
++// Runs immediately to establish dependencies
++const dispose = effect(() => {
++  console.log(`Count is: ${$counter.count}`)
++})
++// Logs: "Count is: 0"
++
++$counter.count++ // Logs: "Count is: 1"
++$counter.count++ // Logs: "Count is: 2"
++
++// Clean up when done
++dispose()
++$counter.count++ // No log (effect disposed)
++```
++
++## Automatic dependency tracking
++
++Effects detect which reactive values they access during execution:
++
++```typescript
++const $user = state({ name: 'Alice', age: 30, role: 'admin' })
++
++effect(() => {
++  // Only tracks 'name' and 'age', not 'role'
++  console.log(`${$user.name} is ${$user.age} years old`)
++})
++
++$user.name = 'Bob' // Triggers effect
++$user.age = 31 // Triggers effect
++$user.role = 'user' // Does NOT trigger effect
++```
++
++## How it works
++
++1. **Initial run.** The effect runs immediately when created
++2. **Dependency tracking.** During execution, any reactive property access is recorded
++3. **Subscription.** The effect subscribes to all accessed properties
++4. **Re-execution.** When dependencies change, the effect is queued for re-run
++5. **Cleanup.** Old dependencies are cleaned up before each new run
++
++```
++Create Effect -> Set as Current -> Run Function -> Track Deps -> Wait for Changes
++                                       ^                              |
++                                       |<---- Dependency Changed <----|
++```
++
++### Nested effects
++
++Effects can create other effects. They form a parent-child relationship:
++
++```typescript
++const $config = state({ enabled: true, value: 0 })
++const $data = state({ multiplier: 2 })
++
++effect(() => {
++  console.log('Outer: config.enabled =', $config.enabled)
++
++  if ($config.enabled) {
++    effect(() => {
++      console.log('Inner: result =', $config.value * $data.multiplier)
++    })
++  }
++})
++
++// Initial output:
++// Outer: config.enabled = true
++// Inner: result = 0
++
++$data.multiplier = 3
++// Inner: result = 0
++
++$config.enabled = false
++// Outer: config.enabled = false
++// (inner effect is disposed when outer re-runs)
++
++$data.multiplier = 10
++// No output (inner effect was disposed)
++```
++
++When a parent is disposed, all children are cleaned up automatically.
++
++## Infinite loop prevention
++
++Beacon prevents effects from writing to state they read:
++
++```typescript
++const $counter = state({ count: 0 })
++
++// Throws an error
++effect(() => {
++  const value = $counter.count
++  $counter.count = value + 1 // Error: Infinite loop detected!
++})
++```
++
++Beacon is not a compiler. It cannot statically analyze whether the effect would eventually exit, so it treats any read-then-write to the same property as an error.
++
++The guard does not throw for nested child effects or for `'microtask'` effects. A `'microtask'` effect that keeps writing its own dependency is stopped by the microtask chain limit instead. See Scheduling below.
++
++### Safe patterns
++
++```typescript
++// Write to different state
++const $source = state({ value: 0 })
++const $target = state({ value: 0 })
++
++effect(() => {
++  $target.value = $source.value * 2 // Safe: different state objects
++})
++
++// Use derive for computed values
++const doubled = derive(() => $counter.count * 2)
++```
++
++## Conditional dependencies
++
++Effects track only what they access in a given run:
++
++```typescript
++const $s = state({ useA: true, a: 1, b: 2 })
++
++effect(() => {
++  if ($s.useA) {
++    console.log(`A: ${$s.a}`) // Tracks 'useA' and 'a'
++  } else {
++    console.log(`B: ${$s.b}`) // Would track 'useA' and 'b'
++  }
++})
++```
++
++## Performance
++
++### Prefer fine-grained effects
++
++```typescript
++// Avoid: one big effect
++effect(() => {
++  updateHeader($user.name)
++  updateSidebar($user.role)
++  updateContent($user.preferences)
++})
++
++// Better: separate focused effects
++effect(() => updateHeader($user.name))
++effect(() => updateSidebar($user.role))
++effect(() => updateContent($user.preferences))
++```
++
++### Debouncing
++
++For expensive operations, debounce inside the effect:
++
++```typescript
++let timeout
++effect(() => {
++  const currentData = s.data // Track the dependency
++
++  clearTimeout(timeout)
++  timeout = setTimeout(() => {
++    saveToServer(currentData)
++  }, 500)
++})
++
++// Rapid updates cancel previous timeouts
++s.data = 'update1' // Starts 500ms timer
++s.data = 'update2' // Cancels previous, starts new timer
++s.data = 'update3' // Only this one saves after 500ms
++```
++
++### Batching updates
++
++Effects are automatically batched within `batch()`:
++
++```typescript
++const $stats = state({ a: 0, b: 0, c: 0 })
++
++effect(() => {
++  console.log(`Total: ${$stats.a + $stats.b + $stats.c}`)
++})
++
++// Without batch: logs 3 times
++$stats.a = 1 // Log: "Total: 1"
++$stats.b = 2 // Log: "Total: 3"
++$stats.c = 3 // Log: "Total: 6"
++
++// With batch: logs once
++batch(() => {
++  $stats.a = 1
++  $stats.b = 2
++  $stats.c = 3
++}) // Log: "Total: 6"
++```
++
++## Memory management
++
++### Disposal
++
++Always dispose effects when no longer needed:
++
++```typescript
++const dispose = effect(() => {
++  // Effect logic
++})
++
++// Later, clean up
++dispose()
++```
++
++### Automatic cleanup
++
++Child effects are cleaned up when the parent is disposed:
++
++```typescript
++const disposeParent = effect(() => {
++  effect(() => {
++    console.log('Child effect')
++  })
++})
++
++disposeParent() // Both parent and child are cleaned up
++```
++
++### Garbage collection
++
++Beacon uses WeakMaps internally, allowing garbage collection when state and effects go out of scope:
++
++```typescript
++function createTempEffect() {
++  const $temp = state({ value: 0 })
++
++  effect(() => {
++    console.log($temp.value)
++  })
++
++  // When function exits, both state and effect can be GC'd
++}
++```
++
++## Pitfalls
++
++### Forgetting to dispose
++
++```typescript
++// Memory leak
++function setupComponent() {
++  effect(() => {
++    // Never disposed
++  })
++}
++
++// Proper cleanup
++function setupComponent() {
++  const dispose = effect(() => {
++    // Effect logic
++  })
++
++  return dispose // Return for caller to dispose
++}
++```
++
++### Async callbacks don't track dependencies
++
++Beacon tracks dependencies by setting a global `currentEffect` during effect execution. Async callbacks run after the effect finishes, when `currentEffect` is null. This includes `setTimeout`, `Promise.then`, and event handlers.
++
++```typescript
++// Won't track dependencies
++effect(() => {
++  setTimeout(() => {
++    console.log(s.value) // Not tracked
++  }, 1000)
++})
++
++// Access state in the effect body instead
++effect(() => {
++  const value = s.value // Tracked
++  setTimeout(() => {
++    console.log(value) // Uses captured value
++  }, 1000)
++})
++```
++
++This applies to Promise callbacks such as `.then()`, `.catch()`, and `async/await`, and to event handlers too.
++
++### Array index tracking
++
++Beacon tracks array indices with fine-grained precision:
++
++```typescript
++const $list = state({ items: [1, 2, 3] })
++
++// Only tracks index 0
++effect(() => {
++  console.log($list.items[0])
++})
++
++// Only tracks length
++effect(() => {
++  console.log($list.items.length)
++})
++
++$list.items[1] = 99 // Won't trigger either effect
++$list.items[0] = 99 // Triggers first effect only
++$list.items[5] = 99 // Triggers second effect (length changes)
++```
++
++Array mutating methods such as `push()`, `pop()`, and `splice()` notify all subscribers because they can change multiple properties, such as indices and length.
++
++## Integration examples
++
++### Network requests
++
++```typescript
++const $filters = state({ search: '', category: 'all' })
++
++effect(() => {
++  const params = new URLSearchParams({
++    search: $filters.search,
++    category: $filters.category,
++  })
++
++  fetch(`/api/products?${params}`)
++    .then((res) => res.json())
++    .then((data) => {
++      // Update results
++    })
++})
++```
++
++### Local storage
++
++```typescript
++const $settings = state({ theme: 'light', language: 'en' })
++
++effect(() => {
++  localStorage.setItem(
++    'settings',
++    JSON.stringify({
++      theme: $settings.theme,
++      language: $settings.language,
++    })
++  )
++})
++```
++
++## Testing
++
++```typescript
++import { state, effect } from '@nerdalytics/beacon'
++
++test('effect tracks dependencies', () => {
++  const $counter = state({ count: 0 })
++  const calls = []
++
++  const dispose = effect(() => {
++    calls.push($counter.count)
++  })
++
++  expect(calls).toEqual([0]) // Initial run
++
++  $counter.count = 1
++  expect(calls).toEqual([0, 1]) // Triggered
++
++  dispose()
++  $counter.count = 2
++  expect(calls).toEqual([0, 1]) // Not triggered after disposal
++})
++```
++
++## Scheduling (v2001)
++
++Effects accept a `schedule` option. The default `'sync'` preserves v2000 execution timing exactly. The effect runs before the write call returns. `'microtask'` defers re-runs to a microtask, coalescing writes that happen across await boundaries into a single run.
++
++```typescript
++effect(
++  () => {
++    socket.send(JSON.stringify(snapshot($session)))
++  },
++  'socket-flush',
++  undefined,
++  { schedule: 'microtask' }
++)
++
++// two writes in the same turn, one effect run observing both
++$session.user = 'ada'
++$session.role = 'admin'
++```
++
++- **Same-turn coalescing.** Multiple writes to observed properties within one microtask turn produce exactly one run, observing the final values
++- **Batch boundary precedence.** A microtask-scheduled effect notified inside `batch` runs after the outermost boundary exits, in a later microtask turn
++- **Guard scope.** The synchronous write-during-read infinite-loop guard applies unchanged to `'sync'` effects. A `'microtask'` effect that writes its own dependency re-runs on the following turn instead of throwing. These re-runs never yield to timers or I/O, so they are capped. After 100 consecutive microtask flushes, each scheduled from inside the one before it, Beacon drops the pending `'microtask'` effects. It sends an `Infinite loop detected` error to `console.error`. The chain can be built by a self-writing effect, by `'microtask'` effects writing each other's dependencies, or by an `onSettled` callback that wakes a `'microtask'` effect. Dropped effects stay subscribed, and the next write from outside a microtask flush starts a new count. A self-write that stores the value already present schedules nothing and ends the chain. Cycles between `'sync'` effects are not capped.
++- **Observability.** The `onSchedule` hook fires at notification time for both schedules, before any deferred run
++- **Errors.** A throw during a microtask flush has no caller to receive it, so it is not rethrown. The throwing effect is disposed and its `onError` hook fires. Without `onError`, the error goes to `console.error`. The other effects in that flush still run. This covers `'sync'` effects that a `'microtask'` effect's writes trigger. A `'microtask'` effect's first run is synchronous and still throws to the `effect()` caller. The microtask chain limit is reported with `console.error` only, and no effect's `onError` fires
+diff --git a/handbook/src/routes/v2002.0.0/hooks-api/+page.md b/handbook/src/routes/v2002.0.0/hooks-api/+page.md
+new file mode 100644
+index 0000000..e10def9
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/hooks-api/+page.md
+@@ -0,0 +1,723 @@
++---
++title: Hooks API Reference
++description: Complete hook interface definitions for StateHooks, EffectHooks, DeriveHooks, and BatchHooks
++---
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++
++
++Complete interface definitions for all hook types. For an introduction to hooks, see the <VersionLink path="/hooks-overview">Hooks Overview</VersionLink>.
++
++## Base types
++
++```typescript
++type HookFunction<Args extends any[]> = (...args: Args) => void
++type SingleOrArray<T> = T | T[]
++```
++
++Every hook field accepts a single function or an array of functions. Arrays execute in order with per-function error isolation.
++
++## StateHooks
++
++Hooks for intercepting state operations on reactive objects.
++
++```typescript
++interface StateHooks<T = any> {
++  onRead?: SingleOrArray<HookFunction<[prop: PropertyKey, value: unknown, target: T]>>
++  onWrite?: SingleOrArray<HookFunction<[prop: PropertyKey, oldValue: unknown, newValue: unknown, target: T]>>
++  onDelete?: SingleOrArray<HookFunction<[prop: PropertyKey, hadProperty: boolean, target: T]>>
++  onHas?: SingleOrArray<HookFunction<[prop: PropertyKey, exists: boolean, target: T]>>
++  onOwnKeys?: SingleOrArray<HookFunction<[keys: PropertyKey[], target: T]>>
++}
++```
++
++Hooks automatically propagate to nested objects. When you access a nested object through a reactive proxy, it inherits the parent's hooks:
++
++```typescript
++const $store = state(
++  {
++    user: {
++      name: 'Alice',
++      settings: { theme: 'dark' },
++    },
++  },
++  {
++    onWrite: (prop, oldValue, newValue) => {
++      console.log(`[${String(prop)}]: ${oldValue} → ${newValue}`)
++    },
++  }
++)
++
++$store.user.name = 'Bob' // "[name]: Alice → Bob"
++$store.user.settings.theme = 'light' // "[theme]: dark → light"
++```
++
++### onRead
++
++Fired when a property is accessed.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `prop` | `PropertyKey` | The property being read |
++| `value` | `unknown` | Current value of the property |
++| `target` | `T` | The raw target object, not the proxy |
++
++```typescript
++const $state = state(
++  { count: 0 },
++  {
++    onRead: (prop, value, target) => {
++      console.log(`Reading ${String(prop)} = ${value}`)
++    },
++  }
++)
++
++const value = $state.count // "Reading count = 0"
++```
++
++### onWrite
++
++Fired when a property is modified.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `prop` | `PropertyKey` | The property being written |
++| `oldValue` | `unknown` | Previous value |
++| `newValue` | `unknown` | New value being set |
++| `target` | `T` | The raw target object, not the proxy |
++
++```typescript
++const $state = state(
++  { count: 0 },
++  {
++    onWrite: (prop, oldValue, newValue, target) => {
++      console.log(`${String(prop)}: ${oldValue} → ${newValue}`)
++    },
++  }
++)
++
++$state.count = 5 // "count: 0 → 5"
++```
++
++### onDelete
++
++Fired when a property is deleted.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `prop` | `PropertyKey` | The property being deleted |
++| `hadProperty` | `boolean` | Whether the property existed before deletion |
++| `target` | `T` | The raw target object, not the proxy |
++
++```typescript
++const $state = state(
++  { temp: 'value' },
++  {
++    onDelete: (prop, hadProperty, target) => {
++      if (hadProperty) {
++        console.log(`Deleted property: ${String(prop)}`)
++      }
++    },
++  }
++)
++
++delete $state.temp // "Deleted property: temp"
++```
++
++### onHas
++
++Fired when the `in` operator is used.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `prop` | `PropertyKey` | The property being checked |
++| `exists` | `boolean` | Whether the property exists |
++| `target` | `T` | The raw target object, not the proxy |
++
++```typescript
++const $state = state(
++  { name: 'Alice' },
++  {
++    onHas: (prop, exists, target) => {
++      console.log(`Checking ${String(prop)}: ${exists}`)
++    },
++  }
++)
++
++'name' in $state // "Checking name: true"
++'age' in $state // "Checking age: false"
++```
++
++### onOwnKeys
++
++Fired when object keys are enumerated by `Object.keys`, `for...in`, or spread.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `keys` | `PropertyKey[]` | Array of property keys |
++| `target` | `T` | The raw target object, not the proxy |
++
++```typescript
++const $state = state(
++  { a: 1, b: 2 },
++  {
++    onOwnKeys: (keys, target) => {
++      console.log(`Keys accessed: ${keys.join(', ')}`)
++    },
++  }
++)
++
++Object.keys($state) // "Keys accessed: a, b"
++```
++
++## EffectHooks
++
++Hooks for monitoring effect lifecycle and behavior.
++
++```typescript
++interface EffectHooks {
++  onRun?: SingleOrArray<HookFunction<[effectName?: string]>>
++  onDispose?: SingleOrArray<HookFunction<[effectName?: string]>>
++  onError?: SingleOrArray<HookFunction<[error: Error, effectName?: string]>>
++  onDependencyAdd?: SingleOrArray<HookFunction<[target: object, prop: PropertyKey, effectName?: string]>>
++  onSchedule?: SingleOrArray<HookFunction<[effectName?: string]>>
++}
++```
++
++> `onDependencyTrack` was renamed to `onDependencyAdd` for clarity.
++
++### onRun
++
++Fired when an effect executes.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `effectName` | `string?` | Optional name provided to the effect |
++
++```typescript
++const dispose = effect(
++  () => {
++    console.log('Effect body')
++  },
++  'myEffect',
++  {
++    onRun: (name) => {
++      console.log(`Running effect: ${name}`)
++    },
++  }
++)
++// "Running effect: myEffect"
++// "Effect body"
++```
++
++### onDispose
++
++Fired when an effect is disposed.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `effectName` | `string?` | Optional name provided to the effect |
++
++```typescript
++const dispose = effect(
++  () => {
++    // effect body
++  },
++  'myEffect',
++  {
++    onDispose: (name) => {
++      console.log(`Disposing effect: ${name}`)
++    },
++  }
++)
++
++dispose() // "Disposing effect: myEffect"
++```
++
++### onError
++
++Fired when an effect throws an error.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `error` | `Error` | The error that was thrown |
++| `effectName` | `string?` | Optional name provided to the effect |
++
++```typescript
++effect(
++  () => {
++    throw new Error('Something went wrong')
++  },
++  'errorEffect',
++  {
++    onError: (error, name) => {
++      console.error(`Error in ${name}: ${error.message}`)
++    },
++  }
++)
++// "Error in errorEffect: Something went wrong"
++```
++
++### onDependencyAdd
++
++Fired when an effect adds a new dependency.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `target` | `object` | The object being tracked |
++| `prop` | `PropertyKey` | The property being tracked |
++| `effectName` | `string?` | Optional name provided to the effect |
++
++```typescript
++const $state = state({ count: 0 })
++
++effect(
++  () => {
++    const value = $state.count // dependency tracked here
++  },
++  'tracker',
++  {
++    onDependencyAdd: (target, prop, name) => {
++      console.log(`${name} tracks ${String(prop)}`)
++    },
++  }
++)
++// "tracker tracks count"
++```
++
++### onSchedule
++
++Fired when an effect is scheduled for re-execution.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `effectName` | `string?` | Optional name provided to the effect |
++
++```typescript
++const $state = state({ count: 0 })
++
++effect(
++  () => {
++    console.log($state.count)
++  },
++  'counter',
++  {
++    onSchedule: (name) => {
++      console.log(`Scheduling ${name} for re-run`)
++    },
++  }
++)
++
++$state.count++ // "Scheduling counter for re-run"
++```
++
++## DeriveHooks
++
++Hooks for monitoring computed values.
++
++```typescript
++interface DeriveHooks<T = any> {
++  onCompute?: SingleOrArray<HookFunction<[previousValue: T | undefined]>>
++  onCacheHit?: SingleOrArray<HookFunction<[value: T, cacheHit: boolean]>>
++  onDispose?: SingleOrArray<HookFunction<[]>>
++  onError?: SingleOrArray<HookFunction<[error: Error]>>
++  onDependencyChange?: SingleOrArray<HookFunction<[target: object, prop: PropertyKey]>>
++}
++```
++
++> Hooks no longer track counts internally. Hooks can maintain their own metrics if needed.
++
++### onCompute
++
++Fired when a derived value is recomputed.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `previousValue` | `T \| undefined` | The previous computed value |
++
++```typescript
++const $count = state({ value: 0 })
++
++const $doubled = derive(() => $count.value * 2, {
++  onCompute: (prev) => {
++    console.log(`Computing... Previous: ${prev}`)
++  },
++})
++// "Computing... Previous: undefined"
++
++$count.value = 5
++// "Computing... Previous: 0"
++```
++
++### onCacheHit
++
++Fired when a derived value is accessed.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `value` | `T` | The value being returned |
++| `cacheHit` | `boolean` | Whether this is a cached value or freshly computed |
++
++```typescript
++const $expensive = derive(() => complexCalculation(), {
++  onCacheHit: (value, cacheHit) => {
++    if (cacheHit) {
++      console.log(`Returning cached value: ${value}`)
++    } else {
++      console.log(`Computed fresh value: ${value}`)
++    }
++  },
++})
++
++const v1 = $expensive.value // "Computed fresh value: [value]"
++const v2 = $expensive.value // "Returning cached value: [value]"
++```
++
++### onDispose
++
++Fired when a derive is disposed, which happens when `reactive` is set to `false`.
++
++No parameters.
++
++### onError
++
++Fired when the compute function throws.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `error` | `Error` | The error that was thrown |
++
++### onDependencyChange
++
++Fired when a dependency changes.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `target` | `object` | The object that changed |
++| `prop` | `PropertyKey` | The property that changed |
++
++```typescript
++const $state = state({ x: 1, y: 2 })
++
++const $sum = derive(() => $state.x + $state.y, {
++  onDependencyChange: (target, prop) => {
++    console.log(`Dependency ${String(prop)} changed`)
++  },
++})
++
++$state.x = 10 // "Dependency x changed"
++```
++
++## BatchHooks
++
++Hooks for monitoring batch operations.
++
++```typescript
++interface BatchHooks {
++  onBatchStart?: SingleOrArray<HookFunction<[depth: number]>>
++  onBatchEnd?: SingleOrArray<HookFunction<[depth: number]>>
++  onBatchError?: SingleOrArray<HookFunction<[error: Error, depth: number]>>
++}
++```
++
++> `onBatchEnd` no longer includes `updateCount`. Hooks can track their own metrics if needed.
++
++### onBatchStart
++
++Fired when a batch operation begins.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `depth` | `number` | Nesting depth of the batch |
++
++```typescript
++batch(
++  () => {
++    // batch operations
++  },
++  {
++    onBatchStart: (depth) => {
++      console.log(`Batch started at depth ${depth}`)
++    },
++  }
++)
++// "Batch started at depth 1"
++```
++
++### onBatchEnd
++
++Fired when a batch operation completes.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `depth` | `number` | Nesting depth of the batch |
++
++```typescript
++const $state = state({ a: 0, b: 0 })
++
++batch(
++  () => {
++    $state.a = 1
++    $state.b = 2
++  },
++  {
++    onBatchEnd: (depth) => {
++      console.log(`Batch at depth ${depth} completed`)
++    },
++  }
++)
++// "Batch at depth 1 completed"
++```
++
++### onBatchError
++
++Fired when a batch operation throws an error.
++
++| Parameter | Type | Description |
++| --- | --- | --- |
++| `error` | `Error` | The error that was thrown |
++| `depth` | `number` | Nesting depth where error occurred |
++
++```typescript
++batch(
++  () => {
++    throw new Error('Batch failed')
++  },
++  {
++    onBatchError: (error, depth) => {
++      console.error(`Batch error at depth ${depth}: ${error.message}`)
++    },
++  }
++)
++// "Batch error at depth 1: Batch failed"
++```
++
++## Core API integration
++
++How hooks are passed to each primitive:
++
++### state()
++
++```typescript
++function state<T extends object>(initial: T, hooks?: StateHooks<T>): T
++```
++
++```typescript
++const $user = state(
++  { name: 'Alice', age: 30 },
++  {
++    onRead: logRead(),
++    onWrite: [logWrite(), persist('user-data')],
++  }
++)
++```
++
++### effect()
++
++```typescript
++function effect(fn: EffectCallback, name?: string, hooks?: EffectHooks): Unsubscribe
++```
++
++```typescript
++const dispose = effect(
++  () => {
++    // effect body
++  },
++  'myEffect',
++  {
++    onRun: [logEffect(), profileEffect()],
++    onDispose: () => console.log('Cleanup'),
++  }
++)
++```
++
++### derive()
++
++```typescript
++function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
++```
++
++```typescript
++const $computed = derive(() => expensiveCalculation(), {
++  onCompute: logDerive(),
++  onCacheHit: (value, cacheHit) => {
++    if (cacheHit) console.log('Using cached value')
++  },
++})
++```
++
++### batch()
++
++```typescript
++function batch<T>(fn: () => T, hooks?: BatchHooks): T
++```
++
++```typescript
++batch(
++  () => {
++    // multiple state updates
++  },
++  {
++    onBatchStart: () => console.time('batch'),
++    onBatchEnd: () => console.timeEnd('batch'),
++    onBatchError: [(err) => console.error('Batch failed:', err), (err) => rollback(), (err) => notifyUser()],
++  }
++)
++```
++
++## Array-based composition
++
++### Single hook
++
++```typescript
++const $state = state(
++  { count: 0 },
++  {
++    onWrite: logWrite(),
++  }
++)
++```
++
++### Multiple hooks (array)
++
++```typescript
++const $state = state(
++  { count: 0 },
++  {
++    onWrite: [logWrite(), persist('storage-key'), validate(validationRules)],
++  }
++)
++```
++
++### Mixed single and array
++
++```typescript
++effect(
++  () => {
++    // effect body
++  },
++  'myEffect',
++  {
++    onRun: profileEffect(), // single hook
++    onError: [logError(), reportToSentry(), fallbackHandler()], // multiple hooks
++  }
++)
++```
++
++Array hooks execute in the order they appear. The internal compose function wraps each hook in error isolation, so if one throws, the others still execute. Undefined and null hooks are ignored.
++
++## TypeScript support
++
++### Generic type parameters
++
++All hooks support generics for type safety:
++
++```typescript
++interface User {
++  name: string
++  age: number
++}
++
++const $user = state<User>(
++  { name: 'Alice', age: 30 },
++  {
++    onWrite: (prop, oldValue, newValue, target) => {
++      // TypeScript knows target is User
++    },
++  }
++)
++```
++
++### Custom hook types
++
++```typescript
++import type { StateHooks } from '@nerdalytics/beacon'
++
++function createTypedHook<T>(): StateHooks<T>['onWrite'] {
++  return (prop, oldValue, newValue, target) => {
++    // fully typed implementation
++  }
++}
++
++const $state = state<MyType>(initial, {
++  onWrite: createTypedHook<MyType>(),
++})
++```
++
++### Hook factory functions
++
++```typescript
++function createLogger<T>(prefix: string): StateHooks<T>['onRead'] {
++  return (prop, value, target) => {
++    console.log(`${prefix} ${String(prop)} = ${value}`)
++  }
++}
++
++const $state = state(
++  { count: 0 },
++  {
++    onRead: createLogger('[COUNTER]'),
++  }
++)
++```
++
++## Performance considerations
++
++Each hook adds a function call to the operation:
++
++```typescript
++// Without hooks: direct property access
++target[prop]
++
++// With hooks: function call + property access
++hooks.onRead?.(prop, value, target)
++target[prop]
++```
++
++Optimization strategies:
++
++1. **Pre-check hook existence.** Store boolean flags to avoid repeated optional chaining
++2. **Defer heavy computation.** Use `queueMicrotask` for expensive work
++3. **Filter by property.** Check specific properties instead of running on every access
++
++```typescript
++// Defer heavy computation
++onWrite: (prop, oldValue, newValue) => {
++  queueMicrotask(() => performExpensiveAnalysis(oldValue, newValue))
++}
++
++// Filter by property
++onWrite: (prop) => {
++  if (prop === 'important') {
++    /* ... */
++  }
++}
++```
++
++## Error handling
++
++Hooks should handle their own errors. The compose function provides error isolation, but you may want visibility:
++
++```typescript
++function safeHook<T>(): StateHooks<T>['onWrite'] {
++  return (prop, oldValue, newValue, target) => {
++    try {
++      // hook logic
++    } catch (error) {
++      console.error('Hook error:', error)
++    }
++  }
++}
++```
++
++## Best practices
++
++1. **Keep hooks fast.** Avoid heavy computation that slows operations
++2. **Use arrays for related hooks.** Combine related functionality naturally
++3. **Handle errors.** The compose function isolates failures, but add your own logging
++4. **Type your hooks.** Use TypeScript generics for better developer experience
++5. **Test hooks independently.** Write unit tests for custom hooks
++6. **Use async sparingly.** Keep hooks synchronous when possible
++7. **Document behavior.** Describe what each custom hook does
+diff --git a/handbook/src/routes/v2002.0.0/hooks-catalog/+page.md b/handbook/src/routes/v2002.0.0/hooks-catalog/+page.md
+new file mode 100644
+index 0000000..38220da
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/hooks-catalog/+page.md
+@@ -0,0 +1,241 @@
++---
++title: Hooks Catalog
++description: Hook interfaces, composeHook utility, and patterns for writing your own hooks
++---
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++
++
++This page documents the hook type interfaces and the `composeHook` utility that ship in `@nerdalytics/beacon`. There are no built-in hook implementations. You write your own hook functions against these interfaces.
++
++For a conceptual overview and the composition model, see <VersionLink path="/hooks-overview">Hooks Overview</VersionLink>.
++
++## Hook interface reference
++
++### StateHooks\<T\>
++
++Passed as the second argument to `state(initial, hooks?)`.
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onRead` | `(prop: PropertyKey, value: unknown, target: T)` | Property accessed via get trap |
++| `onWrite` | `(prop: PropertyKey, oldValue: unknown, newValue: unknown, target: T)` | Property assigned via set trap |
++| `onDelete` | `(prop: PropertyKey, hadProperty: boolean, target: T)` | Property removed via `delete` |
++| `onHas` | `(prop: PropertyKey, exists: boolean, target: T)` | `in` operator used |
++| `onOwnKeys` | `(keys: PropertyKey[], target: T)` | `Object.keys`, `for...in`, or spread |
++
++Hooks propagate to nested objects. When `state()` wraps a nested object in a proxy, it passes the same hooks down.
++
++### EffectHooks
++
++Passed as the third argument to `effect(fn, name?, hooks?)`.
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onRun` | `(effectName?: string)` | Effect function about to execute |
++| `onDispose` | `(effectName?: string)` | Effect disposed |
++| `onError` | `(error: Error, effectName?: string)` | Effect threw during execution |
++| `onDependencyAdd` | `(target: object, prop: PropertyKey, effectName?: string)` | New dependency registered |
++| `onSchedule` | `(effectName?: string)` | Effect queued for re-execution |
++
++### DeriveHooks\<T\>
++
++Passed as the second argument to `derive(fn, hooks?)`.
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onCompute` | `(previousValue: T \| undefined)` | Compute function about to run |
++| `onCacheHit` | `(value: T, cacheHit: boolean)` | `.value` accessed |
++| `onDependencyChange` | `(target: object, prop: PropertyKey)` | A dependency changed |
++| `onDispose` | `()` | Derive disposed by setting `reactive` to `false` |
++| `onError` | `(error: Error)` | Compute function threw |
++
++### BatchHooks
++
++Passed as the second argument to `batch(fn, hooks?)`.
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onBatchStart` | `(depth: number)` | Batch entered; depth is nesting level |
++| `onBatchEnd` | `(depth: number)` | Batch completed |
++| `onBatchError` | `(error: Error, depth: number)` | `fn` threw inside batch |
++
++## composeHook
++
++`composeHook` is the only utility shipped in `@nerdalytics/beacon/hooks`. It normalizes a `SingleOrArray<HookFunction<Args>>` into a single function.
++
++```typescript
++import { composeHook } from '@nerdalytics/beacon/hooks'
++
++function composeHook<Args extends unknown[]>(
++  hook: SingleOrArray<HookFunction<Args>> | undefined
++): HookFunction<Args> | undefined
++```
++
++Normalization rules:
++
++- `undefined` or `null` returns `undefined`
++- A single function is returned as-is
++- An empty array returns `undefined`
++- A single-element array returns that element
++- A multiple-element array returns a composed function that calls all of them in sequence
++
++**Error isolation.** Each function in a composed array is wrapped in `try/catch`. One failing hook does not prevent the others from running.
++
++You rarely need to call `composeHook` directly. The `state`, `effect`, `derive`, and `batch` primitives call it internally when they normalize hook fields. It helps when you write a hook factory that accepts `SingleOrArray` and must return one callable.
++
++```typescript
++import { composeHook } from '@nerdalytics/beacon/hooks'
++import type { HookFunction, SingleOrArray } from '@nerdalytics/beacon/hooks'
++
++function myHookFactory(extra: SingleOrArray<HookFunction<[string]>> | undefined) {
++  const composed = composeHook(extra)
++  return (label: string) => {
++    // do work
++    composed?.(label)
++  }
++}
++```
++
++## Writing your own hooks
++
++Hook functions match the signature of the relevant hook field. They receive arguments and return `void`.
++
++### Logging reads and writes
++
++```typescript
++import { state } from '@nerdalytics/beacon'
++import type { StateHooks } from '@nerdalytics/beacon/hooks'
++
++const $user = state(
++  { name: 'Alice', age: 30 },
++  {
++    onRead: (prop, value) => {
++      console.log(`[read] ${String(prop)} →`, value)
++    },
++    onWrite: (prop, oldValue, newValue) => {
++      console.log(`[write] ${String(prop)}: ${oldValue} → ${newValue}`)
++    },
++  } satisfies StateHooks<{ name: string; age: number }>
++)
++```
++
++### Timing effect execution
++
++```typescript
++import { effect } from '@nerdalytics/beacon'
++
++const dispose = effect(
++  () => {
++    // effect body
++  },
++  'myEffect',
++  {
++    onRun: (name) => {
++      console.time(name ?? 'effect')
++    },
++    onSchedule: (name) => {
++      console.timeEnd(name ?? 'effect')
++    },
++  }
++)
++```
++
++### Counting derive cache hits
++
++```typescript
++import { state, derive } from '@nerdalytics/beacon'
++
++let computes = 0
++let cacheHits = 0
++
++const $items = state({ list: [1, 2, 3] })
++
++const total = derive(() => $items.list.reduce((a, b) => a + b, 0), {
++  onCompute: () => { computes++ },
++  onCacheHit: (_value, fromCache) => { if (fromCache) cacheHits++ },
++})
++```
++
++### Validation on write
++
++```typescript
++import { state } from '@nerdalytics/beacon'
++
++const $user = state(
++  { email: '', age: 0 },
++  {
++    onWrite: (prop, _old, newValue) => {
++      if (prop === 'email' && typeof newValue === 'string' && !newValue.includes('@')) {
++        console.warn(`[validation] invalid email: ${newValue}`)
++      }
++      if (prop === 'age' && typeof newValue === 'number' && (newValue < 0 || newValue > 120)) {
++        console.warn(`[validation] age out of range: ${newValue}`)
++      }
++    },
++  }
++)
++```
++
++### Reusable hook factory
++
++If the same hook logic applies to multiple state objects, extract it into a factory function:
++
++```typescript
++import type { StateHooks } from '@nerdalytics/beacon/hooks'
++
++function logWrites<T>(prefix: string): StateHooks<T> {
++  return {
++    onWrite: (prop, oldValue, newValue) => {
++      console.log(`[${prefix}] ${String(prop)}: ${String(oldValue)} → ${String(newValue)}`)
++    },
++  }
++}
++
++const $a = state({ count: 0 }, logWrites('A'))
++const $b = state({ count: 0 }, logWrites('B'))
++```
++
++### Composing multiple hooks
++
++Every hook field accepts a single function or an array. Use arrays to combine independent concerns:
++
++```typescript
++import { state } from '@nerdalytics/beacon'
++
++const $data = state(initial, {
++  onWrite: [
++    (prop, old, val) => console.log(`[log] ${String(prop)}: ${old} → ${val}`),
++    (prop, _old, val) => {
++      if (prop === 'count' && typeof val === 'number' && val < 0) {
++        console.warn('[validate] count must be non-negative')
++      }
++    },
++  ],
++})
++```
++
++## Publishing hooks as packages
++
++Custom hooks can be published as separate npm packages and consumed as peer dependencies:
++
++```json
++{
++  "name": "@myorg/beacon-hooks-audit",
++  "peerDependencies": {
++    "@nerdalytics/beacon": "^2001.0.0"
++  }
++}
++```
++
++```typescript
++import { state } from '@nerdalytics/beacon'
++import { auditWrites } from '@myorg/beacon-hooks-audit'
++
++const $state = state(initial, {
++  onWrite: auditWrites({ service: 'my-api' }),
++})
++```
++
+diff --git a/handbook/src/routes/v2002.0.0/hooks-overview/+page.md b/handbook/src/routes/v2002.0.0/hooks-overview/+page.md
+new file mode 100644
+index 0000000..790beb9
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/hooks-overview/+page.md
+@@ -0,0 +1,291 @@
++---
++title: Hooks Overview
++description: Zero-cost instrumentation for all four Beacon primitives
++---
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++
++
++The four Beacon primitives, `state`, `effect`, `derive`, and `batch`, each accept an optional hooks parameter as their last argument. Hooks observe internal operations without affecting behavior.
++
++Three properties define the system:
++
++- **Optional.** Omit it for zero overhead.
++- **Composable.** Pass a single function or an array.
++- **Isolated.** Hook errors never break core reactivity.
++
++## Why hooks
++
++Hooks are where you attach instrumentation: logging, timing, validation, analytics. Because hooks are opt-in per call site, you attach them only where you need them. There is no global debug mode, no environment variables, no build flags.
++
++Hooks also keep debug code out of production, avoid monkey-patching, extend beyond logging, and work with tree-shaking.
++
++## Zero-cost abstraction
++
++When no hooks are provided, the overhead is a single falsy check that JIT compilers optimize away:
++
++```typescript
++const hasRead = hooks?.onRead != null // false
++if (hasRead) hooks.onRead!(...) // never executed
++```
++
++Without hooks, each operation costs ~0.5ns for the single falsy check. Beacon makes no additional allocations, and the bundle adds 0 bytes because hooks are not imported.
++
++With hooks, cost depends entirely on the hook implementation.
++
++## The four hook types
++
++### StateHooks
++
++```typescript
++function state<T extends object>(initial: T, hooks?: StateHooks<T>): T
++```
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onRead` | `(prop, value, target)` | Property accessed via get trap |
++| `onWrite` | `(prop, oldValue, newValue, target)` | Property assigned via set trap |
++| `onDelete` | `(prop, hadProperty, target)` | Property removed via `delete` |
++| `onHas` | `(prop, exists, target)` | `in` operator used |
++| `onOwnKeys` | `(keys, target)` | `Object.keys`, `for...in`, or spread |
++
++```typescript
++const $user = state(
++  { name: 'Alice', age: 30 },
++  {
++    onRead: (prop, value) => {
++      console.log(`read ${String(prop)}: ${value}`)
++    },
++    onWrite: (prop, oldVal, newVal) => {
++      console.log(`write ${String(prop)}: ${oldVal} → ${newVal}`)
++    },
++  }
++)
++
++$user.name = 'Bob'
++// write name: Alice → Bob
++```
++
++Hooks propagate to nested objects. When `state()` wraps a nested object, it passes the same hooks down:
++
++```typescript
++const $store = state(
++  {
++    user: {
++      name: 'Alice',
++      settings: { theme: 'dark', notifications: true },
++    },
++    items: [1, 2, 3],
++  },
++  {
++    onWrite: (prop, oldValue, newValue) => {
++      console.log(`[${String(prop)}]: ${oldValue} → ${newValue}`)
++    },
++  }
++)
++
++$store.user.name = 'Bob' // "[name]: Alice → Bob"
++$store.user.settings.theme = 'light' // "[theme]: dark → light"
++$store.items.push(4) // logs array mutation
++```
++
++### EffectHooks
++
++```typescript
++function effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks): Unsubscribe
++```
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onRun` | `(effectName?)` | Effect function about to execute |
++| `onDispose` | `(effectName?)` | Effect disposed, with cleanup run |
++| `onError` | `(error, effectName?)` | Effect threw during execution |
++| `onDependencyAdd` | `(target, prop, effectName?)` | New dependency registered |
++| `onSchedule` | `(effectName?)` | Effect queued for re-execution |
++
++```typescript
++const $counter = state({ count: 0 })
++
++const dispose = effect(
++  () => {
++    console.log($counter.count)
++  },
++  'counter-watcher',
++  {
++    onRun: (name) => console.log(`[${name}] running`),
++    onDispose: (name) => console.log(`[${name}] disposed`),
++    onError: (err, name) => console.error(`[${name}] threw:`, err),
++  }
++)
++
++$counter.count++
++// [counter-watcher] running
++// 1
++
++dispose()
++// [counter-watcher] disposed
++```
++
++### DeriveHooks
++
++```typescript
++function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
++```
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onCompute` | `(previousValue?)` | Compute function about to run |
++| `onCacheHit` | `(value, fromCache)` | `.value` accessed |
++| `onDispose` | `()` | Derive disposed by setting `reactive` to `false` |
++| `onError` | `(error)` | Compute function threw |
++| `onDependencyChange` | `(target, prop)` | A dependency changed |
++
++```typescript
++let computeCount = 0
++
++const total = derive(() => $items.list.reduce((a, b) => a + b, 0), {
++  onCompute: () => {
++    computeCount++
++  },
++  onCacheHit: (_val, fromCache) => {
++    if (fromCache) console.log('cache hit')
++  },
++})
++```
++
++### BatchHooks
++
++```typescript
++function batch<T>(fn: () => T, hooks?: BatchHooks): T
++```
++
++| Hook | Arguments | Fires when |
++| --- | --- | --- |
++| `onBatchStart` | `(depth)` | Batch entered; depth is nesting level |
++| `onBatchEnd` | `(depth)` | Batch completed |
++| `onBatchError` | `(error, depth)` | `fn` threw inside batch |
++
++```typescript
++batch(
++  () => {
++    account1.balance -= 100
++    account2.balance += 100
++  },
++  {
++    onBatchStart: (depth) => console.time(`batch-${depth}`),
++    onBatchEnd: (depth) => console.timeEnd(`batch-${depth}`),
++  }
++)
++```
++
++## Composition
++
++Every hook field accepts `SingleOrArray<HookFunction<Args>>`:
++
++```typescript
++type HookFunction<Args extends unknown[]> = (...args: Args) => void
++type SingleOrArray<T> = T | T[]
++```
++
++Pass a single function:
++
++```typescript
++state(obj, { onWrite: (prop, old, val) => console.log(prop, old, '→', val) })
++```
++
++Pass an array to combine observers:
++
++```typescript
++state(obj, { onWrite: [logger, validator, metrics] })
++```
++
++Array functions execute in order. Each is wrapped in `try/catch`, so one failing hook does not prevent the rest from running.
++
++Mix single and array hooks on the same object:
++
++```typescript
++const $user = state(userData, {
++  onRead: (prop, value) => console.log(`read ${String(prop)}`),
++  onWrite: [
++    (prop, old, val) => console.log(`write ${String(prop)}: ${old} → ${val}`),
++    (prop, _old, val) => validate(prop, val),
++  ],
++})
++```
++
++## Error isolation
++
++Hook errors never propagate to user code. Every hook invocation is wrapped in `try/catch` with an empty catch block:
++
++- A broken hook cannot crash your application
++- A broken hook cannot prevent state updates or effect execution
++- Hook errors are silently swallowed. Add your own error handling inside hooks if you need visibility.
++
++```typescript
++state(
++  { value: 0 },
++  {
++    onWrite: () => {
++      throw new Error('bug in hook')
++    },
++  }
++)
++// State updates proceed normally. The error is caught and discarded.
++```
++
++## Module structure
++
++What ships in `@nerdalytics/beacon`:
++
++```
++src/
++├── index.ts          # Core library (state, effect, derive, batch)
++├── types.ts          # Hook type definitions (StateHooks, EffectHooks, DeriveHooks, BatchHooks, HookFunction, SingleOrArray)
++└── hooks/
++    ├── index.ts      # Re-exports types and composeHook
++    └── compose.ts    # composeHook() utility
++```
++
++There are no built-in hook implementations. You write inline functions or extract your own factories.
++
++## Best practices
++
++**Keep hooks simple.** Avoid async work or heavy computation inside hooks. If you need to defer work, use `queueMicrotask`.
++
++**Name your effects.** The effect name is passed to the `onRun`, `onError`, `onDispose`, and `onSchedule` callbacks, and it appears in infinite-loop error messages.
++
++```typescript
++effect(() => { /* body */ }, 'sync-to-db', {
++  onError: (err, name) => console.error(`[${name}] failed:`, err),
++})
++```
++
++**Use arrays for multiple hooks.**
++
++```typescript
++// Good — array for independent concerns
++const $state = state(initial, {
++  onWrite: [
++    (prop, old, val) => console.log(`${String(prop)}: ${old} → ${val}`),
++    (prop, _old, val) => validate(prop, val),
++  ],
++})
++```
++
++**Load conditionally for development.**
++
++```typescript
++const hooks = process.env.NODE_ENV === 'development'
++  ? {
++      onWrite: (prop: PropertyKey, old: unknown, val: unknown) => {
++        console.debug(`[dev] ${String(prop)}: ${old} → ${val}`)
++      },
++    }
++  : undefined
++
++const $state = state(initial, hooks)
++```
++
++See the <VersionLink path="/hooks-catalog">Hooks Catalog</VersionLink> for hook interface reference, `composeHook` documentation, and practical examples.
+diff --git a/handbook/src/routes/v2002.0.0/installation/+page.md b/handbook/src/routes/v2002.0.0/installation/+page.md
+new file mode 100644
+index 0000000..9799a09
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/installation/+page.md
+@@ -0,0 +1,97 @@
++---
++title: Installation
++description: Install Beacon and set up your project
++---
++
++
++## Requirements
++
++- ESM project. Set `"type": "module"` in your `package.json`.
++- One of: Node.js >= 24.0.0, Bun >= 1.3, or Deno >= 2.7
++
++## Runtime compatibility
++
++| Runtime | Status | Notes |
++|---|---|---|
++| Node.js >= 24 | Full support | Primary target. All tests pass. |
++| Bun >= 1.3 | Compatible | Core reactivity works. On Bun, `deepStrictEqual` includes non-enumerable symbol properties on objects. Node does not. A `deepStrictEqual` check on a Beacon-wrapped array shows the internal symbols `[[beacon_proxy]]` and `[[beacon_subscribers]]` in the diff. The cause is Bun's `assert` behavior, not a Beacon bug. |
++| Deno >= 2.7 | Compatible | Core reactivity works. Deno's `node:test` compat layer does not implement `afterEach`, so one test file fails to load. The reactive system itself runs correctly. The gap is in the test harness, not in Beacon. |
++
++## Install
++
++### npm
++
++```bash
++npm install @nerdalytics/beacon
++```
++
++### yarn
++
++```bash
++yarn add @nerdalytics/beacon
++```
++
++### pnpm
++
++```bash
++pnpm add @nerdalytics/beacon
++```
++
++### Bun
++
++```bash
++bun add @nerdalytics/beacon
++```
++
++### Deno
++
++```bash
++deno install npm:@nerdalytics/beacon
++```
++
++### JSR
++
++```bash
++npx jsr add @nerdalytics/beacon
++```
++
++### vlt
++
++```bash
++vlt install @nerdalytics/beacon
++```
++
++## Project setup
++
++Beacon is ESM-only. Your `package.json` needs the module type:
++
++```json
++{
++  "type": "module"
++}
++```
++
++If you're using TypeScript, target `ES2022` or later and set module resolution to `NodeNext` or `Bundler`:
++
++```json
++{
++  "compilerOptions": {
++    "target": "ES2022",
++    "module": "NodeNext",
++    "moduleResolution": "NodeNext"
++  }
++}
++```
++
++## Import
++
++```typescript
++import { state, effect, derive, batch } from '@nerdalytics/beacon'
++```
++
++All four primitives are named exports from the package root. There are no subpath exports or separate entry points.
++
++## TypeScript
++
++Beacon ships source files and declaration maps. Type inference works out of the box. No `@types` package is needed.
++
+diff --git a/handbook/src/routes/v2002.0.0/introduction/+page.md b/handbook/src/routes/v2002.0.0/introduction/+page.md
+new file mode 100644
+index 0000000..5a0da76
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/introduction/+page.md
+@@ -0,0 +1,49 @@
++---
++title: Introduction
++description: What Beacon is and why it exists
++---
++
++
++Beacon is a reactive state management library for Node.js backends. It tracks which properties each function reads and re-runs only when those properties change.
++
++## What it does
++
++Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. You need no manual subscriptions, event names, or selectors.
++
++Four primitives cover the reactive graph:
++
++- `state(obj)` wraps an object in a reactive Proxy
++- `effect(fn)` runs a function and re-runs it when its dependencies change
++- `derive(fn)` computes a value that stays in sync with its dependencies
++- `batch(fn)` groups multiple state changes into a single update cycle
++
++Two settle points connect imperative code to the graph:
++
++- `until(predicate)` resolves once a settled evaluation of the predicate is truthy
++- `onSettled(callback)` runs the callback whenever the graph finishes its work and goes quiet
++
++That's the whole library.
++
++## Design constraints
++
++- Zero dependencies
++- ~9kb minified, ~4kb gzipped
++- Single-file core
++- TypeScript-first with full type inference
++- Deep reactivity: nested objects are automatically wrapped
++- Automatic dependency tracking at the property level
++
++## Who this is for
++
++Backend developers who want reactive patterns on the server. If you have used signals or observables on the frontend and want the same thing in your Node.js services, Beacon provides it.
++
++Common use cases:
++
++- Configuration objects that trigger side effects on change
++- In-memory caches that recompute derived data automatically
++- Event-driven pipelines where state changes propagate through a dependency graph
++- Testing harnesses that need observable state
++
++## Who this is not for
++
++Beacon is not a frontend framework. It has no DOM bindings and no component model. It manages plain JavaScript objects.
+diff --git a/handbook/src/routes/v2002.0.0/links/+page.md b/handbook/src/routes/v2002.0.0/links/+page.md
+new file mode 100644
+index 0000000..6abd614
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/links/+page.md
+@@ -0,0 +1,14 @@
++---
++title: Resources
++description: Package links and community resources for Beacon
++---
++
++## Package
++
++- [npm: @nerdalytics/beacon](https://www.npmjs.com/package/@nerdalytics/beacon)
++- [jsr: @nerdalytics/beacon](https://jsr.io/@nerdalytics/beacon)
++- [GitHub: nerdalytics/beacon](https://github.com/nerdalytics/beacon)
++
++## Community
++
++- [GitHub Discussions](https://github.com/nerdalytics/beacon/discussions) for questions and ideas
+diff --git a/handbook/src/routes/v2002.0.0/llms/+page.md b/handbook/src/routes/v2002.0.0/llms/+page.md
+new file mode 100644
+index 0000000..a305439
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/llms/+page.md
+@@ -0,0 +1,41 @@
++---
++title: LLM Documentation
++description: Plain-text endpoints for referencing Beacon docs in LLM conversations
++---
++
++## Overview
++
++The Beacon handbook is available as plain text at every version. These endpoints follow the [llms.txt](https://llmstxt.org/) convention and return content that LLMs can read directly.
++
++## Endpoints
++
++| URL | Content |
++|---|---|
++| `/llms.txt` | Index of all available versions |
++| `/{version}/llms.txt` | Page listing for a specific version |
++| `/{version}/llms-full.txt` | All pages concatenated into one document |
++| `/{version}/{page}.md` | Single page as raw Markdown |
++
++Replace `{version}` with a version number, such as `v2002.0.0`, or with `latest`.
++
++## Examples
++
++Full documentation context:
++
++```
++Read https://nerdalytics.github.io/beacon/v2002.0.0/llms-full.txt and explain how state() works.
++```
++
++Single page reference:
++
++```
++Read https://nerdalytics.github.io/beacon/v2002.0.0/state.md and show me how to use nested reactivity.
++```
++
++## Tool integration
++
++These URLs work anywhere an LLM can fetch a resource:
++
++- Paste the URL into your prompt in Claude Code or ChatGPT.
++- Add the URL as a doc reference in Cursor or Windsurf.
++- Custom agents can fetch `/{version}/llms-full.txt` as system context.
+diff --git a/handbook/src/routes/v2002.0.0/migration/+page.md b/handbook/src/routes/v2002.0.0/migration/+page.md
+new file mode 100644
+index 0000000..10473f5
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/migration/+page.md
+@@ -0,0 +1,23 @@
++---
++title: "Migration: v2001 → v2002"
++description: How to upgrade from Beacon v2001 to v2002
++---
++
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++## Upgrading from v2001 to v2002
++
++Version 2002.0.0 renames three exports. Timing and shape are unchanged: the renamed function fires at the same moments, and the renamed types describe the same values.
++
++| v2001 | v2002 |
++|-------|-------|
++| `onSettled(callback)` | `onIdle(callback)` |
++| `SettledCallback` | `IdleCallback` |
++| `ComputedValue<T>` | `DerivedValue<T>` |
++
++- **`onSettled` becomes `onIdle`.** The callback runs each time the graph goes idle after doing work: no effect queued and no microtask flush armed. A pending async computation does not keep the graph from being idle, so the callback runs after the flush that started the computation and again when it settles. "Settled" now describes computations only. See <VersionLink path="/settle">Settle</VersionLink>
++- **`SettledCallback` becomes `IdleCallback`.** Same signature, same unsubscribe contract
++- **`ComputedValue<T>` becomes `DerivedValue<T>`.** The derived value keeps `value`, `pending` and `reactive`. Both `derive` overloads are unchanged, and a superseded computation is still discarded when it settles. See <VersionLink path="/derive">Derive</VersionLink>
++- **No runtime change.** Replace the three names and the version bumps to 2002.0.0 to signal the breaking rename
+diff --git a/handbook/src/routes/v2002.0.0/performance/+page.md b/handbook/src/routes/v2002.0.0/performance/+page.md
+new file mode 100644
+index 0000000..5ccac36
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/performance/+page.md
+@@ -0,0 +1,163 @@
++---
++title: Performance
++description: Performance characteristics and optimization tips
++---
++
++
++Beacon is a reactive system with zero external dependencies. Updates propagate through a dependency graph directly to the effects that need them.
++
++## Benchmark results
++
++All numbers below are real: the benchmarks run 1,000,000 iterations, 10 cycles × 7 measurement samples, and report the median. All runs happened on the same machine, back to back.
++
++### End-to-end scenarios
++
++| Scenario | v1000 med | v2000 med | Δ |
++|---|---|---|---|
++| classic loop | 3.82ms | 4.41ms | +15%, baseline noise |
++| state no subs | 14.08ms | 93.43ms | +563%, v2000 slower |
++| state + derive | 820.78ms | 572.24ms | −30%, v2000 faster |
++| state + derive + 2 effects | 1864.10ms | 1088.68ms | −42%, v2000 faster |
++| batch + derive | 28.06ms | 117.50ms | +319%, v2000 slower |
++| batch + derive + 2 effects | 35.45ms | 116.51ms | +229%, v2000 slower |
++
++### Targeted operations
++
++| Operation | v1000 med | v2000 med | Δ |
++|---|---|---|---|
++| state creation | 10.10ms | 55.65ms | +451%, v2000 slower |
++| state read (no effect) | 4.40ms | 36.91ms | +739%, v2000 slower |
++| state write 1 sub | 81.44ms | 45.82ms | −44%, v2000 faster |
++| state write 100 subs | 482.55ms | 233.25ms | −52%, v2000 faster |
++| effect triggers | 29.09ms | 28.25ms | −3%, within noise |
++| many dependencies | 3.49ms | 4.84ms | +39%, v2000 slower |
++| derive chain depth 10 | 8.27ms | 9.71ms | +17%, v2000 slower |
++| 100 states individual | 151.20ms | 63.17ms | −58%, v2000 faster |
++| 100 states batched | 3.38ms | 4.40ms | +30%, v2000 slower |
++| 100 subs disjoint props | 656.61ms | 48.78ms | −93%, v2000 faster |
++
++**Total benchmark time.** v1000 took 290.8s and v2000 took 174.6s, a 40% reduction
++
++### Memory
++
++v2000 batch memory usage is far lower. During batch + derive scenarios, v1000 holds 14,444 to 14,525kb on the heap. v2000 holds 18 to 22kb.
++
++## What this means in practice
++
++v2000 is faster where it matters most for reactive workloads: write propagation, effect scheduling, and bulk state updates. The `state write 100 subs` result drops from 483ms to 233ms, and `100 states individual` drops from 151ms to 63ms. Both show the architecture's gains at high fan-out. The `100 subs disjoint props` result is the clearest win, going from 657ms to 49ms, −93%. Fine-grained per-property tracking means effects that read different properties on the same object no longer interfere.
++
++The regressions to know about:
++
++- **State creation** is ~5.5× slower in v2000. If you create thousands of state objects in a hot path, that will show.
++- **State reads outside effects** are ~8.4× slower. Bare property reads on reactive objects cost more. If you read millions of reactive values in a tight loop with no subscribers, consider reading into a local variable first.
++- **State with no subscribers** is ~6.6× slower. v2000 pays a baseline proxy cost even when there is nothing to notify.
++- **Batch + derive** is ~4.2× slower in the median. v1000's batch path was simpler. It had no dirty-target tracking and no deferred scheduling, so the raw overhead is higher even though the mechanism is more correct.
++
++## What makes Beacon fast
++
++### Fine-grained tracking
++
++Dependencies are tracked at the property level. When `state.count` changes, only effects that read `count` re-run. Effects that read `name` or `age` on the same object do not re-run.
++
++### Value equality checks
++
++Every mutation is compared with `Object.is()`. If the value has not changed, nothing happens. No subscriber is notified and no effect re-runs.
++
++### Proxy caching
++
++Each object gets exactly one Proxy. Passing the same object to `state()` twice returns the same Proxy instance.
++
++## Batch optimization
++
++Without batch, each mutation triggers its own propagation cycle:
++
++```typescript
++s.a = 1  // effects run
++s.b = 2  // effects run again
++s.c = 3  // effects run a third time
++```
++
++With batch, all mutations apply first, then effects run once:
++
++```typescript
++batch(() => {
++  s.a = 1
++  s.b = 2
++  s.c = 3
++})
++// effects run once with final state
++```
++
++The benchmark confirms this. In v1000, `100 states individual` takes 151ms and `100 states batched` takes 3.38ms. In v2000, the same pair takes 63ms and 4.40ms. Batch every bulk write. It is the correct usage pattern.
++
++### Batch fast path
++
++During batch, the set handler takes a fast path when there are no write hooks and no active effect:
++
++1. Skip subscriber scheduling entirely
++2. Track dirty target-property pairs in `dirtyTargets`
++3. At batch end, call `scheduleSubscribersForTarget` once per unique property
++4. Run all deferred effects, then flush once
++
++This reduces N notification cycles to one.
++
++### Derive + batch interaction
++
++A derive that depends on multiple sources recomputes once per batch, not once per source change:
++
++```typescript
++const total = derive(() => s.a + s.b + s.c)
++
++// Without batch: 3 recomputations
++s.a = 10
++s.b = 20
++s.c = 30
++
++// With batch: 1 recomputation
++batch(() => {
++  s.a = 10
++  s.b = 20
++  s.c = 30
++})
++```
++
++## Stable dependency skip
++
++On effect re-runs, dependencies are compared against the previous run. If they haven't changed:
++
++- Previous tracking structures are restored. No subscriber set teardown or rebuild happens.
++- Subsequent runs use `isTrackingOnly` mode, skipping `getSubscribers` + `Set.add` in proxy handlers
++
++This matters for effects with stable dependency patterns that re-run frequently.
++
++## Memory considerations
++
++### WeakMap-based storage
++
++All tracking maps use WeakMaps. When a state object is garbage collected, its tracking data goes with it. No manual cleanup needed.
++
++### Non-enumerable metadata
++
++Internal metadata uses Symbols, so it doesn't appear in `Object.keys()`, `JSON.stringify()`, or `for...in` loops.
++
++### Subscription cleanup
++
++When an effect is disposed:
++
++- `cleanupEffect()` removes it from all subscriber sets and resets tracking state
++- `cleanupEffectCompletely()` also cleans up child effects. It iterates instead of recursing, which avoids stack overflow
++- Nested effects are automatically cleaned up when parent effects re-run
++
++### Derive disposal
++
++Each `derive()` creates an internal state + effect pair. Undisposed derives leak memory. Always call the dispose function when a derived value is no longer needed.
++
++## Inherent trade-offs
++
++Proxy-based reactivity has a fixed overhead:
++
++- Every property access goes through a proxy trap
++- V8 JIT cannot optimize away proxy traps
++- Polymorphic handlers cause deoptimization in hot paths
++
++For most applications, this overhead is negligible. If you're doing millions of property accesses in a tight loop, consider reading the value once into a local variable.
+diff --git a/handbook/src/routes/v2002.0.0/quick-start/+page.md b/handbook/src/routes/v2002.0.0/quick-start/+page.md
+new file mode 100644
+index 0000000..5bbc0cc
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/quick-start/+page.md
+@@ -0,0 +1,137 @@
++---
++title: Quick Start
++description: Get up and running with Beacon in five minutes
++---
++
++
++This walkthrough builds a reactive system from scratch. By the end you'll have used all four Beacon primitives.
++
++## 1. Create reactive state
++
++`state()` wraps a plain object in a Proxy. It returns the same shape. You read and write properties as usual.
++
++```typescript
++import { state } from '@nerdalytics/beacon'
++
++const $app = state({
++  users: 0,
++  errors: 0,
++})
++
++$app.users = 5 // reactive — subscribers get notified
++```
++
++## 2. React to changes with effects
++
++`effect()` runs a function immediately, then re-runs it whenever the state it read changes. It returns a dispose function.
++
++```typescript
++import { state, effect } from '@nerdalytics/beacon'
++
++const $app = state({ users: 0, errors: 0 })
++
++const dispose = effect(() => {
++  console.log(`Users: ${$app.users}, Errors: ${$app.errors}`)
++})
++// => "Users: 0, Errors: 0"
++
++$app.users = 3
++// => "Users: 3, Errors: 0"
++
++dispose() // stop listening
++```
++
++Beacon tracks that this effect reads `$app.users` and `$app.errors`. Changes to either property re-run it. Changes to other properties don't.
++
++## 3. Compute derived values
++
++`derive()` creates a computed value that stays in sync with its dependencies. It returns an object with a `.value` property.
++
++```typescript
++import { state, derive, effect } from '@nerdalytics/beacon'
++
++const $app = state({ users: 0, errors: 0 })
++
++const errorRate = derive(() => {
++  if ($app.users === 0) return 0
++  return $app.errors / $app.users
++})
++
++effect(() => {
++  console.log(`Error rate: ${errorRate.value}`)
++})
++// => "Error rate: 0"
++
++$app.users = 100
++// => "Error rate: 0"
++
++$app.errors = 5
++// => "Error rate: 0.05"
++
++// Clean up — derive creates an internal effect that must be disposed
++errorRate.reactive = false
++```
++
++Always set `reactive = false` when you finish with a derived value. It creates an internal effect that leaks if you do not dispose it.
++
++## 4. Batch updates
++
++`batch()` groups multiple state changes so effects run once instead of once per change.
++
++```typescript
++import { state, effect, batch } from '@nerdalytics/beacon'
++
++const $app = state({ users: 0, errors: 0 })
++
++effect(() => {
++  console.log(`Users: ${$app.users}, Errors: ${$app.errors}`)
++})
++// => "Users: 0, Errors: 0"
++
++batch(() => {
++  $app.users = 100
++  $app.errors = 5
++})
++// => "Users: 100, Errors: 5" (logged once, not twice)
++```
++
++Without `batch`, the effect would fire after `$app.users = 100` and again after `$app.errors = 5`. With `batch`, it fires once with both values updated.
++
++## Putting it together
++
++Here's a complete, runnable example:
++
++```typescript
++import { state, effect, derive, batch } from '@nerdalytics/beacon'
++
++// Reactive state
++const $server = state({
++  requests: 0,
++  failures: 0,
++})
++
++// Derived computation
++const failureRate = derive(() => {
++  if ($server.requests === 0) return 0
++  return $server.failures / $server.requests
++})
++
++// Side effect — log when failure rate changes
++const stopLogging = effect(() => {
++  const rate = failureRate.value
++  if (rate > 0.1) {
++    console.log(`Warning: failure rate at ${(rate * 100).toFixed(1)}%`)
++  }
++})
++
++// Simulate traffic
++batch(() => {
++  $server.requests = 1000
++  $server.failures = 150
++})
++// => "Warning: failure rate at 15.0%"
++
++// Clean up
++stopLogging()
++failureRate.reactive = false
++```
+diff --git a/handbook/src/routes/v2002.0.0/settle/+page.md b/handbook/src/routes/v2002.0.0/settle/+page.md
+new file mode 100644
+index 0000000..1ab2ffb
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/settle/+page.md
+@@ -0,0 +1,80 @@
++---
++title: Settle
++description: Await reactive convergence from imperative code
++---
++
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++## until
++
++`until(predicate, options?)` returns a promise that resolves with the predicate's value once a settled evaluation of the predicate is truthy. It connects imperative code, such as request handlers, startup sequences, and test harnesses, to the reactive graph.
++
++```typescript
++import { state, until } from '@nerdalytics/beacon'
++
++const cache = state({ warm: false, entries: 0 })
++
++// inside a request handler
++await until(() => cache.warm, { timeout: 5000 })
++serve(cache.entries)
++```
++
++Behavior:
++
++1. **Settled reads only.** While an async computation the predicate depends on is pending, evaluations do not resolve the promise. Resolution waits for the settle.
++2. **Reactive scope prohibition.** Calling `until` inside an effect or computation throws. Use an effect for reactive responses.
++3. **Self-disposal.** When the promise resolves, rejects, times out, or aborts, Beacon releases the internal subscription, timer, and abort listener. None of them outlives the promise.
++4. **Throwing predicate.** If an evaluation throws, the promise rejects with that error. The write that triggered the evaluation does not throw.
++
++### Options
++
++| Option | Type | Effect |
++|--------|------|--------|
++| `timeout` | `number` | Reject with a timeout error if no truthy settled evaluation arrives in time |
++| `signal` | `AbortSignal` | Reject with the signal's reason on abort; an already-aborted signal rejects immediately |
++
++```typescript
++const controller = new AbortController()
++
++const warm = until(() => cache.warm, { signal: controller.signal }).catch((err) => {
++  if (err === controller.signal.reason) return false
++  throw err
++})
++
++// give up after the request deadline
++controller.abort('deadline')
++```
++
++## onSettled
++
++`onSettled(callback)` calls the callback each time the reactive graph finishes its work and goes quiet. That happens after a synchronous flush or an async settlement. It returns an unsubscribe function.
++
++```typescript
++import { batch, onSettled, state } from '@nerdalytics/beacon'
++
++const metrics = state({ flushes: 0 })
++
++const stop = onSettled(() => {
++  metrics.flushes++
++})
++
++batch(() => {
++  cache.warm = true
++  cache.entries = 42
++})
++// one callback after the batched flush, not one per write
++
++stop()
++```
++
++Behavior:
++
++1. **Writes inside a callback.** A callback's state writes apply at once, including writes inside `batch()`. The effects they schedule run after every callback has returned. They run before the flush that notified returns. Callbacks then run again for that cycle. A write that schedules no effect starts no new cycle.
++2. **Runaway callbacks.** If callbacks still schedule effects after 100 notifications in one flush, the remaining effects are dropped and an `Infinite loop detected` error is thrown to the code that started the flush. A microtask flush reports it with `console.error`. An async settlement reports it as an unhandled rejection. The example above reaches this limit if an effect reads `metrics.flushes`. A callback write that wakes only `'microtask'` effects starts a new microtask flush instead of a new cycle, so this limit does not count it. The microtask chain limit in Effects stops that loop after 100 flushes.
++
++## See also
++
++- <VersionLink path="/derive">Derive</VersionLink> covers async computations whose settlements trigger quiescence
++- <VersionLink path="/effects">Effects</VersionLink> covers reactive runners, including microtask scheduling
+diff --git a/handbook/src/routes/v2002.0.0/state/+page.md b/handbook/src/routes/v2002.0.0/state/+page.md
+new file mode 100644
+index 0000000..63bb9ac
+--- /dev/null
++++ b/handbook/src/routes/v2002.0.0/state/+page.md
+@@ -0,0 +1,359 @@
++---
++title: State
++description: Create and manage reactive objects with automatic dependency tracking
++---
++<script>
++import VersionLink from '#lib/components/VersionLink.svelte'
++</script>
++
++
++
++`state()` creates reactive objects. It wraps plain JavaScript objects in Proxies for automatic dependency tracking and change notification.
++
++## API
++
++```typescript
++function state<T extends object>(initial: T, hooks?: StateHooks<T>): T
++```
++
++Returns a Proxy-wrapped version of the input object. Passing a non-object returns the value as-is. See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
++
++## Creating reactive state
++
++```typescript
++import { state } from '@nerdalytics/beacon'
++
++// Simple object
++const $user = state({ name: 'Alice', age: 30 })
++
++// Nested object
++const $app = state({
++  user: { name: 'Alice', role: 'admin' },
++  settings: { theme: 'dark', notifications: true },
++})
++
++// Arrays
++const $todos = state([
++  { id: 1, text: 'Learn Beacon', done: false },
++  { id: 2, text: 'Build app', done: false },
++])
++```
++
++## Natural JavaScript syntax
++
++The Proxy-based approach means standard JavaScript operations work as expected:
++
++```typescript
++const $counter = state({ count: 0 })
++
++// Write
++$counter.count = 5
++$counter.count++
++
++// Read
++console.log($counter.count) // 6
++
++// Object operations
++const $user = state({ name: 'Alice' })
++$user.email = 'alice@example.com' // Add property
++delete $user.email // Delete property
++
++// Array operations
++const $items = state([1, 2, 3])
++$items.push(4) // Mutating methods work
++$items[0] = 10 // Index assignment works
++```
++
++## How it works
++
++### Proxy creation
++
++When you call `state(obj)`, Beacon:
++
++1. Checks the cache for an existing proxy of this object
++2. Creates a new Proxy with handler traps
++3. Stores the proxy-target relationship
++4. Returns the proxy
++
++### Property access interception
++
++The Proxy intercepts all operations:
++
++```typescript
++const $data = state({ value: 42 })
++
++// This seemingly simple operation:
++$data.value++
++
++// Actually triggers:
++// 1. Proxy 'get' trap -> reads current value (42)
++// 2. Increment operation -> adds 1 to make 43
++// 3. Proxy 'set' trap -> compares old (42) vs new (43)
++// 4. Since values differ -> updates and notifies subscribers
++
++// Setting to the same value skips notification
++$data.value = 43 // No effect triggered if already 43
++```
++
++### Nested reactivity
++
++Objects are wrapped recursively:
++
++```typescript
++const $app = state({
++  user: {
++    profile: {
++      name: 'Alice',
++    },
++  },
++})
++
++// All levels are reactive
++$app.user.profile.name = 'Bob' // Triggers updates
++```
++
++## Performance
++
++Every property access has overhead:
++
++- A direct object takes ~3ms for 1M operations.
++- A proxied object takes ~75ms for 1M batched operations.
++- Natural syntax costs 4x in performance.
++
++Internally, Beacon optimizes by manipulating the raw target directly. The proxy trap intercepts the operation, applies it to the underlying object, then queues the notification.
++
++## Patterns
++
++### Component state
++
++```typescript
++function createCounter() {
++  const $s = state({ count: 0 })
++
++  return {
++    state: $s,
++    increment: () => $s.count++,
++    decrement: () => $s.count--,
++    reset: () => ($s.count = 0),
++  }
++}
++```
++
++### Global store
++
++```typescript
++// store.ts
++export const $appState = state({
++  user: null,
++  isLoading: false,
++  errors: [],
++})
++
++// anywhere.ts
++import { $appState } from './store'
++$appState.user = { id: 1, name: 'Alice' }
++```
++
++### Configuration objects
++
++```typescript
++const $config = state({
++  api: {
++    baseUrl: 'https://api.example.com',
++    timeout: 5000,
++    retries: 3,
++  },
++  features: {
++    darkMode: false,
++    notifications: true,
++  },
++})
++
++// React to config changes
++effect(() => {
++  console.log(`Dark mode: ${$config.features.darkMode}`)
++})
++```
++
++## Limitations
++
++### Primitive values
++
++`state()` only works with objects, not primitives:
++
++```typescript
++// Won't work - returns primitive as-is
++const $count = state(0)
++
++// Wrap in an object instead
++const $counter = state({ value: 0 })
++```
++
++### Object identity
++
++The proxy is a different object than the original:
++
++```typescript
++const original = { count: 0 }
++const $reactive = state(original)
++
++console.log(original === $reactive) // false
++console.log(original.count === $reactive.count) // true (same value)
++```
++
++### Class instances
++
++Methods may not work as expected because of `this` binding issues:
++
++```typescript
++class Counter {
++  count = 0
++  increment() {
++    this.count++ // 'this' context issues
++  }
++}
++
++const $counter = state(new Counter())
++// May have issues with 'this' binding
++```
++
++### Built-in objects
++
++Some built-in objects don't work well with Proxies:
++
++```typescript
++// Problematic
++const $date = state(new Date())
++const $map = state(new Map())
++
++// Better: wrap in a plain object
++const $s = state({
++  date: new Date(),
++  map: new Map(),
++})
++```
++
++## Best practices
++
++### Keep state shape stable
++
++Define the full shape upfront:
++
++```typescript
++// Good - shape is clear
++const $user = state({
++  id: null,
++  name: '',
++  email: '',
++  preferences: {
++    theme: 'light',
++    notifications: true,
++  },
++})
++
++// Avoid - dynamic shape
++const $user = state({})
++$user.preferences = {} // Added later
++$user.preferences.theme = 'dark' // Nested addition
++```
++
++### Batch multiple updates
++
++```typescript
++import { batch } from '@nerdalytics/beacon'
++
++// Triggers 3 separate updates
++s.x = 1
++s.y = 2
++s.z = 3
++
++// Single update
++batch(() => {
++  s.x = 1
++  s.y = 2
++  s.z = 3
++})
++```
++
++### Use immutable updates for arrays
++
++While mutating methods work, immutable updates can be clearer:
++
++```typescript
++const $todos = state({ items: [] })
++
++// Mutating (works)
++$todos.items.push(newTodo)
++
++// Immutable (also works, sometimes clearer)
++$todos.items = [...$todos.items, newTodo]
++```
++
++## Integration with effects
++
++State changes trigger effects that depend on them:
++
++```typescript
++const $user = state({ name: 'Alice', age: 30 })
++
++// Re-runs whenever $user.age changes
++effect(() => {
++  console.log(`Happy Birthday ${$user.name} to your ${$user.age}th year!`)
++})
++
++$user.name = 'Bob' // Doesn't trigger (name not accessed during tracking)
++$user.age = 31 // Triggers effect
++```
++
++## Memory management
++
++State objects are garbage collected when no longer referenced. Beacon uses WeakMaps internally, so there's no manual cleanup needed for state itself.
++
++```typescript
++function createTemporaryState() {
++  const $temp = state({ data: 'temporary' })
++
++  effect(() => {
++    console.log($temp.data)
++  })
++
++  // When '$temp' goes out of scope, the state
++  // and its effects are eligible for GC
++}
++```
++
++## Frozen and sealed objects
++
++Beacon handles non-extensible objects using WeakMap fallbacks:
++
++```typescript
++const frozen = Object.freeze({ value: 42 })
++const $reactive = state(frozen) // Still works
++
++// Beacon stores metadata in WeakMaps instead of on the object
++```
++
++## Type safety
++
++TypeScript fully understands the proxy:
++
++```typescript
++interface User {
++  name: string
++  age: number
++  email?: string
++}
++
++const $user = state<User>({ name: 'Alice', age: 30 })
++
++$user.name = 'Bob' // Type-safe
++$user.age = 'thirty' // Type error
++$user.email = 'alice@example.com' // Optional property
++```
++
++## Performance tips
++
++1. **Avoid reading in hot loops.** Cache values outside loops.
++2. **Batch updates.** Use `batch()` for multiple changes.
++3. **Minimize nesting depth.** Deeply nested objects have more overhead.
++4. **Use primitive comparisons.** `Object.is()` is used for equality.

@@ -1,0 +1,1145 @@
+# Review package: ticket 01, d8d2dda181a273ed6a678a4a4eeb8d15a18b4f58..843329f9eaf56ff366e7d5800ee5311dbc77f6b2
+
+## Commits
+### 843329f
+breaking(api): rename onSettled to onIdle
+
+Reserve "settled" for a computation's outcome and name the graph
+notification after what it observes: the graph is idle when no effect
+is queued and no microtask flush is armed, which can be true while an
+async derived value is still pending. The callback type becomes
+IdleCallback, graph-side internals say idle (idleCallbacks,
+notifyIfIdle, notifyIdleOutsideFlush, MAX_IDLE_CYCLES) and the runaway
+error names onIdle. settleProcessed keeps its name because it records
+a computation's settlement. Timing is unchanged; a new test pins the
+notification that fires while a derived value is pending and again
+once it settles.
+
+BREAKING CHANGE: onSettled is now onIdle and SettledCallback is now
+IdleCallback. No behavior change.
+
+
+## Files changed
+ AGENTS.md                        |   4 +-
+ README.md                        |   4 +-
+ src/AGENTS.md                    |  26 +++----
+ src/index.ts                     |  40 +++++------
+ tests/derive-async.test.ts       |  12 ++--
+ tests/effect-scheduling.test.ts  |  24 +++----
+ tests/settle-observation.test.ts | 151 +++++++++++++++++++++++----------------
+ 7 files changed, 145 insertions(+), 116 deletions(-)
+
+## Diff
+diff --git a/AGENTS.md b/AGENTS.md
+index 64423b5..4c1095f 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -16,23 +16,23 @@ ## Quick Commands
+ 
+ ## Architecture
+ 
+ Single-file core: `src/index.ts` (~1400 lines). Zero external dependencies. Proxy-based reactive system.
+ 
+ **Exports:**
+ - `state<T extends object>(initial: T, hooks?: StateHooks<T>): T` — Proxy-wrapped reactive objects with per-property tracking
+ - `effect(fn: EffectCallback, name?: EffectName, hooks?: EffectHooks, options?: EffectOptions): Unsubscribe` — side effects with automatic dependency tracking; `options.schedule` is `'sync'` (default) or `'microtask'`
+ - `derive<T>(fn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T>` — eagerly-computed values, returns `{ value, pending, reactive }`, requires disposal; async results set `pending` until they settle, stale promises are dropped
+ - `batch<T>(fn: () => T, hooks?: BatchHooks): T` — groups updates, flushes effects once at outermost batch boundary
+-- `onSettled(callback: SettledCallback): Unsubscribe` — runs the callback each time the graph goes quiet after doing work
++- `onIdle(callback: IdleCallback): Unsubscribe` — runs the callback each time the graph goes idle after doing work (no effect queued, no microtask flush armed); a pending async computation does not keep the graph busy
+ - `until<T>(predicate: () => T, options?: UntilOptions): Promise<T>` — resolves once the predicate is truthy with no derive pending; `timeout` and `signal` reject; throws inside a reactive scope
+-- Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `SettledCallback`
++- Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+ - Subpath `@nerdalytics/beacon/hooks`: hook types and `composeHook`
+ 
+ **Key behaviors:**
+ - Dependency tracking via WeakMaps + Symbols at the property level
+ - Nested objects automatically wrapped in Proxies (deep reactivity)
+ - Infinite loop detection: throws if effect writes to a state property it reads from (child effects and microtask effects are exempt; microtask re-runs stop after 100 chained microtask flushes with a `console.error`)
+ - Cyclic dependencies between different effects: allowed via queue-based non-recursive `flushEffects`
+ - Array mutating methods intercepted: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
+ - Frozen/sealed objects: fallback to WeakMap storage
+ - `derive()` must be disposed to prevent memory leaks (creates internal state + effect pair)
+diff --git a/README.md b/README.md
+index 938cc8f..902c6e2 100644
+--- a/README.md
++++ b/README.md
+@@ -69,23 +69,23 @@ ### Async derive and `pending`
+ ```
+ 
+ ### `until`
+ 
+ `until(predicate, { timeout?, signal? })` resolves with the predicate's value once a settled evaluation is truthy — safe to await inside request handlers. It throws when called inside a reactive scope and disposes itself on settle, timeout, or abort.
+ 
+ ```typescript
+ await until(() => cache.warm, { timeout: 5000 });
+ ```
+ 
+-### `onSettled`
++### `onIdle`
+ 
+-`onSettled(callback)` invokes the callback whenever the graph reaches quiescence after processing work (a flush or an async settlement). Returns an unsubscribe function.
++`onIdle(callback)` invokes the callback each time the graph goes idle after processing work (a flush or an async settlement): no effect is queued and no microtask flush is armed. A pending async computation does not keep the graph busy, so the callback fires after the flush that started the computation and again once it settles. Returns an unsubscribe function.
+ 
+ ### Effect `schedule` option
+ 
+ `effect(fn, name, hooks, { schedule: 'microtask' })` defers re-runs to a microtask, coalescing writes across await boundaries into one run. The default `'sync'` preserves v2000 timing exactly.
+ 
+ **Migration note:** synchronous `derive` and default-schedule effects behave exactly as in v2000; the only consumer-visible changes are the new `pending` field on computed values and async compute support.
+ 
+ ## Documentation
+ 
+ Full documentation, API reference, and examples available at:
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 6708eca..834e693 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -1,43 +1,43 @@
+ # src/ — Beacon Core
+ 
+ Single file: `index.ts`. The entire reactive system. Do not split into modules.
+ 
+ ## Exports
+ 
+-Functions: `state`, `effect`, `batch`, `derive`, `onSettled`, `until`
++Functions: `state`, `effect`, `batch`, `derive`, `onIdle`, `until`
+ 
+-Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `SettledCallback`
++Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+ 
+ ## Internal State (Module-Level)
+ 
+ Global mutable state driving the reactive system:
+ 
+ | Variable | Type | Purpose |
+ |----------|------|---------|
+ | `currentEffect` | `EffectFunction \| null` | Currently executing effect (for dependency tracking) |
+ | `batchDepth` | `number` | Nesting depth counter for batch operations |
+-| `isNotifying` | `boolean` | Prevents re-entrant `flushEffects` calls; also set while settled callbacks run, so their writes queue |
++| `isNotifying` | `boolean` | Prevents re-entrant `flushEffects` calls; also set while idle callbacks run, so their writes queue |
+ | `isTrackingOnly` | `boolean` | When true, get/has/ownKeys handlers skip subscriber registration (re-run optimization) |
+ | `pendingEffects` | `Set<EffectFunction>` | Sync effects queued for execution |
+ | `pendingMicroEffects` | `Set<EffectFunction>` | `schedule: 'microtask'` effects waiting for the next microtask flush |
+ | `microtaskFlushArmed` | `boolean` | A microtask flush is already queued |
+ | `microtaskFlushing` | `boolean` | Set while the microtask callback runs `flushEffects`; effect errors are reported instead of rethrown |
+ | `microtaskFlushChain` | `number` | Consecutive microtask flushes each armed while the previous one ran; reset to 0 when armed from outside a microtask flush |
+ | `effectErrorHandled` | `boolean` | Set by `runEffectSafely` on a throw: whether the effect had an `onError` hook |
+ | `effectQueue` | `EffectFunction[]` | Reused array `runPendingEffectBatch` drains when more than one effect is pending |
+ | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
+ | `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
+ | `rerunReadList`, `rerunReadIndex`, `rerunStable` | | Re-run fast path: replays the effect's `__readList` and advances while reads match |
+ | `rerunTempDeps`, `rerunTempReads`, `buildingReadList` | | Re-run slow path: collect fresh deps/reads and build a new read list |
+-| `settledCallbacks` | `Set<SettledCallback>` | `onSettled` subscribers |
+-| `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last settle notification (a flush ran, or an async derive settled) |
++| `idleCallbacks` | `Set<IdleCallback>` | `onIdle` subscribers |
++| `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last idle notification (a flush ran, or an async derive settled) |
+ | `untilEvaluating`, `untilSawPending` | `boolean` | Set while an `until` predicate runs; records whether it read a pending derive |
+ | `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the hookless fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
+ 
+ ## EffectFunction Properties
+ 
+ Effect tracking data stored directly on the function object (O(1) property access, no WeakMap overhead):
+ 
+ | Property | Type | Purpose |
+ |----------|------|---------|
+ | `__active` | `boolean` | Re-entrancy guard — prevents effect from running while already running |
+@@ -146,61 +146,61 @@ ### Effect Cleanup
+ | `resetEffectTracking` | Dequeues from both pending sets, clears `__deps`/`__reads`/`__readList`/`__prevDeps`/`__prevReads` |
+ | `cleanupEffectCompletely` | One iterative loop over the effect and all descendants: `cleanupEffect`, unlink parent/children, deactivate (avoids stack overflow) |
+ | `cleanupEffectOnError` | Emergency cleanup on error — removes from all subscriber sets |
+ | `removeEffectFromSubscribers` | Removes effect from all subscriber sets in a dep set |
+ 
+ ### Flush Pipeline
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `addPendingEffect` | Queues into `pendingEffects` or `pendingMicroEffects` by `__schedule` |
+-| `armMicrotaskFlush` | Counts `microtaskFlushChain`, queues one microtask that moves `pendingMicroEffects` into `pendingEffects`, flushes, then `notifySettledOutsideFlush`; at `MAX_MICROTASK_FLUSH_CHAIN` (100) the microtask drops `pendingMicroEffects` and calls `console.error` instead |
+-| `flushEffects` | Per cycle: drain `pendingEffects` in a while loop, then `notifySettledIfQuiet`; repeats while callbacks scheduled effects, up to `MAX_SETTLE_CYCLES` (100), then drops them and throws (microtask flush: `console.error`) |
++| `armMicrotaskFlush` | Counts `microtaskFlushChain`, queues one microtask that moves `pendingMicroEffects` into `pendingEffects`, flushes, then `notifyIdleOutsideFlush`; at `MAX_MICROTASK_FLUSH_CHAIN` (100) the microtask drops `pendingMicroEffects` and calls `console.error` instead |
++| `flushEffects` | Per cycle: drain `pendingEffects` in a while loop, then `notifyIfIdle`; repeats while callbacks scheduled effects, up to `MAX_IDLE_CYCLES` (100), then drops them and throws (microtask flush: `console.error`) |
+ | `runPendingEffectBatch` | Single pending effect runs directly; otherwise copies into `effectQueue`, clears `pendingEffects`, runs each via `runEffectIfActive` |
+ | `runEffectIfActive` | Guards against disposed effects (checks `effect.__deps`). On a throw: inside a microtask flush, `console.error` unless `onError` ran, then continue; otherwise clear `pendingEffects` and `effectQueue` and rethrow |
+ 
+ ### Subscriber Storage
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `getSubscribers` | Resolves subscriber set: `[SUBSCRIBERS]` symbol → `proxyCacheSubs` → create new |
+ | `storeSubscriberSet` | Stores via `Object.defineProperty` (extensible) or `proxyCacheSubs` WeakMap (non-extensible, or a Proxy target rejecting the define); arms `hasFallbackSubs` when a target that carries `[PROXY]` lands in the WeakMap |
+ | `findSubscribers` | Read-only lookup: `[SUBSCRIBERS]` symbol, else `proxyCacheSubs` only when `hasFallbackSubs` is set or the target has no `[PROXY]` (it never took symbols) |
+ 
+ ### Batch Internals
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `batch()` | Public API — increments `batchDepth`, runs fn, flushes at outermost boundary |
+ | `flushDirtyTargets` | Processes deferred writes from `dirtyTargets` at `batchDepth === 1` |
+-| `flushBatchEffects` | Runs deferred effect creations, flushes pending effects, then `notifySettledOutsideFlush` |
++| `flushBatchEffects` | Runs deferred effect creations, flushes pending effects, then `notifyIdleOutsideFlush` |
+ | `runDeferredEffects` | Executes effects created during batch |
+ | `clearBatchState` | Emergency cleanup — clears both pending sets, deferred creations, dirty targets |
+ | `handleBatchError` | Decrements depth, fires error hook, clears state at outermost |
+ 
+ ### Derive Internals
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `derive()` | Public API — overloaded for sync and `Promise` compute functions; creates `internalState` + Proxy with custom get/set traps |
+ | `computeDerive` | Fires `onCompute`, calls `computeFn`, routes thenables to the async handler, otherwise `writeDeriveValue`; `onError` + `isComputing` reset via catch/finally |
+ | `writeDeriveValue` | Writes `lastValue` and the reactive internal's `value` when changed (`Object.is`) |
+ | `setDerivePending` | Writes `pending` through the reactive proxy so the change notifies |
+ | `isThenable` | Detects a `then` function on the compute result |
+ 
+ ### Settle Observation
+ 
+ | Function | Purpose |
+ |----------|---------|
+-| `onSettled()` | Public API — adds a callback to `settledCallbacks`, returns an unsubscribe |
+-| `notifySettledIfQuiet` | Calls settled callbacks (errors swallowed) when nothing is pending or armed and work happened since the last call |
+-| `notifySettledOutsideFlush` | Notify entry outside `flushEffects`: sets `isNotifying` around `notifySettledIfQuiet` so callback writes queue, then `flushEffects` |
++| `onIdle()` | Public API — adds a callback to `idleCallbacks`, returns an unsubscribe |
++| `notifyIfIdle` | Calls idle callbacks (errors swallowed) when the graph is idle (no effect queued, no microtask flush armed) and work happened since the last call; a pending async derive does not block it |
++| `notifyIdleOutsideFlush` | Notify entry outside `flushEffects`: sets `isNotifying` around `notifyIfIdle` so callback writes queue, then `flushEffects` |
+ | `until()` | Public API — throws inside a reactive scope, rejects at once on an aborted signal, else wraps `runUntil` in a Promise |
+ | `runUntil` | Runs the predicate in an effect; resolves on a microtask once it is truthy and no read derive was pending; `timeout`/`signal` reject; a throwing predicate rejects with its error on a microtask instead of propagating to the writer; disposes its effect, timer and abort listener on resolve or reject |
+ 
+ ### Proxy Setup
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; falls back to `storeHooksForFrozenTarget` otherwise |
+ | `definePropertyOnTarget` | `Object.defineProperty` for `PROXY` and `HOOKS` symbols |
+ | `storeHooksForFrozenTarget` | Writes hooks to `frozenHooksCache` for non-extensible targets |
+@@ -212,22 +212,22 @@ ### Utilities
+ | `callHookSafe` | Invokes hook in try-catch — hook errors never propagate to core |
+ | `didEffectReadProp` | Checks if effect read a specific property (for infinite loop detection) |
+ | `depsMatch` | Compares two dep sets by size + per-target property sets |
+ 
+ ## Critical Invariants
+ 
+ 1. **Proxy deduplication**: Never create two Proxies for the same target. Always check `proxyCache` and `[PROXY]` symbol first.
+ 2. **Effect re-entrancy guard**: `__active` boolean on EffectFunction prevents an effect from running while already running.
+ 3. **Batch depth counting**: `batchDepth` must always return to 0. Incremented before `fn()`, decremented in all paths (success + error).
+ 4. **Cleanup order**: `cleanupEffect` removes from subscribers and clears `__prevDeps`/`__prevReads`. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).
+-5. **`flushEffects` non-recursion**: Uses a while loop draining `pendingEffects`. Effects triggered during a flush are added to `pendingEffects` and picked up by the next loop iteration. Effects triggered by `onSettled` callbacks are picked up by the next settle cycle of the same `flushEffects` call (at most `MAX_SETTLE_CYCLES`), or by the `flushEffects` in `notifySettledOutsideFlush`; callbacks never flush re-entrantly. Re-runs of microtask effects never join a sync flush; they wait for `armMicrotaskFlush`.
+-6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects (they have a `__parent`) and `schedule: 'microtask'` effects are exempt. Microtask re-runs are bounded instead: after `MAX_MICROTASK_FLUSH_CHAIN` (100) microtask flushes each armed from inside the previous one, `armMicrotaskFlush` drops `pendingMicroEffects` and reports with `console.error`. This bounds microtask self-writes, microtask cross-effect cycles and onSettled-to-microtask loops; sync cross-effect cycles stay uncapped.
++5. **`flushEffects` non-recursion**: Uses a while loop draining `pendingEffects`. Effects triggered during a flush are added to `pendingEffects` and picked up by the next loop iteration. Effects triggered by `onIdle` callbacks are picked up by the next idle cycle of the same `flushEffects` call (at most `MAX_IDLE_CYCLES`), or by the `flushEffects` in `notifyIdleOutsideFlush`; callbacks never flush re-entrantly. Re-runs of microtask effects never join a sync flush; they wait for `armMicrotaskFlush`.
++6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects (they have a `__parent`) and `schedule: 'microtask'` effects are exempt. Microtask re-runs are bounded instead: after `MAX_MICROTASK_FLUSH_CHAIN` (100) microtask flushes each armed from inside the previous one, `armMicrotaskFlush` drops `pendingMicroEffects` and reports with `console.error`. This bounds microtask self-writes, microtask cross-effect cycles and onIdle-to-microtask loops; sync cross-effect cycles stay uncapped.
+ 7. **Stable dependency skip**: `updateEffectSubscriptions` compares deps after execution via `tryRestoreStableDeps`. If stable, restores previous tracking structures (skips subscriber teardown/rebuild). If changed, only removes stale subscriber sets.
+ 8. **Batch dirty target processing**: `dirtyTargets` processed at `batchDepth === 1` (before decrement), so `scheduleSubscribersForTarget` sees `batchDepth > 0` and defers flushing. Processing after decrement would cause premature per-property flushing.
+ 9. **Tracking-only re-runs**: On effect re-execution, `isTrackingOnly = true` makes `trackDependency` call `recordEffectRead` in silent mode — skips subscriber set mutation and hook calls, only replays/records reads for dep comparison. Any throw must go through `clearRerunState` (done in `runEffectSafely`).
+ 
+ ## `derive()` Implementation
+ 
+ Creates an internal `state()` + `effect()` pair. Returns a Proxy over `internalState` with custom get/set traps. `value` and `pending` read through the reactive internal when inside an effect (for dependency propagation) or from the raw target otherwise. The `reactive` property controls the effect lifecycle (false → dispose, true → recreate); every other property reads `undefined` and rejects writes.
+ 
+ Async compute: a thenable result sets `pending = true` and bumps a `generation` counter. A synchronous result clears `pending`, and so does dispose. On settle, only the latest generation writes, and only while `pending` is still `true` (a later sync result or a dispose discards the settle, including `onError`): it sets `settleProcessed` and, inside a `batch`, writes the value (on resolve) and clears `pending`. A rejection also fires `onError`.
+ 
+diff --git a/src/index.ts b/src/index.ts
+index 355509b..64fc0b9 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -30,22 +30,22 @@ export type EffectSchedule = 'microtask' | 'sync'
+ export interface EffectOptions {
+ 	schedule?: EffectSchedule
+ }
+ 
+ /** Options for {@linkcode until}. */
+ export interface UntilOptions {
+ 	signal?: AbortSignal
+ 	timeout?: number
+ }
+ 
+-/** Callback for {@linkcode onSettled}, invoked when the graph reaches quiescence. */
+-export type SettledCallback = () => void
++/** Callback for {@linkcode onIdle}, invoked when the graph goes idle: no effect queued and no microtask flush armed. */
++export type IdleCallback = () => void
+ 
+ type ProxyTarget = Record<PropertyKey, unknown>
+ 
+ // Symbol definitions for internal tracking
+ const OWN_KEYS_SYMBOL: unique symbol = Symbol('[[ownKeysRead]]')
+ const SUBSCRIBERS: unique symbol = Symbol('[[beacon_subscribers]]')
+ const PROXY: unique symbol = Symbol('[[beacon_proxy]]')
+ const HOOKS: unique symbol = Symbol('[[beacon_hooks]]')
+ 
+ // Effect tracking state
+@@ -57,21 +57,21 @@ const pendingEffects: Set<EffectFunction> = new Set<EffectFunction>()
+ const pendingMicroEffects: Set<EffectFunction> = new Set<EffectFunction>()
+ const effectQueue: EffectFunction[] = []
+ const deferredEffectCreations: EffectFunction[] = []
+ let rerunTempDeps: Set<object> | null = null
+ let rerunTempReads: Map<object, Set<PropertyKey>> | null = null
+ let rerunReadList: (object | PropertyKey)[] | null = null
+ let rerunReadIndex = 0
+ let rerunStable = false
+ let buildingReadList: (object | PropertyKey)[] | null = null
+ const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
+-const settledCallbacks: Set<SettledCallback> = new Set<SettledCallback>()
++const idleCallbacks: Set<IdleCallback> = new Set<IdleCallback>()
+ let settleProcessed = false
+ let flushProcessed = false
+ let microtaskFlushArmed = false
+ let microtaskFlushing = false
+ // Consecutive microtask flushes each armed by the one before it, with no macrotask in between
+ let microtaskFlushChain = 0
+ let effectErrorHandled = false
+ let untilEvaluating = false
+ let untilSawPending = false
+ // ponytail: process-wide flag, armed only by a target sealed or frozen after state() and before its first
+@@ -88,21 +88,21 @@ const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<Effec
+ 	Set<EffectFunction>,
+ 	Map<PropertyKey, Set<EffectFunction>>
+ >()
+ 
+ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
+ 
+ // Function type for cached methods
+ type CachedMethod = (...args: unknown[]) => unknown
+ const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
+ const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+-const MAX_SETTLE_CYCLES = 100
++const MAX_IDLE_CYCLES = 100
+ const MAX_MICROTASK_FLUSH_CHAIN = 100
+ // Up to this many subscribers a scan is cheaper than the per-property index lookups
+ const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
+ 
+ // Hooks consulted on the hot path; stored on the effect only when at least one is set
+ type EffectInternalHooks = {
+ 	onDependencyAdd?: HookFunction<[object, PropertyKey, string | undefined]> | undefined
+ 	onDependencyChange?: HookFunction<[object, PropertyKey]> | undefined
+ 	onSchedule?: HookFunction<[string | undefined]> | undefined
+ }
+@@ -322,21 +322,21 @@ function armMicrotaskFlush(): void {
+ 					`Infinite loop detected: microtask effects kept rescheduling themselves for ${MAX_MICROTASK_FLUSH_CHAIN} flushes`
+ 				)
+ 			)
+ 			return
+ 		}
+ 		for (const eff of pendingMicroEffects) pendingEffects.add(eff)
+ 		pendingMicroEffects.clear()
+ 		microtaskFlushing = true
+ 		try {
+ 			flushEffects()
+-			notifySettledOutsideFlush()
++			notifyIdleOutsideFlush()
+ 		} finally {
+ 			microtaskFlushing = false
+ 		}
+ 	})
+ }
+ 
+ function addPendingEffect(subscriber: EffectFunction): void {
+ 	const isMicro = subscriber.__schedule === 'microtask'
+ 	const queue = isMicro ? pendingMicroEffects : pendingEffects
+ 	const prevSize = queue.size
+@@ -422,32 +422,32 @@ function runPendingEffectBatch(): void {
+ 	}
+ 	effectQueue.length = 0
+ }
+ 
+ function flushEffects(): void {
+ 	if (pendingEffects.size === 0) return
+ 	if (isNotifying) return
+ 	isNotifying = true
+ 
+ 	try {
+-		// A cycle after the first drains effects scheduled by onSettled callbacks, then notifies again
+-		for (let cycle = 0; cycle < MAX_SETTLE_CYCLES; cycle++) {
++		// A cycle after the first drains effects scheduled by onIdle callbacks, then notifies again
++		for (let cycle = 0; cycle < MAX_IDLE_CYCLES; cycle++) {
+ 			flushProcessed = true
+ 			while (pendingEffects.size > 0) {
+ 				runPendingEffectBatch()
+ 			}
+-			notifySettledIfQuiet()
++			notifyIfIdle()
+ 			if (pendingEffects.size === 0) return
+ 		}
+ 		pendingEffects.clear()
+ 		const err = new Error(
+-			`Infinite loop detected: onSettled callbacks kept scheduling effects for ${MAX_SETTLE_CYCLES} notifications`
++			`Infinite loop detected: onIdle callbacks kept scheduling effects for ${MAX_IDLE_CYCLES} notifications`
+ 		)
+ 		if (!microtaskFlushing) throw err
+ 		console.error(err)
+ 	} finally {
+ 		isNotifying = false
+ 	}
+ }
+ 
+ function resetEffectTracking(eff: EffectFunction): void {
+ 	pendingEffects.delete(eff)
+@@ -1106,21 +1106,21 @@ function runDeferredEffects(): void {
+ 		const eff = deferredEffectCreations[i]
+ 		if (eff) eff()
+ 	}
+ 	deferredEffectCreations.length = 0
+ }
+ 
+ function flushBatchEffects(): void {
+ 	try {
+ 		runDeferredEffects()
+ 		if (pendingEffects.size > 0) flushEffects()
+-		notifySettledOutsideFlush()
++		notifyIdleOutsideFlush()
+ 	} catch (err) {
+ 		clearBatchState()
+ 		throw err
+ 	}
+ }
+ 
+ function handleBatchError(
+ 	err: unknown,
+ 	onBatchError: HookFunction<[Error, number]> | undefined,
+ 	entryDepth: number
+@@ -1357,51 +1357,51 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
+ 					setDerivePending(internalState, reactiveInternal, false)
+ 					reactiveInternal = null
+ 				}
+ 				return true
+ 			}
+ 			return false
+ 		},
+ 	}) as ComputedValue<T>
+ }
+ 
+-function notifySettledIfQuiet(): void {
++function notifyIfIdle(): void {
+ 	if (pendingEffects.size > 0 || effectQueue.length > 0 || microtaskFlushArmed) return
+ 	if (!flushProcessed && !settleProcessed) return
+ 	flushProcessed = false
+ 	settleProcessed = false
+ 	// runs on every flush: skip creating an iterator when nothing listens
+-	if (settledCallbacks.size === 0) return
+-	for (const callback of settledCallbacks) {
++	if (idleCallbacks.size === 0) return
++	for (const callback of idleCallbacks) {
+ 		try {
+ 			callback()
+ 		} catch {}
+ 	}
+ }
+ 
+ // Callback writes queue while isNotifying is set; outside a flush they are flushed once every callback has returned
+-function notifySettledOutsideFlush(): void {
++function notifyIdleOutsideFlush(): void {
+ 	if (isNotifying) {
+-		notifySettledIfQuiet()
++		notifyIfIdle()
+ 		return
+ 	}
+ 	isNotifying = true
+-	notifySettledIfQuiet()
++	notifyIfIdle()
+ 	isNotifying = false
+ 	flushEffects()
+ }
+ 
+-/** Invoke a callback whenever the reactive graph reaches quiescence after processing work. Returns an unsubscribe. */
+-export function onSettled(callback: SettledCallback): Unsubscribe {
+-	settledCallbacks.add(callback)
++/** Invoke a callback whenever the reactive graph goes idle after processing work. A pending async computation does not keep the graph busy. Returns an unsubscribe. */
++export function onIdle(callback: IdleCallback): Unsubscribe {
++	idleCallbacks.add(callback)
+ 	return (): void => {
+-		settledCallbacks.delete(callback)
++		idleCallbacks.delete(callback)
+ 	}
+ }
+ 
+ function runUntil<T>(
+ 	predicate: () => T,
+ 	options: UntilOptions | undefined,
+ 	resolve: (value: T) => void,
+ 	reject: (reason: unknown) => void
+ ): void {
+ 	const signal = options?.signal
+diff --git a/tests/derive-async.test.ts b/tests/derive-async.test.ts
+index 8f3828f..81a7e0f 100644
+--- a/tests/derive-async.test.ts
++++ b/tests/derive-async.test.ts
+@@ -1,13 +1,13 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+-import { derive, effect, onSettled, state, until } from '../src/index.ts'
++import { derive, effect, onIdle, state, until } from '../src/index.ts'
+ 
+ interface Deferred<T> {
+ 	promise: Promise<T>
+ 	reject: (reason?: unknown) => void
+ 	resolve: (value: T) => void
+ }
+ 
+ function deferred<T>(): Deferred<T> {
+ 	let reject: (reason?: unknown) => void = (): void => {}
+ 	let resolve: (value: T) => void = (): void => {}
+@@ -300,25 +300,25 @@ describe('Derive Async', {
+ 		s.mode = 'fast'
+ 		slow.resolve('late')
+ 		await tick()
+ 		assert.equal(computed.value, undefined)
+ 		computed.reactive = true
+ 		assert.equal(computed.value, 'late')
+ 		assert.equal(computed.pending, false)
+ 		computed.reactive = false
+ 	})
+ 
+-	it('does not notify onSettled for a settlement that arrives after dispose', async (): Promise<void> => {
++	it('does not notify onIdle for a settlement that arrives after dispose', async (): Promise<void> => {
+ 		const slow = deferred<number>()
+ 		const computed = derive((): Promise<number> => slow.promise)
+ 		computed.reactive = false
+ 		await tick()
+-		let settled = 0
+-		const off = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const off = onIdle((): void => {
++			idle++
+ 		})
+ 		slow.resolve(1)
+ 		await tick()
+ 		off()
+-		assert.equal(settled, 0)
++		assert.equal(idle, 0)
+ 	})
+ })
+diff --git a/tests/effect-scheduling.test.ts b/tests/effect-scheduling.test.ts
+index 48795cd..bc8bdd9 100644
+--- a/tests/effect-scheduling.test.ts
++++ b/tests/effect-scheduling.test.ts
+@@ -1,13 +1,13 @@
+ import assert from 'node:assert/strict'
+ import { describe, it, type TestContext } from 'node:test'
+-import { batch, effect, onSettled, state } from '../src/index.ts'
++import { batch, effect, onIdle, state } from '../src/index.ts'
+ 
+ const microtick = (): Promise<void> => new Promise((resolve): void => queueMicrotask(resolve))
+ 
+ async function turn(): Promise<void> {
+ 	await microtick()
+ 	await microtick()
+ }
+ 
+ const macrotask = (): Promise<void> => new Promise((resolve): void => void setTimeout(resolve, 0))
+ 
+@@ -214,49 +214,49 @@ describe('Effect Scheduling', {
+ 			}
+ 		)
+ 		await macrotask()
+ 		assert.equal(runsA, 51)
+ 		assert.equal(runsB, 51)
+ 		assert.equal(logged.mock.callCount(), 1)
+ 		stopA()
+ 		stopB()
+ 	})
+ 
+-	it('drops a microtask effect woken by every onSettled write after 100 chained flushes', async (t: TestContext): Promise<void> => {
++	it('drops a microtask effect woken by every onIdle write after 100 chained flushes', async (t: TestContext): Promise<void> => {
+ 		const logged = t.mock.method(console, 'error', (): void => {})
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		let runs = 0
+-		let settles = 0
++		let idles = 0
+ 		const stop = effect(
+ 			(): void => {
+ 				void $s.n
+ 				runs++
+ 				if (runs >= RUN_CAP) stop()
+ 			},
+ 			'reader',
+ 			undefined,
+ 			{
+ 				schedule: 'microtask',
+ 			}
+ 		)
+-		const stopSettled = onSettled((): void => {
+-			settles++
++		const stopIdle = onIdle((): void => {
++			idles++
+ 			$s.n = $s.n + 1
+ 		})
+ 		$s.n = 1
+ 		await macrotask()
+ 		assert.equal(runs, 101)
+-		assert.equal(settles, 100)
++		assert.equal(idles, 100)
+ 		assert.equal(logged.mock.callCount(), 1)
+-		stopSettled()
++		stopIdle()
+ 		stop()
+ 	})
+ 
+ 	it('lets a converging microtask self-write settle without error', async (t: TestContext): Promise<void> => {
+ 		const logged = t.mock.method(console, 'error', (): void => {})
+ 		const $s = state({
+ 			n: 500,
+ 		})
+ 		let runs = 0
+ 		const stop = effect(
+@@ -366,23 +366,23 @@ describe('Effect Scheduling', {
+ 		stopMicro()
+ 		await turn()
+ 	})
+ 
+ 	it('routes a microtask effect error to onError and keeps flushing its siblings', async (): Promise<void> => {
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		const errors: string[] = []
+ 		const seen: number[] = []
+-		let settled = 0
+-		const stopSettled = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stopIdle = onIdle((): void => {
++			idle++
+ 		})
+ 		const stopFailing = effect(
+ 			(): void => {
+ 				if ($s.n > 0) throw new Error('boom')
+ 			},
+ 			'failing',
+ 			{
+ 				onError: (err: Error): void => {
+ 					errors.push(err.message)
+ 				},
+@@ -398,28 +398,28 @@ describe('Effect Scheduling', {
+ 			'sibling',
+ 			undefined,
+ 			{
+ 				schedule: 'microtask',
+ 			}
+ 		)
+ 		$s.n = 1
+ 		await turn()
+ 		assert.deepEqual(errors, ['boom'])
+ 		assert.deepEqual(seen, [0, 1])
+-		assert.equal(settled, 1)
++		assert.equal(idle, 1)
+ 		$s.n = 2
+ 		await turn()
+ 		assert.deepEqual(errors, ['boom'])
+ 		assert.deepEqual(seen, [0, 1, 2])
+ 		stopFailing()
+ 		stopSibling()
+-		stopSettled()
++		stopIdle()
+ 	})
+ 
+ 	it('reports a microtask effect error without onError to console.error', async (t: TestContext): Promise<void> => {
+ 		const logged = t.mock.method(console, 'error', (): void => {})
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		const stop = effect(
+ 			(): void => {
+ 				if ($s.n > 0) throw new Error('unhandled')
+diff --git a/tests/settle-observation.test.ts b/tests/settle-observation.test.ts
+index 277149a..da2a4a5 100644
+--- a/tests/settle-observation.test.ts
++++ b/tests/settle-observation.test.ts
+@@ -1,14 +1,14 @@
+ import assert from 'node:assert/strict'
+ import { getEventListeners } from 'node:events'
+ import { describe, it, type TestContext } from 'node:test'
+-import { batch, derive, effect, onSettled, state, until } from '../src/index.ts'
++import { batch, derive, effect, onIdle, state, until } from '../src/index.ts'
+ 
+ interface Deferred<T> {
+ 	promise: Promise<T>
+ 	resolve: (value: T) => void
+ }
+ 
+ function deferred<T>(): Deferred<T> {
+ 	let resolve: (value: T) => void = (): void => {}
+ 	const promise = new Promise<T>((res): void => {
+ 		resolve = res
+@@ -126,46 +126,75 @@ describe('Settle Observation', {
+ 		s.n = 1
+ 		await p
+ 		await tick()
+ 		const after = evaluations
+ 		s.n = 2
+ 		await tick()
+ 		await tick()
+ 		assert.equal(evaluations, after)
+ 	})
+ 
+-	it('onSettled fires once per batched flush and stops after unsubscribe', async (): Promise<void> => {
++	it('onIdle fires once per batched flush and stops after unsubscribe', async (): Promise<void> => {
+ 		const s = state({
+ 			a: 0,
+ 			b: 0,
+ 		})
+ 		const stopReader = effect((): void => {
+ 			void s.a
+ 			void s.b
+ 		})
+ 		let calls = 0
+-		const stop = onSettled((): void => {
++		const stop = onIdle((): void => {
+ 			calls++
+ 		})
+ 		batch((): void => {
+ 			s.a = 1
+ 			s.b = 1
+ 		})
+ 		await tick()
+ 		assert.equal(calls, 1)
+ 		stop()
+ 		s.a = 2
+ 		await tick()
+ 		assert.equal(calls, 1)
+ 		stopReader()
+ 	})
+ 
++	it('onIdle fires while an async derived value is pending and again after it settles', async (): Promise<void> => {
++		const $s = state({
++			n: 0,
++		})
++		let current = deferred<number>()
++		const derived = derive((): Promise<number> => {
++			void $s.n
++			return current.promise
++		})
++		current.resolve(0)
++		await tick()
++		let idle = 0
++		const stop = onIdle((): void => {
++			idle++
++		})
++		current = deferred<number>()
++		batch((): void => {
++			$s.n = 1
++		})
++		assert.equal(derived.pending, true)
++		assert.equal(idle, 1)
++		current.resolve(1)
++		await tick()
++		assert.equal(derived.pending, false)
++		assert.equal(idle, 2)
++		stop()
++		derived.reactive = false
++	})
++
+ 	it('until rejects when the signal aborts mid-wait', async (): Promise<void> => {
+ 		const controller = new AbortController()
+ 		const s = state({
+ 			ready: false,
+ 		})
+ 		const p = until((): boolean => s.ready, {
+ 			signal: controller.signal,
+ 		})
+ 		controller.abort(new Error('changed mind'))
+ 		await assert.rejects(p, /changed mind/)
+@@ -174,79 +203,79 @@ describe('Settle Observation', {
+ 	it('until disposes its effect after the signal aborts', async (): Promise<void> => {
+ 		const controller = new AbortController()
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		const p = until((): boolean => $s.n > 0, {
+ 			signal: controller.signal,
+ 		})
+ 		controller.abort(new Error('changed mind'))
+ 		await assert.rejects(p, /changed mind/)
+-		let settled = 0
+-		const stopSettled = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stopIdle = onIdle((): void => {
++			idle++
+ 		})
+ 		$s.n = 1
+ 		await tick()
+-		assert.equal(settled, 0)
+-		stopSettled()
++		assert.equal(idle, 0)
++		stopIdle()
+ 	})
+ 
+ 	it('until disposes its effect after it times out', async (): Promise<void> => {
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		await assert.rejects(
+ 			until((): boolean => $s.n > 0, {
+ 				timeout: 20,
+ 			}),
+ 			/timed out/
+ 		)
+-		let settled = 0
+-		const stopSettled = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stopIdle = onIdle((): void => {
++			idle++
+ 		})
+ 		$s.n = 1
+ 		await tick()
+-		assert.equal(settled, 0)
+-		stopSettled()
++		assert.equal(idle, 0)
++		stopIdle()
+ 	})
+ 
+ 	it('until disposes its effect after it resolves', async (): Promise<void> => {
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		const p = until((): boolean => $s.n > 0)
+ 		$s.n = 1
+ 		assert.equal(await p, true)
+-		let settled = 0
+-		const stopSettled = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stopIdle = onIdle((): void => {
++			idle++
+ 		})
+ 		$s.n = 2
+ 		await tick()
+-		assert.equal(settled, 0)
+-		stopSettled()
++		assert.equal(idle, 0)
++		stopIdle()
+ 	})
+ 
+-	it('onSettled keeps notifying other callbacks when one throws', async (): Promise<void> => {
++	it('onIdle keeps notifying other callbacks when one throws', async (): Promise<void> => {
+ 		const s = state({
+ 			n: 0,
+ 		})
+ 		const stopReader = effect((): void => {
+ 			void s.n
+ 		})
+ 		let calls = 0
+-		const stopThrower = onSettled((): void => {
++		const stopThrower = onIdle((): void => {
+ 			throw new Error('cb boom')
+ 		})
+-		const stop = onSettled((): void => {
++		const stop = onIdle((): void => {
+ 			calls++
+ 		})
+ 		s.n = 1
+ 		await tick()
+ 		assert.equal(calls, 1)
+ 		stopThrower()
+ 		stop()
+ 		stopReader()
+ 	})
+ 
+@@ -283,56 +312,56 @@ describe('Settle Observation', {
+ 		pendingDerived.reactive = false
+ 	})
+ 
+ 	it('drains the flush queue after a throwing multi-effect flush', (): void => {
+ 		const $s = state({
+ 			k: 0,
+ 			m: 0,
+ 			n: 0,
+ 		})
+ 		let staleRuns = 0
+-		let settled = 0
++		let idle = 0
+ 		const stopFailing = effect((): void => {
+ 			if ($s.n > 0) throw new Error('boom')
+ 		})
+ 		const stopStale = effect((): void => {
+ 			void $s.n
+ 			staleRuns++
+ 		})
+ 		const stopK = effect((): void => {
+ 			void $s.k
+ 		})
+ 		const stopM1 = effect((): void => {
+ 			void $s.m
+ 		})
+ 		const stopM2 = effect((): void => {
+ 			void $s.m
+ 		})
+-		const stopSettled = onSettled((): void => {
+-			settled++
++		const stopIdle = onIdle((): void => {
++			idle++
+ 		})
+ 		assert.throws((): void => {
+ 			$s.n = 1
+ 		}, /boom/)
+ 		assert.equal(staleRuns, 1)
+-		settled = 0
++		idle = 0
+ 		$s.k = 1
+-		assert.equal(settled, 1)
++		assert.equal(idle, 1)
+ 		$s.m = 1
+ 		assert.equal(staleRuns, 1)
+-		assert.equal(settled, 2)
++		assert.equal(idle, 2)
+ 		stopFailing()
+ 		stopStale()
+ 		stopK()
+ 		stopM1()
+ 		stopM2()
+-		stopSettled()
++		stopIdle()
+ 	})
+ 	it('until rejects with the error a re-run predicate throws and clears its timer', async (): Promise<void> => {
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		const timersBefore = activeTimers()
+ 		let evaluations = 0
+ 		let outcome = 'pending'
+ 		void until(
+ 			(): boolean => {
+@@ -427,51 +456,51 @@ describe('Settle Observation', {
+ 
+ 	it('runs effects for a callback write and notifies again after them', (): void => {
+ 		const $s = state({
+ 			a: 0,
+ 			b: 0,
+ 		})
+ 		const seen: string[] = []
+ 		const stopReader = effect((): void => {
+ 			seen.push(`${$s.a},${$s.b}`)
+ 		})
+-		let settled = 0
+-		const stop = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stop = onIdle((): void => {
++			idle++
+ 			if ($s.a === 1 && $s.b === 0) $s.b = 99
+ 		})
+ 		$s.a = 1
+ 		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
+-		assert.equal(settled, 2)
++		assert.equal(idle, 2)
+ 		stop()
+ 		stopReader()
+ 	})
+ 
+ 	it('runs effects for a callback write after a batch', (): void => {
+ 		const $s = state({
+ 			a: 0,
+ 			b: 0,
+ 		})
+ 		const seen: string[] = []
+ 		const stopReader = effect((): void => {
+ 			seen.push(`${$s.a},${$s.b}`)
+ 		})
+-		let settled = 0
+-		const stop = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stop = onIdle((): void => {
++			idle++
+ 			if ($s.a === 1 && $s.b === 0) $s.b = 99
+ 		})
+ 		batch((): void => {
+ 			$s.a = 1
+ 		})
+ 		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
+-		assert.equal(settled, 2)
++		assert.equal(idle, 2)
+ 		stop()
+ 		stopReader()
+ 	})
+ 
+ 	it('runs effects for a callback write in a microtask flush', async (): Promise<void> => {
+ 		const $trigger = state({
+ 			go: 0,
+ 		})
+ 		const $s = state({
+ 			a: 0,
+@@ -484,47 +513,47 @@ describe('Settle Observation', {
+ 			undefined,
+ 			undefined,
+ 			{
+ 				schedule: 'microtask',
+ 			}
+ 		)
+ 		const seen: string[] = []
+ 		const stopReader = effect((): void => {
+ 			seen.push(`${$s.a},${$s.b}`)
+ 		})
+-		let settled = 0
+-		const stop = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stop = onIdle((): void => {
++			idle++
+ 			if ($s.a === 1 && $s.b === 0) $s.b = 99
+ 		})
+ 		$trigger.go = 1
+ 		await tick()
+ 		assert.deepEqual(seen, ['0,0', '1,0', '1,99'])
+-		assert.equal(settled, 2)
++		assert.equal(idle, 2)
+ 		stop()
+ 		stopReader()
+ 		stopWriter()
+ 	})
+ 
+ 	it('runs effects for a callback write after the callbacks when an async settle has no readers', async (): Promise<void> => {
+ 		const $s = state({
+ 			b: 0,
+ 		})
+ 		const current = deferred<number>()
+ 		const computed = derive((): Promise<number> => current.promise)
+ 		const log: string[] = []
+ 		const stopReader = effect((): void => {
+ 			log.push(`effect b=${$s.b}`)
+ 		})
+-		let settled = 0
+-		const stop = onSettled((): void => {
+-			const call = ++settled
++		let idle = 0
++		const stop = onIdle((): void => {
++			const call = ++idle
+ 			log.push(`enter ${call}`)
+ 			if (call === 1) $s.b = 99
+ 			log.push(`exit ${call}`)
+ 		})
+ 		current.resolve(5)
+ 		await tick()
+ 		assert.deepEqual(log, ['effect b=0', 'enter 1', 'exit 1', 'effect b=99', 'enter 2', 'exit 2'])
+ 		stop()
+ 		stopReader()
+ 		computed.reactive = false
+@@ -532,84 +561,84 @@ describe('Settle Observation', {
+ 
+ 	it('runs effects for a batch inside a callback once the callbacks return', (): void => {
+ 		const $s = state({
+ 			a: 0,
+ 			b: 0,
+ 		})
+ 		const log: string[] = []
+ 		const stopReader = effect((): void => {
+ 			log.push(`effect ${$s.a},${$s.b}`)
+ 		})
+-		let settled = 0
+-		const stop = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stop = onIdle((): void => {
++			idle++
+ 			if ($s.b !== 0) return
+ 			batch((): void => {
+ 				$s.b = 99
+ 			})
+ 			log.push('batch returned')
+ 		})
+ 		$s.a = 1
+ 		assert.deepEqual(log, ['effect 0,0', 'effect 1,0', 'batch returned', 'effect 1,99'])
+-		assert.equal(settled, 2)
++		assert.equal(idle, 2)
+ 		stop()
+ 		stopReader()
+ 	})
+ 
+-	it('until resolves on a write made inside an onSettled callback', async (): Promise<void> => {
++	it('until resolves on a write made inside an onIdle callback', async (): Promise<void> => {
+ 		const $s = state({
+ 			a: 0,
+ 			b: 0,
+ 		})
+ 		const stopReader = effect((): void => {
+ 			void $s.a
+ 		})
+-		const stop = onSettled((): void => {
++		const stop = onIdle((): void => {
+ 			if ($s.a === 1) $s.b = 99
+ 		})
+ 		const p = until((): boolean => $s.b === 99, {
+ 			timeout: 200,
+ 		})
+ 		$s.a = 1
+ 		assert.equal(await p, true)
+ 		stop()
+ 		stopReader()
+ 	})
+ 
+-	it('throws when onSettled callbacks keep scheduling effects', (): void => {
++	it('throws when onIdle callbacks keep scheduling effects', (): void => {
+ 		const $s = state({
+ 			a: 0,
+ 			n: 0,
+ 		})
+ 		let runs = 0
+ 		const stopReader = effect((): void => {
+ 			void $s.a
+ 			void $s.n
+ 			runs++
+ 		})
+-		let settled = 0
+-		const stop = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stop = onIdle((): void => {
++			idle++
+ 			$s.n++
+ 		})
+ 		assert.throws((): void => {
+ 			$s.a = 1
+-		}, /Infinite loop detected: onSettled callbacks kept scheduling effects/)
+-		assert.equal(settled, 100)
++		}, /Infinite loop detected: onIdle callbacks kept scheduling effects/)
++		assert.equal(idle, 100)
+ 		assert.equal(runs, 101)
+ 		stop()
+ 		$s.a = 2
+ 		assert.equal(runs, 102)
+ 		stopReader()
+ 	})
+ 
+-	it('reports a runaway onSettled callback in a microtask flush', async (t: TestContext): Promise<void> => {
++	it('reports a runaway onIdle callback in a microtask flush', async (t: TestContext): Promise<void> => {
+ 		const logged = t.mock.method(console, 'error', (): void => {})
+ 		const $trigger = state({
+ 			go: 0,
+ 		})
+ 		const $s = state({
+ 			a: 0,
+ 			n: 0,
+ 		})
+ 		const stopWriter = effect(
+ 			(): void => {
+@@ -618,25 +647,25 @@ describe('Settle Observation', {
+ 			undefined,
+ 			undefined,
+ 			{
+ 				schedule: 'microtask',
+ 			}
+ 		)
+ 		const stopReader = effect((): void => {
+ 			void $s.a
+ 			void $s.n
+ 		})
+-		let settled = 0
+-		const stop = onSettled((): void => {
+-			settled++
++		let idle = 0
++		const stop = onIdle((): void => {
++			idle++
+ 			$s.n++
+ 		})
+ 		$trigger.go = 1
+ 		await tick()
+-		assert.equal(settled, 100)
++		assert.equal(idle, 100)
+ 		assert.equal(logged.mock.callCount(), 1)
+-		assert.match(String(logged.mock.calls[0]?.arguments[0]), /Infinite loop detected: onSettled/)
++		assert.match(String(logged.mock.calls[0]?.arguments[0]), /Infinite loop detected: onIdle/)
+ 		stop()
+ 		stopReader()
+ 		stopWriter()
+ 	})
+ })
