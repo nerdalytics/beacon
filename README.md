@@ -2,17 +2,7 @@
 
 > Reactive dependency graph runtime for Node.js backends. Tracks dependencies between state properties and propagates updates automatically.
 
-[![pm:yarn](https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white)](https://yarnpkg.com/)
-[![pm:pnpm](https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
-[![pm:jsr](https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black)](https://jsr.io/@nerdalytics/beacon)
-[![pm:vlt](https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white)](https://vlt.sh/)
-[![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
-[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2002.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2002.0.0)
-
-[![tech:nodejs](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
-[![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
-[![linter:biome](https://img.shields.io/badge/Biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white)](https://biomejs.dev/)
-[![license:mit](https://img.shields.io/badge/MIT-blue?style=for-the-badge)](https://github.com/nerdalytics/beacon/blob/trunk/LICENSE)
+[![docs:handbook](https://img.shields.io/badge/Handbook-nerdalytics.github.io%2Fbeacon-1A1A2E?style=for-the-badge&logo=readthedocs&logoColor=white)](https://nerdalytics.github.io/beacon/)
 
 Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
 
