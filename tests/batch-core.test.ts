@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { batch } from '../src/index.ts'
+import { batch, effect, state } from '../src/index.ts'
 
 describe('Batch Core', {
 	concurrency: true,
@@ -118,6 +118,29 @@ describe('Batch Core', {
 
 		const fn = batch((): (() => string) => (): string => 'function result')
 		assert.strictEqual(fn(), 'function result')
+	})
+
+	it('runs an effect once when two arrays it reads are both mutated in one batch', (): void => {
+		const $lists = state({
+			a: [1],
+			b: [2],
+		})
+		let effectCount = 0
+
+		const dispose = effect((): void => {
+			effectCount++
+			void $lists.a.length
+			void $lists.b.length
+		})
+		effectCount = 0
+
+		batch((): void => {
+			$lists.a.push(3)
+			$lists.b.push(4)
+		})
+
+		assert.strictEqual(effectCount, 1)
+		dispose()
 	})
 
 	it('allows deep nesting', (): void => {

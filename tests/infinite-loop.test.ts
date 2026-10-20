@@ -253,6 +253,23 @@ describe('Infinite Loop Detection', {
 		assert.strictEqual(errorThrown, true, 'An infinite loop error should have been thrown')
 	})
 
+	it('should name the effect and property in the error for a named effect', (): void => {
+		const $count = state({
+			value: 0,
+		})
+
+		assert.throws(
+			(): void => {
+				effect((): void => {
+					$count.value = $count.value + 1
+				}, 'counter')
+			},
+			{
+				message: 'Infinite loop detected: effect "counter" cannot update property "value" it depends on',
+			}
+		)
+	})
+
 	it('should detect infinite loops in oscillating patterns', (): void => {
 		const $a = state({
 			value: 5,

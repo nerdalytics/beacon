@@ -173,6 +173,33 @@ describe('Derive Core', {
 		assert.strictEqual($doubled.value, 20)
 	})
 
+	it('reads an unknown property as undefined', (): void => {
+		const $count = state({
+			value: 5,
+		})
+		const $doubled = derive((): number => $count.value * 2)
+
+		assert.strictEqual(Reflect.get($doubled, 'other'), undefined)
+
+		$doubled.reactive = false
+	})
+
+	it('rejects assigning value', (): void => {
+		const $count = state({
+			value: 5,
+		})
+		const $doubled = derive((): number => $count.value * 2)
+		// The type marks value readonly; the cast reaches the proxy's set trap as a runtime caller would
+		const writable = $doubled as unknown as { value: number }
+
+		assert.throws((): void => {
+			writable.value = 99
+		}, TypeError)
+		assert.strictEqual($doubled.value, 10)
+
+		$doubled.reactive = false
+	})
+
 	it('propagates errors from computation', (): void => {
 		const $toggle = state({
 			value: false,
