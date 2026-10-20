@@ -1,13 +1,13 @@
 # Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo-v2.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
 
-> Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.
+> Reactive dependency graph runtime for Node.js backends. Tracks dependencies between state properties and propagates updates automatically.
 
 [![pm:yarn](https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white)](https://yarnpkg.com/)
 [![pm:pnpm](https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
 [![pm:jsr](https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black)](https://jsr.io/@nerdalytics/beacon)
 [![pm:vlt](https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white)](https://vlt.sh/)
 [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
-[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2001.0.1)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2001.0.0)
+[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2002.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2002.0.0)
 
 [![tech:nodejs](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
@@ -39,15 +39,15 @@ vlt install @nerdalytics/beacon
 ```typescript
 import { state, derive, effect } from '@nerdalytics/beacon';
 
-const signal = state({ count: 0 });
-const doubled = derive(() => signal.count * 2);
+const counter = state({ count: 0 });
+const doubled = derive(() => counter.count * 2);
 
 const dispose = effect(() => {
-  console.log(`Count: ${signal.count}, Doubled: ${doubled.value}`);
+  console.log(`Count: ${counter.count}, Doubled: ${doubled.value}`);
 });
 // => "Count: 0, Doubled: 0"
 
-signal.count = 5;
+counter.count = 5;
 // => "Count: 5, Doubled: 10"
 
 dispose();
@@ -61,7 +61,7 @@ doubled.reactive = false;
 `derive` accepts async compute functions. While a computation is pending the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
 
 ```typescript
-const user = derive(async () => (await db.users.find(signal.id)) ?? null);
+const user = derive(async () => (await db.users.find(route.id)) ?? null);
 effect(() => {
   if (user.pending) return;
   console.log(user.value);

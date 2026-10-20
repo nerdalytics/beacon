@@ -1,6 +1,6 @@
 {
 	"author": "nerdalytics",
-	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.",
+	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between state properties and propagates updates automatically.",
 	"devDependencies": {
 		"@biomejs/biome": "2.4.11",
 		"@types/node": "25.5.2",
@@ -69,6 +69,6 @@
 	},
 	"sideEffects": false,
 	"type": "module",
-	"version": "2001.0.1",
+	"version": "2002.0.0",
 	"types": "dist/src/index.d.ts"
 }

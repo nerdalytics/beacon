@@ -40,7 +40,7 @@ Single-file core: `src/index.ts` (~1400 lines). Zero external dependencies. Prox
 ## Versioning
 
 Epoch Semantic Versioning: `{EPOCH * 1000 + MAJOR}.MINOR.PATCH`
-- Current: v2001.0.1 (`package.json` and `jsr.json` must match)
+- Current: v2002.0.0 (`package.json` and `jsr.json` must match)
 
 Commit format: `<type>(<scope>): <summary>` — imperative, present tense, no period, under 72 chars.
 Types: `epoch`, `breaking`, `feat`, `fix`, `perf`, `refactor`, `style`, `test`, `docs`, `chore`
