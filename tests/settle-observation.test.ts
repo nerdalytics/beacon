@@ -133,6 +133,21 @@ describe('Settle Observation', {
 		assert.equal(evaluations, after)
 	})
 
+	it('until stops evaluating on a write made before its resolution microtask', async (): Promise<void> => {
+		const $s = state({
+			n: 0,
+		})
+		let evaluations = 0
+		const p = until((): number => {
+			evaluations++
+			return $s.n
+		})
+		$s.n = 1
+		$s.n = 2
+		assert.equal(await p, 1)
+		assert.equal(evaluations, 2)
+	})
+
 	it('onIdle fires once per batched flush and stops after unsubscribe', async (): Promise<void> => {
 		const s = state({
 			a: 0,
@@ -198,6 +213,40 @@ describe('Settle Observation', {
 		})
 		controller.abort(new Error('changed mind'))
 		await assert.rejects(p, /changed mind/)
+	})
+
+	it('until resolves when the signal aborts after the predicate turned truthy', async (): Promise<void> => {
+		const controller = new AbortController()
+		const $s = state({
+			ready: false,
+		})
+		const p = until((): boolean => $s.ready, {
+			signal: controller.signal,
+		})
+		$s.ready = true
+		controller.abort(new Error('too late'))
+		assert.equal(await p, true)
+	})
+
+	it('until rejects with the abort reason when the predicate aborts the signal on its first evaluation', async (): Promise<void> => {
+		const controller = new AbortController()
+		const $s = state({
+			n: 0,
+		})
+		let evaluations = 0
+		const p = until(
+			(): boolean => {
+				evaluations++
+				controller.abort(new Error('gave up'))
+				return $s.n > 0
+			},
+			{
+				signal: controller.signal,
+			}
+		)
+		await assert.rejects(p, /gave up/)
+		$s.n = 1
+		assert.equal(evaluations, 1)
 	})
 
 	it('until disposes its effect after the signal aborts', async (): Promise<void> => {

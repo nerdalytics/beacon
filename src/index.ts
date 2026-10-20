@@ -481,7 +481,6 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 }
 
 function setContainsAll(superset: Set<PropertyKey>, subset: Set<PropertyKey>): boolean {
-	if (superset === subset) return true
 	for (const prop of subset) {
 		if (!superset.has(prop)) return false
 	}
@@ -493,10 +492,9 @@ function propsMatch(
 	newReads: Map<object, Set<PropertyKey>>,
 	target: object
 ): boolean {
-	const prevProps = prevReads.get(target)
-	const newProps = newReads.get(target)
-	if (!prevProps || !newProps) return false
-	if (prevProps === newProps) return true
+	// every builder of a reads map adds the target's Set together with the deps entry, so both lookups are defined
+	const prevProps = prevReads.get(target) as Set<PropertyKey>
+	const newProps = newReads.get(target) as Set<PropertyKey>
 	if (prevProps.size !== newProps.size) return false
 	return setContainsAll(prevProps, newProps)
 }
@@ -520,7 +518,6 @@ function depsMatch(
 	newReads: Map<object, Set<PropertyKey>>
 ): boolean {
 	if (prevDeps.size !== newDeps.size) return false
-	if (prevDeps === newDeps && prevReads === newReads) return true
 	return allDepsPropsMatch(prevDeps, newDeps, prevReads, newReads)
 }
 
@@ -578,8 +575,6 @@ function createGetHandler<T>(
 			if (currentEffect) trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
 			if (value === null || typeof value !== 'object') return value
-			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
-			if (wrapped) return wrapped
 			return wrapNestedObject(value as object, undefined)
 		}
 	}
@@ -832,20 +827,10 @@ function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newD
 	}
 }
 
-function tryRestoreStableDeps(
-	eff: EffectFunction,
-	prevDeps: Set<object> | undefined,
-	prevReads: Map<object, Set<PropertyKey>> | undefined,
-	newDeps: Set<object> | undefined,
-	newReads: Map<object, Set<PropertyKey>> | undefined
-): boolean {
-	if (!prevDeps || !prevReads || !newDeps || !newReads) return false
-	if (!depsMatch(prevDeps, newDeps, prevReads, newReads)) return false
-	eff.__reads = prevReads
-	eff.__deps = prevDeps
-	return true
-}
-
+// Reached on a first run, or on a re-run handleRerunResult did not keep. A re-run can arrive here with deps
+// identical to prevDeps: a child effect that throws on its first run clears the re-run state in its own catch,
+// and when the parent catches that throw, no temp collections remain, so handleRerunResult returns false.
+// On identical sets every step below is a no-op, so no stable-dependency restore path is needed before them.
 function updateEffectSubscriptions(
 	eff: EffectFunction,
 	prevDeps: Set<object> | undefined,
@@ -853,9 +838,7 @@ function updateEffectSubscriptions(
 ): void {
 	const newDeps = eff.__deps
 	const newReads = eff.__reads
-
-	if (tryRestoreStableDeps(eff, prevDeps, prevReads, newDeps, newReads)) return
-
+	// Both are cleared when the effect's own dispose handle is called from inside its body (cleanupEffect ran)
 	if (!newDeps || !newReads) return
 
 	if (prevDeps) {

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { derive, effect, onIdle, state, until } from '../src/index.ts'
+import { type DerivedValue, derive, effect, onIdle, state, until } from '../src/index.ts'
 
 interface Deferred<T> {
 	promise: Promise<T>
@@ -320,5 +320,28 @@ describe('Derive Async', {
 		await tick()
 		off()
 		assert.equal(idle, 0)
+	})
+
+	it('does not notify pending readers when a recompute disposes its own derive before returning a promise', async (): Promise<void> => {
+		const $source = state({
+			n: 0,
+		})
+		const $computed: DerivedValue<number> = derive((): Promise<number> => {
+			if ($source.n > 0) $computed.reactive = false
+			return Promise.resolve($source.n)
+		})
+		await tick()
+		let runs = 0
+		const dispose = effect((): void => {
+			runs++
+			void $computed.pending
+		})
+		$source.n = 1
+		assert.equal($computed.reactive, false)
+		assert.equal($computed.pending, true)
+		await tick()
+		assert.equal($computed.pending, false)
+		assert.equal(runs, 1)
+		dispose()
 	})
 })
