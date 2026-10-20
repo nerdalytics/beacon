@@ -51,3 +51,9 @@ _Avoid_: settled (reserved for computations), quiet, quiescent, quiescence, conv
 **Handbook**:
 The versioned documentation site under `handbook/`, one frozen route tree per release. The newest tree is the current documentation; older trees are history.
 _Avoid_: docs site, wiki, API reference (for the site as a whole)
+
+### Tooling
+
+**Coverage gate**:
+The minimums in `node.config.json` that `npm run test:coverage` must meet: 100% branches, 100% functions and 90% lines of `src/`. A run below any of them exits non-zero.
+_Avoid_: coverage targets, thresholds (as a bare noun)
