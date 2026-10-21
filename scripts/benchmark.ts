@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks'
 import { parseArgs } from 'node:util'
 import type { DerivedValue, Unsubscribe } from '../src/index.ts'
 import { batch, derive, effect, state } from '../src/index.ts'
+import type { StateHooks } from '../src/types.ts'
 
 const DEFAULT_RUN_COUNT = 10
 const LOOP_LENGTH = 1_000_000
@@ -10,6 +11,7 @@ const WARMUP_RUNS = 3
 const BENCH_RUNS = 7
 
 const EFFECT_TRIGGER_WRITES = 50_000
+const ARRAY_PUSH_POP_CALLS = 50_000
 const MULTI_SOURCE_COUNT = 100
 const MULTI_SOURCE_ITERATIONS = 100
 const DERIVE_CHAIN_DEPTH = 10
@@ -291,6 +293,30 @@ function effectTriggers(): number {
 	return end - start
 }
 
+// No-op hooks: the hooked case measures the hooked method path, not hook work
+const noopStateHooks: StateHooks<number[]> = {
+	onRead: (): void => {},
+	onWrite: (): void => {},
+}
+
+function arrayPushPop(items: number[]): number {
+	const cleanup: Unsubscribe = effect((): void => {
+		void items.length
+	})
+	const start = performance.now()
+	for (let i = 0; i < ARRAY_PUSH_POP_CALLS; i++) {
+		items.push(i)
+		items.pop()
+	}
+	const end = performance.now()
+	cleanup()
+	return end - start
+}
+
+const arrayPushPopHookless = (): number => arrayPushPop(state<number[]>([]))
+
+const arrayPushPopHooks = (): number => arrayPushPop(state<number[]>([], noopStateHooks))
+
 function manyDependencies(): number {
 	const sources = Array.from(
 		{
@@ -493,6 +519,14 @@ const suite: SuiteEntry[] = [
 	{
 		fn: effectTriggers,
 		name: 'effect triggers           ',
+	},
+	{
+		fn: arrayPushPopHookless,
+		name: 'array push/pop (hookless) ',
+	},
+	{
+		fn: arrayPushPopHooks,
+		name: 'array push/pop (hooks)    ',
 	},
 	{
 		fn: manyDependencies,
