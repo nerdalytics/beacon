@@ -14,6 +14,10 @@ _Avoid_: signal, store, observable, model
 The TC39 signals proposal's cell of data with `get()` and `set()`, the shape Beacon had through v1000. Beacon's counterpart is a property of a state object. Use the word only when relating Beacon to the proposal or to its own past, never for a Beacon object.
 _Avoid_: using it for a state object or a derived value
 
+**Hookless state**:
+A state object created without hooks. Hooks only observe; the reactive behavior is the same with or without them.
+_Avoid_: fast-path state, plain state, unhooked state
+
 ### Derived values
 
 **Derived value**:
