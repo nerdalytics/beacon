@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { batch } from '../src/index.ts'
+import { batch, effect, state } from '../src/index.ts'
 
 describe('Batch Hooks', {
 	concurrency: true,
@@ -79,6 +79,34 @@ describe('Batch Hooks', {
 		}, outerHooks)
 		assert.deepStrictEqual(starts, [1, 2])
 		assert.deepStrictEqual(ends, [2, 1])
+	})
+
+	it('flushes a subscribed write made in the body when the batch ends', () => {
+		const $count = state({
+			value: 0,
+		})
+		const seen: number[] = []
+		const ends: number[] = []
+
+		const dispose = effect(() => {
+			seen.push($count.value)
+		})
+
+		batch(
+			() => {
+				$count.value = 1
+				assert.deepStrictEqual(seen, [0])
+			},
+			{
+				onBatchEnd: (depth: number) => {
+					ends.push(depth)
+				},
+			}
+		)
+
+		assert.deepStrictEqual(seen, [0, 1])
+		assert.deepStrictEqual(ends, [1])
+		dispose()
 	})
 
 	it('isolates hook errors from batch execution', () => {

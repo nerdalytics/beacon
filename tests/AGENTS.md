@@ -77,9 +77,9 @@ $computed.reactive = false
 | `npm run test:coverage` | All tests with coverage, lcov written to `lcov.info` |
 | `node --test tests/<file>.test.ts` | One file (there are no per-category scripts) |
 
-## Coverage Targets
+## Coverage Gate
 
-Configured in `node.config.json`:
+Minimums in `node.config.json`; `npm run test:coverage` loads them and exits non-zero when a run misses any of them, locally and in CI:
 - Branches: 100%
 - Functions: 100%
 - Lines: 90%
@@ -92,10 +92,10 @@ Test hooks instrumentation for each primitive. Each file verifies backward compa
 
 | File | Tests | Covers |
 |------|-------|--------|
-| `state-hooks.test.ts` | 13 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
-| `effect-hooks.test.ts` | 8 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
-| `derive-hooks.test.ts` | 11 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
-| `batch-hooks.test.ts` | 6 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
+| `state-hooks.test.ts` | 15 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
+| `effect-hooks.test.ts` | 11 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
+| `derive-hooks.test.ts` | 12 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
+| `batch-hooks.test.ts` | 7 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
 | `hooks-compose.test.ts` | 7 | `composeHook` utility — undefined, single, array, forwarding, error isolation |
 
 <!-- BEACON-START -->[Tests Index]|root: ./tests|IMPORTANT: Follow naming conventions and always dispose effects/derives in tests|.:{*.test.ts,PROPERTY_BASED_TESTING.md,biome.json}<!-- BEACON-END -->

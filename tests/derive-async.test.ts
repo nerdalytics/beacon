@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { derive, effect, onSettled, state, until } from '../src/index.ts'
+import { type DerivedValue, derive, effect, onIdle, state, until } from '../src/index.ts'
 
 interface Deferred<T> {
 	promise: Promise<T>
@@ -307,18 +307,41 @@ describe('Derive Async', {
 		computed.reactive = false
 	})
 
-	it('does not notify onSettled for a settlement that arrives after dispose', async (): Promise<void> => {
+	it('does not notify onIdle for a settlement that arrives after dispose', async (): Promise<void> => {
 		const slow = deferred<number>()
 		const computed = derive((): Promise<number> => slow.promise)
 		computed.reactive = false
 		await tick()
-		let settled = 0
-		const off = onSettled((): void => {
-			settled++
+		let idle = 0
+		const off = onIdle((): void => {
+			idle++
 		})
 		slow.resolve(1)
 		await tick()
 		off()
-		assert.equal(settled, 0)
+		assert.equal(idle, 0)
+	})
+
+	it('does not notify pending readers when a recompute disposes its own derive before returning a promise', async (): Promise<void> => {
+		const $source = state({
+			n: 0,
+		})
+		const $computed: DerivedValue<number> = derive((): Promise<number> => {
+			if ($source.n > 0) $computed.reactive = false
+			return Promise.resolve($source.n)
+		})
+		await tick()
+		let runs = 0
+		const dispose = effect((): void => {
+			runs++
+			void $computed.pending
+		})
+		$source.n = 1
+		assert.equal($computed.reactive, false)
+		assert.equal($computed.pending, true)
+		await tick()
+		assert.equal($computed.pending, false)
+		assert.equal(runs, 1)
+		dispose()
 	})
 })

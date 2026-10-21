@@ -16,8 +16,8 @@ export type EffectCallback = () => void
 /** Optional name for an effect, used in hook callbacks for identification. */
 export type EffectName = string
 
-/** Value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
-export type ComputedValue<T> = {
+/** Derived value returned by {@linkcode derive}. Set `reactive` to `false` to dispose. */
+export type DerivedValue<T> = {
 	readonly pending: boolean
 	readonly value: T | undefined | null
 	reactive: boolean
@@ -37,8 +37,8 @@ export interface UntilOptions {
 	timeout?: number
 }
 
-/** Callback for {@linkcode onSettled}, invoked when the graph reaches quiescence. */
-export type SettledCallback = () => void
+/** Callback for {@linkcode onIdle}, invoked when the graph goes idle: no effect queued and no microtask flush armed. */
+export type IdleCallback = () => void
 
 type ProxyTarget = Record<PropertyKey, unknown>
 
@@ -64,7 +64,7 @@ let rerunReadIndex = 0
 let rerunStable = false
 let buildingReadList: (object | PropertyKey)[] | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
-const settledCallbacks: Set<SettledCallback> = new Set<SettledCallback>()
+const idleCallbacks: Set<IdleCallback> = new Set<IdleCallback>()
 let settleProcessed = false
 let flushProcessed = false
 let microtaskFlushArmed = false
@@ -95,7 +95,7 @@ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'un
 type CachedMethod = (...args: unknown[]) => unknown
 const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
-const MAX_SETTLE_CYCLES = 100
+const MAX_IDLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
 // Up to this many subscribers a scan is cheaper than the per-property index lookups
 const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
@@ -329,7 +329,7 @@ function armMicrotaskFlush(): void {
 		microtaskFlushing = true
 		try {
 			flushEffects()
-			notifySettledOutsideFlush()
+			notifyIdleOutsideFlush()
 		} finally {
 			microtaskFlushing = false
 		}
@@ -429,18 +429,18 @@ function flushEffects(): void {
 	isNotifying = true
 
 	try {
-		// A cycle after the first drains effects scheduled by onSettled callbacks, then notifies again
-		for (let cycle = 0; cycle < MAX_SETTLE_CYCLES; cycle++) {
+		// A cycle after the first drains effects scheduled by onIdle callbacks, then notifies again
+		for (let cycle = 0; cycle < MAX_IDLE_CYCLES; cycle++) {
 			flushProcessed = true
 			while (pendingEffects.size > 0) {
 				runPendingEffectBatch()
 			}
-			notifySettledIfQuiet()
+			notifyIfIdle()
 			if (pendingEffects.size === 0) return
 		}
 		pendingEffects.clear()
 		const err = new Error(
-			`Infinite loop detected: onSettled callbacks kept scheduling effects for ${MAX_SETTLE_CYCLES} notifications`
+			`Infinite loop detected: onIdle callbacks kept scheduling effects for ${MAX_IDLE_CYCLES} notifications`
 		)
 		if (!microtaskFlushing) throw err
 		console.error(err)
@@ -481,7 +481,6 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
 }
 
 function setContainsAll(superset: Set<PropertyKey>, subset: Set<PropertyKey>): boolean {
-	if (superset === subset) return true
 	for (const prop of subset) {
 		if (!superset.has(prop)) return false
 	}
@@ -493,10 +492,9 @@ function propsMatch(
 	newReads: Map<object, Set<PropertyKey>>,
 	target: object
 ): boolean {
-	const prevProps = prevReads.get(target)
-	const newProps = newReads.get(target)
-	if (!prevProps || !newProps) return false
-	if (prevProps === newProps) return true
+	// every builder of a reads map adds the target's Set together with the deps entry, so both lookups are defined
+	const prevProps = prevReads.get(target) as Set<PropertyKey>
+	const newProps = newReads.get(target) as Set<PropertyKey>
 	if (prevProps.size !== newProps.size) return false
 	return setContainsAll(prevProps, newProps)
 }
@@ -520,7 +518,6 @@ function depsMatch(
 	newReads: Map<object, Set<PropertyKey>>
 ): boolean {
 	if (prevDeps.size !== newDeps.size) return false
-	if (prevDeps === newDeps && prevReads === newReads) return true
 	return allDepsPropsMatch(prevDeps, newDeps, prevReads, newReads)
 }
 
@@ -578,8 +575,6 @@ function createGetHandler<T>(
 			if (currentEffect) trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
 			if (value === null || typeof value !== 'object') return value
-			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
-			if (wrapped) return wrapped
 			return wrapNestedObject(value as object, undefined)
 		}
 	}
@@ -832,20 +827,10 @@ function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newD
 	}
 }
 
-function tryRestoreStableDeps(
-	eff: EffectFunction,
-	prevDeps: Set<object> | undefined,
-	prevReads: Map<object, Set<PropertyKey>> | undefined,
-	newDeps: Set<object> | undefined,
-	newReads: Map<object, Set<PropertyKey>> | undefined
-): boolean {
-	if (!prevDeps || !prevReads || !newDeps || !newReads) return false
-	if (!depsMatch(prevDeps, newDeps, prevReads, newReads)) return false
-	eff.__reads = prevReads
-	eff.__deps = prevDeps
-	return true
-}
-
+// Reached on a first run, or on a re-run handleRerunResult did not keep. A re-run can arrive here with deps
+// identical to prevDeps: a child effect that throws on its first run clears the re-run state in its own catch,
+// and when the parent catches that throw, no temp collections remain, so handleRerunResult returns false.
+// On identical sets every step below is a no-op, so no stable-dependency restore path is needed before them.
 function updateEffectSubscriptions(
 	eff: EffectFunction,
 	prevDeps: Set<object> | undefined,
@@ -853,9 +838,7 @@ function updateEffectSubscriptions(
 ): void {
 	const newDeps = eff.__deps
 	const newReads = eff.__reads
-
-	if (tryRestoreStableDeps(eff, prevDeps, prevReads, newDeps, newReads)) return
-
+	// Both are cleared when the effect's own dispose handle is called from inside its body (cleanupEffect ran)
 	if (!newDeps || !newReads) return
 
 	if (prevDeps) {
@@ -1113,7 +1096,7 @@ function flushBatchEffects(): void {
 	try {
 		runDeferredEffects()
 		if (pendingEffects.size > 0) flushEffects()
-		notifySettledOutsideFlush()
+		notifyIdleOutsideFlush()
 	} catch (err) {
 		clearBatchState()
 		throw err
@@ -1249,10 +1232,10 @@ function computeDerive<T>(
 	}
 }
 
-/** Eagerly compute a value from reactive dependencies. Returns a {@linkcode ComputedValue} — set `reactive` to `false` to dispose. */
-export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
-export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
-export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<T> {
+/** Eagerly compute a derived value from reactive dependencies. Returns a {@linkcode DerivedValue} — set `reactive` to `false` to dispose. */
+export function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<Awaited<T>>
+export function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
+export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<T> {
 	const onCompute = composeHook(hooks?.onCompute)
 	const onCacheHit = composeHook(hooks?.onCacheHit)
 	const onDeriveDispose = composeHook(hooks?.onDispose)
@@ -1361,17 +1344,17 @@ export function derive<T>(computeFn: () => T | Promise<T>, hooks?: DeriveHooks<T
 			}
 			return false
 		},
-	}) as ComputedValue<T>
+	}) as DerivedValue<T>
 }
 
-function notifySettledIfQuiet(): void {
+function notifyIfIdle(): void {
 	if (pendingEffects.size > 0 || effectQueue.length > 0 || microtaskFlushArmed) return
 	if (!flushProcessed && !settleProcessed) return
 	flushProcessed = false
 	settleProcessed = false
 	// runs on every flush: skip creating an iterator when nothing listens
-	if (settledCallbacks.size === 0) return
-	for (const callback of settledCallbacks) {
+	if (idleCallbacks.size === 0) return
+	for (const callback of idleCallbacks) {
 		try {
 			callback()
 		} catch {}
@@ -1379,22 +1362,22 @@ function notifySettledIfQuiet(): void {
 }
 
 // Callback writes queue while isNotifying is set; outside a flush they are flushed once every callback has returned
-function notifySettledOutsideFlush(): void {
+function notifyIdleOutsideFlush(): void {
 	if (isNotifying) {
-		notifySettledIfQuiet()
+		notifyIfIdle()
 		return
 	}
 	isNotifying = true
-	notifySettledIfQuiet()
+	notifyIfIdle()
 	isNotifying = false
 	flushEffects()
 }
 
-/** Invoke a callback whenever the reactive graph reaches quiescence after processing work. Returns an unsubscribe. */
-export function onSettled(callback: SettledCallback): Unsubscribe {
-	settledCallbacks.add(callback)
+/** Invoke a callback whenever the reactive graph goes idle after processing work. A pending async computation does not keep the graph busy. Returns an unsubscribe. */
+export function onIdle(callback: IdleCallback): Unsubscribe {
+	idleCallbacks.add(callback)
 	return (): void => {
-		settledCallbacks.delete(callback)
+		idleCallbacks.delete(callback)
 	}
 }
 

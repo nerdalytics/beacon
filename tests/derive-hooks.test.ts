@@ -59,6 +59,25 @@ describe('Derive Hooks', {
 		assert.strictEqual(disposed, true)
 	})
 
+	it('does not recompute when onDispose writes a dependency', () => {
+		const $s = state({
+			n: 1,
+		})
+		let computations = 0
+		const $d = derive(() => $s.n * 2, {
+			onCompute: () => {
+				computations++
+			},
+			onDispose: () => {
+				$s.n = 5
+			},
+		})
+		assert.strictEqual(computations, 1)
+		$d.reactive = false
+		assert.strictEqual(computations, 1)
+		assert.strictEqual($d.value, 2)
+	})
+
 	it('re-creates and disposes one effect across reactive toggles', () => {
 		let computes = 0
 		let disposals = 0

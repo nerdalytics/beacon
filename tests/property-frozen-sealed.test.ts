@@ -365,7 +365,7 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
 		const target = new Proxy(
 			{ a: 1 },
 			{
-				defineProperty: (t: object, key: PropertyKey, desc: PropertyDescriptor): boolean =>
+				defineProperty: (t: { a: number }, key: PropertyKey, desc: PropertyDescriptor): boolean =>
 					typeof key !== 'symbol' && Reflect.defineProperty(t, key, desc),
 			}
 		)

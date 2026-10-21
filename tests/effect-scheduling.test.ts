@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it, type TestContext } from 'node:test'
-import { batch, effect, onSettled, state } from '../src/index.ts'
+import { batch, effect, onIdle, state } from '../src/index.ts'
 
 const microtick = (): Promise<void> => new Promise((resolve): void => queueMicrotask(resolve))
 
@@ -221,13 +221,13 @@ describe('Effect Scheduling', {
 		stopB()
 	})
 
-	it('drops a microtask effect woken by every onSettled write after 100 chained flushes', async (t: TestContext): Promise<void> => {
+	it('drops a microtask effect woken by every onIdle write after 100 chained flushes', async (t: TestContext): Promise<void> => {
 		const logged = t.mock.method(console, 'error', (): void => {})
 		const $s = state({
 			n: 0,
 		})
 		let runs = 0
-		let settles = 0
+		let idles = 0
 		const stop = effect(
 			(): void => {
 				void $s.n
@@ -240,16 +240,16 @@ describe('Effect Scheduling', {
 				schedule: 'microtask',
 			}
 		)
-		const stopSettled = onSettled((): void => {
-			settles++
+		const stopIdle = onIdle((): void => {
+			idles++
 			$s.n = $s.n + 1
 		})
 		$s.n = 1
 		await macrotask()
 		assert.equal(runs, 101)
-		assert.equal(settles, 100)
+		assert.equal(idles, 100)
 		assert.equal(logged.mock.callCount(), 1)
-		stopSettled()
+		stopIdle()
 		stop()
 	})
 
@@ -373,9 +373,9 @@ describe('Effect Scheduling', {
 		})
 		const errors: string[] = []
 		const seen: number[] = []
-		let settled = 0
-		const stopSettled = onSettled((): void => {
-			settled++
+		let idle = 0
+		const stopIdle = onIdle((): void => {
+			idle++
 		})
 		const stopFailing = effect(
 			(): void => {
@@ -405,14 +405,14 @@ describe('Effect Scheduling', {
 		await turn()
 		assert.deepEqual(errors, ['boom'])
 		assert.deepEqual(seen, [0, 1])
-		assert.equal(settled, 1)
+		assert.equal(idle, 1)
 		$s.n = 2
 		await turn()
 		assert.deepEqual(errors, ['boom'])
 		assert.deepEqual(seen, [0, 1, 2])
 		stopFailing()
 		stopSibling()
-		stopSettled()
+		stopIdle()
 	})
 
 	it('reports a microtask effect error without onError to console.error', async (t: TestContext): Promise<void> => {

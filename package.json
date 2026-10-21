@@ -1,6 +1,6 @@
 {
 	"author": "nerdalytics",
-	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.",
+	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between state properties and propagates updates automatically.",
 	"devDependencies": {
 		"@biomejs/biome": "2.4.11",
 		"@types/node": "25.5.2",
@@ -62,13 +62,13 @@
 		"lint:fix:unsafe": "npx @biomejs/biome lint --fix --unsafe",
 		"prepublishOnly": "npm run build",
 		"test": "node --test --test-skip-pattern=\"COMPONENT NAME\" tests/**/*.ts",
-		"test:coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.test.ts",
+		"test:coverage": "node --experimental-default-config-file --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info --test-reporter=spec --test-reporter-destination=stdout tests/**/*.test.ts",
 		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange",
 		"prebuild": "rm -rf dist/",
 		"postbuild": "npx esbuild dist/src/index.js --minify --sourcemap --sources-content=false --outfile=dist/src/index.min.js --format=esm --platform=node"
 	},
 	"sideEffects": false,
 	"type": "module",
-	"version": "2001.0.1",
+	"version": "2002.0.0",
 	"types": "dist/src/index.d.ts"
 }

@@ -290,4 +290,29 @@ describe('Cleanup', {
 		$state.value = 3
 		assert.deepStrictEqual(results, [])
 	})
+
+	it('disposes an effect from its own re-run after a child threw on its first run', (): void => {
+		const $state = state({
+			value: 0,
+		})
+		let runs = 0
+		let dispose = (): void => {}
+		dispose = effect((): void => {
+			runs++
+			void $state.value
+			if (runs === 1) return
+			try {
+				effect((): void => {
+					throw new Error('child')
+				})
+			} catch {}
+			dispose()
+		})
+
+		$state.value = 1
+		assert.strictEqual(runs, 2)
+
+		$state.value = 2
+		assert.strictEqual(runs, 2)
+	})
 })

@@ -99,7 +99,7 @@ export function renderLlmsIndex(version: string, base: string): string {
 
 	return `# Beacon — ${version}
 
-> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the signal level. When state changes, derived values and effects update automatically.
+> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the property level. When state changes, derived values and effects update automatically.
 
 ## Pages
 

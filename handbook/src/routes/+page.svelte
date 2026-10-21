@@ -26,8 +26,8 @@
 		<a href="https://jsr.io/@nerdalytics/beacon">
 			<img src="https://jsr.io/badges/@nerdalytics/beacon" alt="JSR" />
 		</a>
-		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/2001.0.1">
-			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2001.0.1" alt="Socket Badge" />
+		<a href="https://socket.dev/npm/package/@nerdalytics/beacon/overview/2002.0.0">
+			<img src="https://badge.socket.dev/npm/package/@nerdalytics/beacon/2002.0.0" alt="Socket Badge" />
 		</a>
 	</div>
 	<div class="mb-2 flex items-center gap-1.5 flex-wrap justify-center">
@@ -80,7 +80,7 @@
 	</div>
 
 	<a
-		href={resolve('/v2001.0.1/introduction')}
+		href={resolve('/v2002.0.0/introduction')}
 		class="inline-block px-8 py-3 rounded-lg font-sans font-semibold text-navy bg-gradient-to-r from-teal to-blue-mid hover:opacity-90 transition-opacity"
 	>
 		Get Started
