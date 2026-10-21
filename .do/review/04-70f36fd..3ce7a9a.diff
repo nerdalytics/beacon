@@ -1,0 +1,490 @@
+# Review package: ticket 04, 70f36fd5761dc0d5ec4cbd7a8d5e1d2d382fced2..3ce7a9ad3ec2ad7a137985c4ad98ccb4fd7241a8
+
+## Commits
+### 3ce7a9a
+docs(handbook): sweep v2002.0.0 tree vocabulary for the renamed API
+
+Replace onSettled with onIdle and ComputedValue with DerivedValue on
+the settle, introduction, derive, effects, hooks-api and hooks-overview
+pages, and align prose with GLOSSARY.md: "derived value" not "computed
+value", "pending" not "in flight", "idle" not "quiet", "quiescence" or
+"convergence" for the graph. The architecture page's infinite-loop
+example names its state object counter instead of signal, and the two
+LLM index files say dependencies are tracked at the property level.
+
+The migration page keeps the old names in its rename table on purpose.
+
+
+## Files changed
+ handbook/src/lib/llm-docs.ts                          |  2 +-
+ handbook/src/routes/llms.txt/+server.ts               |  2 +-
+ handbook/src/routes/v2002.0.0/architecture/+page.md   |  4 ++--
+ handbook/src/routes/v2002.0.0/derive/+page.md         | 18 +++++++++---------
+ handbook/src/routes/v2002.0.0/effects/+page.md        |  4 ++--
+ handbook/src/routes/v2002.0.0/hooks-api/+page.md      |  6 +++---
+ handbook/src/routes/v2002.0.0/hooks-overview/+page.md |  2 +-
+ handbook/src/routes/v2002.0.0/introduction/+page.md   |  4 ++--
+ handbook/src/routes/v2002.0.0/quick-start/+page.md    |  2 +-
+ handbook/src/routes/v2002.0.0/settle/+page.md         | 12 ++++++------
+ 10 files changed, 28 insertions(+), 28 deletions(-)
+
+## Diff
+diff --git a/handbook/src/lib/llm-docs.ts b/handbook/src/lib/llm-docs.ts
+index 25599f1..3df00fc 100644
+--- a/handbook/src/lib/llm-docs.ts
++++ b/handbook/src/lib/llm-docs.ts
+@@ -92,21 +92,21 @@ export function renderLlmsIndex(version: string, base: string): string {
+ 	const pages = getAllPages(`/${version}`)
+ 	const pageLines = pages
+ 		.map((p) => {
+ 			const slug = slugFromHref(p.href)
+ 			return `- [${p.title}](${base}/${version}/${slug}.md)`
+ 		})
+ 		.join('\n')
+ 
+ 	return `# Beacon — ${version}
+ 
+-> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the signal level. When state changes, derived values and effects update automatically.
++> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the property level. When state changes, derived values and effects update automatically.
+ 
+ ## Pages
+ 
+ ${pageLines}
+ 
+ ## Full documentation
+ 
+ - [All pages merged](${base}/${version}/llms-full.txt)
+ `
+ }
+diff --git a/handbook/src/routes/llms.txt/+server.ts b/handbook/src/routes/llms.txt/+server.ts
+index 95dddb9..5720541 100644
+--- a/handbook/src/routes/llms.txt/+server.ts
++++ b/handbook/src/routes/llms.txt/+server.ts
+@@ -2,21 +2,21 @@ import { versions } from '#lib/versions'
+ import type { RequestHandler } from './$types'
+ 
+ export const prerender = true
+ 
+ export const GET: RequestHandler = ({ url }: { url: URL }) => {
+ 	const base = url.pathname.slice(0, -'/llms.txt'.length)
+ 	const versionLines = versions.map((v) => `- [${v.label}](${base}/${v.prefix.slice(1)}/llms.txt)`).join('\n')
+ 
+ 	const body = `# Beacon
+ 
+-> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the signal level. When state changes, derived values and effects update automatically.
++> Reactive dependency graph runtime for Node.js. Dependencies are tracked at the property level. When state changes, derived values and effects update automatically.
+ 
+ ## Versions
+ 
+ ${versionLines}
+ `
+ 
+ 	return new Response(body, {
+ 		headers: {
+ 			'Content-Type': 'text/plain; charset=utf-8',
+ 		},
+diff --git a/handbook/src/routes/v2002.0.0/architecture/+page.md b/handbook/src/routes/v2002.0.0/architecture/+page.md
+index 7ba0553..64e5c2d 100644
+--- a/handbook/src/routes/v2002.0.0/architecture/+page.md
++++ b/handbook/src/routes/v2002.0.0/architecture/+page.md
+@@ -117,22 +117,22 @@ ## Batch internals
+ State objects with write hooks always use the normal path, because hooks fire on every mutation.
+ 
+ ## Cycle handling
+ 
+ ### Direct loops are blocked
+ 
+ An effect that reads and writes the same state throws immediately:
+ 
+ ```typescript
+ effect(() => {
+-  const value = signal.count
+-  signal.count = value + 1 // Error: Infinite loop detected!
++  const value = counter.count
++  counter.count = value + 1 // Error: Infinite loop detected!
+ })
+ ```
+ 
+ Beacon detects this by checking three things. The update runs inside an effect. The effect also reads that same state. The pattern is not a nested effect chain.
+ 
+ ### Indirect cycles are allowed
+ 
+ Cyclic dependencies across different effects are allowed because queue-based propagation handles them:
+ 
+ ```typescript
+diff --git a/handbook/src/routes/v2002.0.0/derive/+page.md b/handbook/src/routes/v2002.0.0/derive/+page.md
+index f5e8005..9b44341 100644
+--- a/handbook/src/routes/v2002.0.0/derive/+page.md
++++ b/handbook/src/routes/v2002.0.0/derive/+page.md
+@@ -1,37 +1,37 @@
+ ---
+ title: Derive
+ description: Compute derived values that cache results and auto-update
+ ---
+ <script>
+ import VersionLink from '#lib/components/VersionLink.svelte'
+ </script>
+ 
+ 
+ 
+-`derive()` creates computed values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
++`derive()` creates derived values that update automatically when their dependencies change. It caches the result and recalculates only when a dependency changes.
+ 
+ ## API
+ 
+ ```typescript
+-function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): ComputedValue<Awaited<T>>
+-function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
++function derive<T>(computeFn: () => Promise<T>, hooks?: DeriveHooks<T>): DerivedValue<Awaited<T>>
++function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
+ 
+-type ComputedValue<T> = {
++type DerivedValue<T> = {
+   readonly pending: boolean
+   readonly value: T | undefined | null
+   reactive: boolean
+ }
+ ```
+ 
+ - `value` is the cached computed result and is read-only
+-- `pending` is `true` while an async compute is in flight. It is always `false` for synchronous derives, and it is read-only.
++- `pending` is `true` while an async computation has not settled. It is always `false` for synchronous derives, and it is read-only.
+ - `reactive` controls the internal effect lifecycle. Set it to `false` to dispose and `true` to recreate
+ 
+ See <VersionLink path="/hooks-overview">Hooks</VersionLink> for the optional hooks parameter.
+ 
+ ## Basic usage
+ 
+ ```typescript
+ import { state, derive } from '@nerdalytics/beacon'
+ 
+ const $items = state({ list: [1, 2, 3] })
+@@ -284,21 +284,21 @@ ### Disposal via `reactive` toggle
+ 
+ ```typescript
+ const $local = state({ value: 10 })
+ const computed = derive(() => $local.value * 2)
+ 
+ console.log(computed.value) // 20
+ 
+ // Dispose: stop reacting to changes
+ computed.reactive = false
+ 
+-// .value still returns the last computed value
++// .value still returns the last value
+ console.log(computed.value) // 20 (retained)
+ 
+ // Re-enable: recreates the internal effect and recomputes
+ computed.reactive = true
+ ```
+ 
+ ### Preventing memory leaks
+ 
+ Without disposal, derived values accumulate and their internal effects keep running:
+ 
+@@ -409,21 +409,21 @@ ## Testing
+ })
+ 
+ test('derive supports disposal via reactive toggle', () => {
+   const $source = state({ value: 10 })
+   const computed = derive(() => $source.value * 2)
+ 
+   expect(computed.value).toBe(20)
+ 
+   computed.reactive = false
+ 
+-  // .value still returns the last computed value
++  // .value still returns the last value
+   expect(computed.value).toBe(20)
+ 
+   // Changes no longer trigger recomputation
+   $source.value = 30
+   expect(computed.value).toBe(20)
+ 
+   // Re-enable
+   computed.reactive = true
+   expect(computed.value).toBe(60)
+ })
+@@ -448,16 +448,16 @@ ## Async computations (v2001)
+   const res = await fetch(`/api/users/${session.userId}`)
+   return (await res.json()) as User
+ })
+ 
+ effect(() => {
+   if (user.pending) return
+   render(user.value)
+ })
+ ```
+ 
+-While a recompute is in flight, the computed value keeps its last settled result and `pending` is `true`. This is stale-while-pending behavior. Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run each time `pending` changes.
++While a computation is pending, the derived value keeps its last settled result and `pending` is `true`. This is stale-while-pending behavior. Before the first settle, `value` is `undefined` and `pending` is `true`. Reading `pending` inside an effect or computation registers a dependency, so readers re-run each time `pending` changes.
+ 
+ - **Superseded computations are discarded.** If a new computation, synchronous or async, starts before an earlier one settles, the earlier settlement writes nothing. A superseded rejection does not call `onError`. The latest computation wins
+ - **Rejections route to `onError`.** A rejected compute promise calls the derive error hook, leaves the last settled value in place, and clears `pending`
+ - **Synchronous derives are unchanged.** A synchronous compute function still yields its value immediately, with `pending` always `false`
+-- **Disposing discards in-flight computations.** Setting `reactive` to `false` clears `pending`. A settlement that arrives afterwards writes nothing, calls no hook, and does not trigger `onSettled`
++- **Disposing discards pending computations.** Setting `reactive` to `false` clears `pending`. A settlement that arrives afterwards writes nothing, calls no hook, and does not notify `onIdle`
+diff --git a/handbook/src/routes/v2002.0.0/effects/+page.md b/handbook/src/routes/v2002.0.0/effects/+page.md
+index 41d26ee..7d4979c 100644
+--- a/handbook/src/routes/v2002.0.0/effects/+page.md
++++ b/handbook/src/routes/v2002.0.0/effects/+page.md
+@@ -136,21 +136,21 @@ ### Safe patterns
+ 
+ ```typescript
+ // Write to different state
+ const $source = state({ value: 0 })
+ const $target = state({ value: 0 })
+ 
+ effect(() => {
+   $target.value = $source.value * 2 // Safe: different state objects
+ })
+ 
+-// Use derive for computed values
++// Use derive for derived values
+ const doubled = derive(() => $counter.count * 2)
+ ```
+ 
+ ## Conditional dependencies
+ 
+ Effects track only what they access in a given run:
+ 
+ ```typescript
+ const $s = state({ useA: true, a: 1, b: 2 })
+ 
+@@ -415,13 +415,13 @@ ## Scheduling (v2001)
+   { schedule: 'microtask' }
+ )
+ 
+ // two writes in the same turn, one effect run observing both
+ $session.user = 'ada'
+ $session.role = 'admin'
+ ```
+ 
+ - **Same-turn coalescing.** Multiple writes to observed properties within one microtask turn produce exactly one run, observing the final values
+ - **Batch boundary precedence.** A microtask-scheduled effect notified inside `batch` runs after the outermost boundary exits, in a later microtask turn
+-- **Guard scope.** The synchronous write-during-read infinite-loop guard applies unchanged to `'sync'` effects. A `'microtask'` effect that writes its own dependency re-runs on the following turn instead of throwing. These re-runs never yield to timers or I/O, so they are capped. After 100 consecutive microtask flushes, each scheduled from inside the one before it, Beacon drops the pending `'microtask'` effects. It sends an `Infinite loop detected` error to `console.error`. The chain can be built by a self-writing effect, by `'microtask'` effects writing each other's dependencies, or by an `onSettled` callback that wakes a `'microtask'` effect. Dropped effects stay subscribed, and the next write from outside a microtask flush starts a new count. A self-write that stores the value already present schedules nothing and ends the chain. Cycles between `'sync'` effects are not capped.
++- **Guard scope.** The synchronous write-during-read infinite-loop guard applies unchanged to `'sync'` effects. A `'microtask'` effect that writes its own dependency re-runs on the following turn instead of throwing. These re-runs never yield to timers or I/O, so they are capped. After 100 consecutive microtask flushes, each scheduled from inside the one before it, Beacon drops the pending `'microtask'` effects. It sends an `Infinite loop detected` error to `console.error`. The chain can be built by a self-writing effect, by `'microtask'` effects writing each other's dependencies, or by an `onIdle` callback that wakes a `'microtask'` effect. Dropped effects stay subscribed, and the next write from outside a microtask flush starts a new count. A self-write that stores the value already present schedules nothing and ends the chain. Cycles between `'sync'` effects are not capped.
+ - **Observability.** The `onSchedule` hook fires at notification time for both schedules, before any deferred run
+ - **Errors.** A throw during a microtask flush has no caller to receive it, so it is not rethrown. The throwing effect is disposed and its `onError` hook fires. Without `onError`, the error goes to `console.error`. The other effects in that flush still run. This covers `'sync'` effects that a `'microtask'` effect's writes trigger. A `'microtask'` effect's first run is synchronous and still throws to the `effect()` caller. The microtask chain limit is reported with `console.error` only, and no effect's `onError` fires
+diff --git a/handbook/src/routes/v2002.0.0/hooks-api/+page.md b/handbook/src/routes/v2002.0.0/hooks-api/+page.md
+index e10def9..12c4d92 100644
+--- a/handbook/src/routes/v2002.0.0/hooks-api/+page.md
++++ b/handbook/src/routes/v2002.0.0/hooks-api/+page.md
+@@ -308,41 +308,41 @@ ### onSchedule
+       console.log(`Scheduling ${name} for re-run`)
+     },
+   }
+ )
+ 
+ $state.count++ // "Scheduling counter for re-run"
+ ```
+ 
+ ## DeriveHooks
+ 
+-Hooks for monitoring computed values.
++Hooks for monitoring derived values.
+ 
+ ```typescript
+ interface DeriveHooks<T = any> {
+   onCompute?: SingleOrArray<HookFunction<[previousValue: T | undefined]>>
+   onCacheHit?: SingleOrArray<HookFunction<[value: T, cacheHit: boolean]>>
+   onDispose?: SingleOrArray<HookFunction<[]>>
+   onError?: SingleOrArray<HookFunction<[error: Error]>>
+   onDependencyChange?: SingleOrArray<HookFunction<[target: object, prop: PropertyKey]>>
+ }
+ ```
+ 
+ > Hooks no longer track counts internally. Hooks can maintain their own metrics if needed.
+ 
+ ### onCompute
+ 
+ Fired when a derived value is recomputed.
+ 
+ | Parameter | Type | Description |
+ | --- | --- | --- |
+-| `previousValue` | `T \| undefined` | The previous computed value |
++| `previousValue` | `T \| undefined` | The previous value |
+ 
+ ```typescript
+ const $count = state({ value: 0 })
+ 
+ const $doubled = derive(() => $count.value * 2, {
+   onCompute: (prev) => {
+     console.log(`Computing... Previous: ${prev}`)
+   },
+ })
+ // "Computing... Previous: undefined"
+@@ -529,21 +529,21 @@ ### effect()
+   {
+     onRun: [logEffect(), profileEffect()],
+     onDispose: () => console.log('Cleanup'),
+   }
+ )
+ ```
+ 
+ ### derive()
+ 
+ ```typescript
+-function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
++function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
+ ```
+ 
+ ```typescript
+ const $computed = derive(() => expensiveCalculation(), {
+   onCompute: logDerive(),
+   onCacheHit: (value, cacheHit) => {
+     if (cacheHit) console.log('Using cached value')
+   },
+ })
+ ```
+diff --git a/handbook/src/routes/v2002.0.0/hooks-overview/+page.md b/handbook/src/routes/v2002.0.0/hooks-overview/+page.md
+index 790beb9..3f72bd6 100644
+--- a/handbook/src/routes/v2002.0.0/hooks-overview/+page.md
++++ b/handbook/src/routes/v2002.0.0/hooks-overview/+page.md
+@@ -124,21 +124,21 @@ ### EffectHooks
+ // [counter-watcher] running
+ // 1
+ 
+ dispose()
+ // [counter-watcher] disposed
+ ```
+ 
+ ### DeriveHooks
+ 
+ ```typescript
+-function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): ComputedValue<T>
++function derive<T>(computeFn: () => T, hooks?: DeriveHooks<T>): DerivedValue<T>
+ ```
+ 
+ | Hook | Arguments | Fires when |
+ | --- | --- | --- |
+ | `onCompute` | `(previousValue?)` | Compute function about to run |
+ | `onCacheHit` | `(value, fromCache)` | `.value` accessed |
+ | `onDispose` | `()` | Derive disposed by setting `reactive` to `false` |
+ | `onError` | `(error)` | Compute function threw |
+ | `onDependencyChange` | `(target, prop)` | A dependency changed |
+ 
+diff --git a/handbook/src/routes/v2002.0.0/introduction/+page.md b/handbook/src/routes/v2002.0.0/introduction/+page.md
+index 5a0da76..04849ca 100644
+--- a/handbook/src/routes/v2002.0.0/introduction/+page.md
++++ b/handbook/src/routes/v2002.0.0/introduction/+page.md
+@@ -10,24 +10,24 @@ ## What it does
+ 
+ Beacon wraps plain objects in ES Proxies. When you read a property inside an effect, Beacon records that dependency. When you write to that property later, Beacon re-runs the effect. You need no manual subscriptions, event names, or selectors.
+ 
+ Four primitives cover the reactive graph:
+ 
+ - `state(obj)` wraps an object in a reactive Proxy
+ - `effect(fn)` runs a function and re-runs it when its dependencies change
+ - `derive(fn)` computes a value that stays in sync with its dependencies
+ - `batch(fn)` groups multiple state changes into a single update cycle
+ 
+-Two settle points connect imperative code to the graph:
++Two functions connect imperative code to the graph:
+ 
+ - `until(predicate)` resolves once a settled evaluation of the predicate is truthy
+-- `onSettled(callback)` runs the callback whenever the graph finishes its work and goes quiet
++- `onIdle(callback)` runs the callback each time the graph becomes idle after doing work
+ 
+ That's the whole library.
+ 
+ ## Design constraints
+ 
+ - Zero dependencies
+ - ~9kb minified, ~4kb gzipped
+ - Single-file core
+ - TypeScript-first with full type inference
+ - Deep reactivity: nested objects are automatically wrapped
+diff --git a/handbook/src/routes/v2002.0.0/quick-start/+page.md b/handbook/src/routes/v2002.0.0/quick-start/+page.md
+index 5bbc0cc..70158af 100644
+--- a/handbook/src/routes/v2002.0.0/quick-start/+page.md
++++ b/handbook/src/routes/v2002.0.0/quick-start/+page.md
+@@ -38,21 +38,21 @@ ## 2. React to changes with effects
+ $app.users = 3
+ // => "Users: 3, Errors: 0"
+ 
+ dispose() // stop listening
+ ```
+ 
+ Beacon tracks that this effect reads `$app.users` and `$app.errors`. Changes to either property re-run it. Changes to other properties don't.
+ 
+ ## 3. Compute derived values
+ 
+-`derive()` creates a computed value that stays in sync with its dependencies. It returns an object with a `.value` property.
++`derive()` creates a derived value that stays in sync with its dependencies. It returns an object with a `.value` property.
+ 
+ ```typescript
+ import { state, derive, effect } from '@nerdalytics/beacon'
+ 
+ const $app = state({ users: 0, errors: 0 })
+ 
+ const errorRate = derive(() => {
+   if ($app.users === 0) return 0
+   return $app.errors / $app.users
+ })
+diff --git a/handbook/src/routes/v2002.0.0/settle/+page.md b/handbook/src/routes/v2002.0.0/settle/+page.md
+index 1ab2ffb..2e166e3 100644
+--- a/handbook/src/routes/v2002.0.0/settle/+page.md
++++ b/handbook/src/routes/v2002.0.0/settle/+page.md
+@@ -1,13 +1,13 @@
+ ---
+ title: Settle
+-description: Await reactive convergence from imperative code
++description: Wait on the reactive graph from imperative code
+ ---
+ 
+ <script>
+ import VersionLink from '#lib/components/VersionLink.svelte'
+ </script>
+ 
+ ## until
+ 
+ `until(predicate, options?)` returns a promise that resolves with the predicate's value once a settled evaluation of the predicate is truthy. It connects imperative code, such as request handlers, startup sequences, and test harnesses, to the reactive graph.
+ 
+@@ -40,41 +40,41 @@ ### Options
+ 
+ const warm = until(() => cache.warm, { signal: controller.signal }).catch((err) => {
+   if (err === controller.signal.reason) return false
+   throw err
+ })
+ 
+ // give up after the request deadline
+ controller.abort('deadline')
+ ```
+ 
+-## onSettled
++## onIdle
+ 
+-`onSettled(callback)` calls the callback each time the reactive graph finishes its work and goes quiet. That happens after a synchronous flush or an async settlement. It returns an unsubscribe function.
++`onIdle(callback)` calls the callback each time the reactive graph becomes idle after doing work: no effect queued and no microtask flush armed. That happens after a synchronous flush or an async settlement. A pending async computation does not keep the graph from being idle, so the callback runs after the flush that started the computation and again when it settles. It returns an unsubscribe function.
+ 
+ ```typescript
+-import { batch, onSettled, state } from '@nerdalytics/beacon'
++import { batch, onIdle, state } from '@nerdalytics/beacon'
+ 
+ const metrics = state({ flushes: 0 })
+ 
+-const stop = onSettled(() => {
++const stop = onIdle(() => {
+   metrics.flushes++
+ })
+ 
+ batch(() => {
+   cache.warm = true
+   cache.entries = 42
+ })
+ // one callback after the batched flush, not one per write
+ 
+ stop()
+ ```
+ 
+ Behavior:
+ 
+ 1. **Writes inside a callback.** A callback's state writes apply at once, including writes inside `batch()`. The effects they schedule run after every callback has returned. They run before the flush that notified returns. Callbacks then run again for that cycle. A write that schedules no effect starts no new cycle.
+ 2. **Runaway callbacks.** If callbacks still schedule effects after 100 notifications in one flush, the remaining effects are dropped and an `Infinite loop detected` error is thrown to the code that started the flush. A microtask flush reports it with `console.error`. An async settlement reports it as an unhandled rejection. The example above reaches this limit if an effect reads `metrics.flushes`. A callback write that wakes only `'microtask'` effects starts a new microtask flush instead of a new cycle, so this limit does not count it. The microtask chain limit in Effects stops that loop after 100 flushes.
+ 
+ ## See also
+ 
+-- <VersionLink path="/derive">Derive</VersionLink> covers async computations whose settlements trigger quiescence
++- <VersionLink path="/derive">Derive</VersionLink> covers async computations whose settlements leave the graph idle
+ - <VersionLink path="/effects">Effects</VersionLink> covers reactive runners, including microtask scheduling

@@ -8,7 +8,7 @@ export interface Version {
 }
 
 /** Route directory whose pages /latest serves. Must match the glob in routes/latest/[page=slug]/+page.ts. */
-export const latestSource = 'v2001.0.1'
+export const latestSource = 'v2002.0.0'
 
 export const versions: Version[] = [
 	{
@@ -18,6 +18,14 @@ export const versions: Version[] = [
 		current: true,
 		label: 'latest',
 		prefix: '/latest',
+	},
+	{
+		badges: {
+			node: 'https://img.shields.io/badge/node-%3E%3D24.0.0-339933?style=for-the-badge&logo=nodedotjs&logoColor=white',
+		},
+		current: false,
+		label: 'v2002.0.0',
+		prefix: '/v2002.0.0',
 	},
 	{
 		badges: {

@@ -272,4 +272,39 @@ describe('State Hooks', {
 		$s.count = 1
 		assert.deepStrictEqual(calls, [1, 2, 3])
 	})
+
+	it('maintains object identity when hooked', () => {
+		const reads: PropertyKey[] = []
+		const $s = state(
+			{
+				value: 1,
+			},
+			{
+				onRead: (prop: PropertyKey) => {
+					reads.push(prop)
+				},
+			}
+		)
+		const $same = state($s)
+
+		assert.strictEqual($same, $s)
+		assert.deepStrictEqual(reads, [])
+	})
+
+	it('fires onRead for a frozen object', () => {
+		const reads: PropertyKey[] = []
+		const $frozen = state(
+			Object.freeze({
+				limit: 10,
+			}),
+			{
+				onRead: (prop: PropertyKey) => {
+					reads.push(prop)
+				},
+			}
+		)
+
+		assert.strictEqual($frozen.limit, 10)
+		assert.deepStrictEqual(reads, ['limit'])
+	})
 })

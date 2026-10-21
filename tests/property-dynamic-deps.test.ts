@@ -10,7 +10,7 @@ import { effect, state } from '../src/index.ts'
  * Beacon re-evaluates effect dependency sets on each run. When an effect
  * conditionally reads from different state objects, toggling the condition
  * must correctly add/remove subscriptions via updateEffectSubscriptions
- * (and the tryRestoreStableDeps fast path).
+ * (and the handleRerunResult stable fast path).
  *
  * These tests verify that for any sequence of boolean toggles, the effect
  * only fires when the currently-tracked dependency changes — never on

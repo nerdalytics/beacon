@@ -1,0 +1,207 @@
+# Review package: ticket 05, 3936ee853356a8f56c2fc27281b094a828cafcb1..0ce04904e32b5b6d578099f4b4cdd47634d95888
+
+## Commits
+### 0ce0490
+breaking(api): release v2002.0.0 with the renamed idle and derived API
+
+Bump package.json, jsr.json and package-lock.json to 2002.0.0 and name
+it as current in the root agent docs. Describe the library as tracking
+dependencies between state properties rather than between signals in
+the README tagline and the package description, rename the README
+example state objects away from `signal`, and point the Socket badge
+and its link at 2002.0.0. The `signals` npm keyword stays.
+
+BREAKING CHANGE: onSettled is renamed to onIdle, SettledCallback to
+IdleCallback and ComputedValue to DerivedValue.
+
+
+## Files changed
+ AGENTS.md         |  2 +-
+ README.md         | 14 +++++++-------
+ jsr.json          |  2 +-
+ package-lock.json |  4 ++--
+ package.json      |  4 ++--
+ 5 files changed, 13 insertions(+), 13 deletions(-)
+
+## Diff
+diff --git a/AGENTS.md b/AGENTS.md
+index ab9e43c..931bd6a 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -33,21 +33,21 @@ ## Architecture
+ - Nested objects automatically wrapped in Proxies (deep reactivity)
+ - Infinite loop detection: throws if effect writes to a state property it reads from (child effects and microtask effects are exempt; microtask re-runs stop after 100 chained microtask flushes with a `console.error`)
+ - Cyclic dependencies between different effects: allowed via queue-based non-recursive `flushEffects`
+ - Array mutating methods intercepted: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
+ - Frozen/sealed objects: fallback to WeakMap storage
+ - `derive()` must be disposed to prevent memory leaks (creates internal state + effect pair)
+ 
+ ## Versioning
+ 
+ Epoch Semantic Versioning: `{EPOCH * 1000 + MAJOR}.MINOR.PATCH`
+-- Current: v2001.0.1 (`package.json` and `jsr.json` must match)
++- Current: v2002.0.0 (`package.json` and `jsr.json` must match)
+ 
+ Commit format: `<type>(<scope>): <summary>` — imperative, present tense, no period, under 72 chars.
+ Types: `epoch`, `breaking`, `feat`, `fix`, `perf`, `refactor`, `style`, `test`, `docs`, `chore`
+ Scopes: `state`, `derive`, `effect`, `batch`, `core`, `api`, `assets`
+ 
+ ## Branching
+ 
+ - Main branch: `trunk` (NOT main/master)
+ - PRs target `trunk`
+ 
+diff --git a/README.md b/README.md
+index 27176b4..b4dfb28 100644
+--- a/README.md
++++ b/README.md
+@@ -1,20 +1,20 @@
+ # Beacon <img align="right" src="https://raw.githubusercontent.com/nerdalytics/beacon/refs/heads/trunk/assets/beacon-logo-v2.svg" width="128px" alt="A stylized lighthouse beacon with golden light against a dark blue background, representing the reactive state library"/>
+ 
+-> Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.
++> Reactive dependency graph runtime for Node.js backends. Tracks dependencies between state properties and propagates updates automatically.
+ 
+ [![pm:yarn](https://img.shields.io/badge/yarn-2C8EBB?style=flat-square&logo=yarn&logoColor=white)](https://yarnpkg.com/)
+ [![pm:pnpm](https://img.shields.io/badge/pnpm-F69220?style=flat-square&logo=pnpm&logoColor=white)](https://pnpm.io/)
+ [![pm:jsr](https://img.shields.io/badge/jsr-F7DF1E?style=flat-square&logo=jsr&logoColor=black)](https://jsr.io/@nerdalytics/beacon)
+ [![pm:vlt](https://img.shields.io/badge/vlt-1A1A2E?style=flat-square&logoColor=white)](https://vlt.sh/)
+ [![registry:npm:version](https://img.shields.io/npm/v/@nerdalytics/beacon.svg)](https://www.npmjs.com/package/@nerdalytics/beacon)
+-[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2001.0.1)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2001.0.0)
++[![Socket Badge](https://badge.socket.dev/npm/package/@nerdalytics/beacon/2002.0.0)](https://socket.dev/npm/package/@nerdalytics/beacon/overview/2002.0.0)
+ 
+ [![tech:nodejs](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
+ [![language:typescript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://typescriptlang.org/)
+ [![linter:biome](https://img.shields.io/badge/Biome-60a5fa?style=for-the-badge&logo=biome&logoColor=white)](https://biomejs.dev/)
+ [![license:mit](https://img.shields.io/badge/MIT-blue?style=for-the-badge)](https://github.com/nerdalytics/beacon/blob/trunk/LICENSE)
+ 
+ Tracks which properties each effect reads and re-runs only when those properties change. Zero dependencies, TypeScript-first.
+ 
+ ## Installation
+ 
+@@ -32,43 +32,43 @@ # or
+ npx jsr add @nerdalytics/beacon
+ # or
+ vlt install @nerdalytics/beacon
+ ```
+ 
+ ## Quick Start
+ 
+ ```typescript
+ import { state, derive, effect } from '@nerdalytics/beacon';
+ 
+-const signal = state({ count: 0 });
+-const doubled = derive(() => signal.count * 2);
++const counter = state({ count: 0 });
++const doubled = derive(() => counter.count * 2);
+ 
+ const dispose = effect(() => {
+-  console.log(`Count: ${signal.count}, Doubled: ${doubled.value}`);
++  console.log(`Count: ${counter.count}, Doubled: ${doubled.value}`);
+ });
+ // => "Count: 0, Doubled: 0"
+ 
+-signal.count = 5;
++counter.count = 5;
+ // => "Count: 5, Doubled: 10"
+ 
+ dispose();
+ doubled.reactive = false;
+ ```
+ 
+ ## Async API (v2001)
+ 
+ ### Async derive and `pending`
+ 
+ `derive` accepts async compute functions. While a computation is pending the value keeps its last settled result and `pending` is `true`; `pending` is itself a trackable dependency. Superseded computations are discarded, and rejections route to the `onError` hook.
+ 
+ ```typescript
+-const user = derive(async () => (await db.users.find(signal.id)) ?? null);
++const user = derive(async () => (await db.users.find(route.id)) ?? null);
+ effect(() => {
+   if (user.pending) return;
+   console.log(user.value);
+ });
+ ```
+ 
+ ### `until`
+ 
+ `until(predicate, { timeout?, signal? })` resolves with the predicate's value once a settled evaluation is truthy — safe to await inside request handlers. It throws when called inside a reactive scope and disposes itself on settle, timeout, or abort.
+ 
+diff --git a/jsr.json b/jsr.json
+index c89e942..66283c9 100644
+--- a/jsr.json
++++ b/jsr.json
+@@ -3,12 +3,12 @@
+ 	"description": "Lightweight reactive state management for Node.js backends. Proxy-based dependency tracking with zero dependencies.",
+ 	"exports": {
+ 		".": "./src/index.ts",
+ 		"./hooks": "./src/hooks/index.ts"
+ 	},
+ 	"license": "MIT",
+ 	"name": "@nerdalytics/beacon",
+ 	"publish": {
+ 		"include": ["LICENSE", "README.md", "src/**/*.ts"]
+ 	},
+-	"version": "2001.0.1"
++	"version": "2002.0.0"
+ }
+diff --git a/package-lock.json b/package-lock.json
+index ea2e85f..c92a23a 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,19 +1,19 @@
+ {
+ 	"name": "@nerdalytics/beacon",
+-	"version": "2001.0.1",
++	"version": "2002.0.0",
+ 	"lockfileVersion": 3,
+ 	"requires": true,
+ 	"packages": {
+ 		"": {
+ 			"name": "@nerdalytics/beacon",
+-			"version": "2001.0.1",
++			"version": "2002.0.0",
+ 			"license": "MIT",
+ 			"devDependencies": {
+ 				"@biomejs/biome": "2.4.11",
+ 				"@types/node": "25.5.2",
+ 				"esbuild": "0.28.1",
+ 				"fast-check": "4.5.3",
+ 				"jsr": "0.14.3",
+ 				"npm-check-updates": "20.0.0",
+ 				"typescript": "6.0.2"
+ 			},
+diff --git a/package.json b/package.json
+index 053f9a2..e312362 100644
+--- a/package.json
++++ b/package.json
+@@ -1,13 +1,13 @@
+ {
+ 	"author": "nerdalytics",
+-	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between signals and propagates updates automatically.",
++	"description": "Reactive dependency graph runtime for Node.js backends. Tracks dependencies between state properties and propagates updates automatically.",
+ 	"devDependencies": {
+ 		"@biomejs/biome": "2.4.11",
+ 		"@types/node": "25.5.2",
+ 		"esbuild": "0.28.1",
+ 		"fast-check": "4.5.3",
+ 		"jsr": "0.14.3",
+ 		"npm-check-updates": "20.0.0",
+ 		"typescript": "6.0.2"
+ 	},
+ 	"engines": {
+@@ -62,13 +62,13 @@
+ 		"lint:fix:unsafe": "npx @biomejs/biome lint --fix --unsafe",
+ 		"prepublishOnly": "npm run build",
+ 		"test": "node --test --test-skip-pattern=\"COMPONENT NAME\" tests/**/*.ts",
+ 		"test:coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.test.ts",
+ 		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange",
+ 		"prebuild": "rm -rf dist/",
+ 		"postbuild": "npx esbuild dist/src/index.js --minify --sourcemap --sources-content=false --outfile=dist/src/index.min.js --format=esm --platform=node"
+ 	},
+ 	"sideEffects": false,
+ 	"type": "module",
+-	"version": "2001.0.1",
++	"version": "2002.0.0",
+ 	"types": "dist/src/index.d.ts"
+ }

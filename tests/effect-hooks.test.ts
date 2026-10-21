@@ -70,6 +70,57 @@ describe('Effect Hooks', {
 		assert.strictEqual(errors[0]?.message, 'boom')
 	})
 
+	it('lets onError write state while the failed effect is still current', () => {
+		const $log = state({
+			last: '',
+		})
+		assert.throws(
+			() => {
+				effect(
+					() => {
+						throw new Error('boom')
+					},
+					'failing',
+					{
+						onError: (err: Error) => {
+							$log.last = err.message
+						},
+					}
+				)
+			},
+			{
+				message: 'boom',
+			}
+		)
+		assert.strictEqual($log.last, 'boom')
+	})
+
+	it('lets onError read state while the failed effect is still current', () => {
+		const $config = state({
+			retries: 3,
+		})
+		const seen: number[] = []
+		assert.throws(
+			() => {
+				effect(
+					() => {
+						throw new Error('boom')
+					},
+					'failing',
+					{
+						onError: () => {
+							seen.push($config.retries)
+						},
+					}
+				)
+			},
+			{
+				message: 'boom',
+			}
+		)
+		assert.deepStrictEqual(seen, [3])
+	})
+
 	it('fires onDependencyAdd for new dependencies', () => {
 		const deps: [object, PropertyKey, string | undefined][] = []
 		const $s = state({

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import type { DerivedValue } from '../src/index.ts'
 import { derive, state } from '../src/index.ts'
 
 describe('Derive Core', {
@@ -13,6 +14,19 @@ describe('Derive Core', {
 		const $doubled = derive((): number => $count.value * 2)
 
 		assert.strictEqual($doubled.value, 10)
+	})
+
+	it('returns a DerivedValue', (): void => {
+		const $count = state({
+			value: 5,
+		})
+		const $doubled: DerivedValue<number> = derive((): number => $count.value * 2)
+
+		assert.strictEqual($doubled.value, 10)
+		assert.strictEqual($doubled.pending, false)
+		assert.strictEqual($doubled.reactive, true)
+
+		$doubled.reactive = false
 	})
 
 	it('caches computed value', (): void => {
@@ -157,6 +171,33 @@ describe('Derive Core', {
 		$doubled.reactive = true
 		assert.strictEqual($doubled.reactive, true)
 		assert.strictEqual($doubled.value, 20)
+	})
+
+	it('reads an unknown property as undefined', (): void => {
+		const $count = state({
+			value: 5,
+		})
+		const $doubled = derive((): number => $count.value * 2)
+
+		assert.strictEqual(Reflect.get($doubled, 'other'), undefined)
+
+		$doubled.reactive = false
+	})
+
+	it('rejects assigning value', (): void => {
+		const $count = state({
+			value: 5,
+		})
+		const $doubled = derive((): number => $count.value * 2)
+		// The type marks value readonly; the cast reaches the proxy's set trap as a runtime caller would
+		const writable = $doubled as unknown as { value: number }
+
+		assert.throws((): void => {
+			writable.value = 99
+		}, TypeError)
+		assert.strictEqual($doubled.value, 10)
+
+		$doubled.reactive = false
 	})
 
 	it('propagates errors from computation', (): void => {

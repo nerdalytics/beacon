@@ -4,9 +4,9 @@ Single file: `index.ts`. The entire reactive system. Do not split into modules.
 
 ## Exports
 
-Functions: `state`, `effect`, `batch`, `derive`, `onSettled`, `until`
+Functions: `state`, `effect`, `batch`, `derive`, `onIdle`, `until`
 
-Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `ComputedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `SettledCallback`
+Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `DerivedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
 
 ## Internal State (Module-Level)
 
@@ -16,7 +16,7 @@ Global mutable state driving the reactive system:
 |----------|------|---------|
 | `currentEffect` | `EffectFunction \| null` | Currently executing effect (for dependency tracking) |
 | `batchDepth` | `number` | Nesting depth counter for batch operations |
-| `isNotifying` | `boolean` | Prevents re-entrant `flushEffects` calls; also set while settled callbacks run, so their writes queue |
+| `isNotifying` | `boolean` | Prevents re-entrant `flushEffects` calls; also set while idle callbacks run, so their writes queue |
 | `isTrackingOnly` | `boolean` | When true, get/has/ownKeys handlers skip subscriber registration (re-run optimization) |
 | `pendingEffects` | `Set<EffectFunction>` | Sync effects queued for execution |
 | `pendingMicroEffects` | `Set<EffectFunction>` | `schedule: 'microtask'` effects waiting for the next microtask flush |
@@ -29,8 +29,8 @@ Global mutable state driving the reactive system:
 | `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
 | `rerunReadList`, `rerunReadIndex`, `rerunStable` | | Re-run fast path: replays the effect's `__readList` and advances while reads match |
 | `rerunTempDeps`, `rerunTempReads`, `buildingReadList` | | Re-run slow path: collect fresh deps/reads and build a new read list |
-| `settledCallbacks` | `Set<SettledCallback>` | `onSettled` subscribers |
-| `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last settle notification (a flush ran, or an async derive settled) |
+| `idleCallbacks` | `Set<IdleCallback>` | `onIdle` subscribers |
+| `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last idle notification (a flush ran, or an async derive settled) |
 | `untilEvaluating`, `untilSawPending` | `boolean` | Set while an `until` predicate runs; records whether it read a pending derive |
 | `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the hookless fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
 
@@ -78,7 +78,7 @@ Five handler factories, each returns a ProxyHandler method. `state()` without ho
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
-| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads, `getWrappedArrayMethod` for mutating methods, `wrapNestedObject` for nested wrapping |
+| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; only the hooked variant routes mutating array methods through `getWrappedArrayMethod` (the hookless one returns every function raw) |
 | `createSetHandler()` | `set` | Delegates to `handleBatchFastPath` during batch, `performWrite` otherwise |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
@@ -128,12 +128,11 @@ addPendingEffect(subscriber)
 | `effect()` | Public API — composes hooks, creates `runEffect` closure, registers as child |
 | `runEffectSafely` | Saves/restores `currentEffect` + `isTrackingOnly`, delegates to `executeEffectBody` |
 | `executeEffectBody` | Sets `isTrackingOnly` on re-runs, disposes children, picks the read-list fast path or temp-collection slow path, runs `fn()`, then `handleRerunResult` / `updateEffectSubscriptions` |
-| `handleRerunResult` | Re-run outcome: full read-list match or matching temp deps → keep subscriptions (store the new read list); otherwise swap in the temp deps/reads |
+| `handleRerunResult` | Re-run outcome: full read-list match or matching temp deps (via `depsMatch` → `allDepsPropsMatch` → `propsMatch` → `setContainsAll`) → keep subscriptions (store the new read list); otherwise swap in the temp deps/reads |
 | `handleReadListMismatch` | Drops `__readList` when the replay did not consume it exactly |
 | `clearRerunState` | Resets all `rerun*` / `buildingReadList` module state |
 | `disposeChildEffects` | Cleans up all child effects before re-running parent |
-| `updateEffectSubscriptions` | Compares deps after execution, restores if stable, updates subscriber sets if changed |
-| `tryRestoreStableDeps` | Short-circuits if deps unchanged (via `depsMatch` → `allDepsPropsMatch` → `propsMatch` → `setContainsAll`) |
+| `updateEffectSubscriptions` | First run or changed re-run: removes stale subscriber sets, registers new ones, reindexes reads, stores the deps/reads as previous; returns early when the effect's own dispose ran inside the body and cleared `__deps`/`__reads` |
 | `removeStaleSubscribers` | Removes effect from targets no longer depended on |
 | `registerNewSubscribers` | Adds effect to newly depended-on targets |
 | `registerChildEffect` | Links effect to `currentEffect` via `__parent`/`__children` properties |
@@ -153,8 +152,8 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `addPendingEffect` | Queues into `pendingEffects` or `pendingMicroEffects` by `__schedule` |
-| `armMicrotaskFlush` | Counts `microtaskFlushChain`, queues one microtask that moves `pendingMicroEffects` into `pendingEffects`, flushes, then `notifySettledOutsideFlush`; at `MAX_MICROTASK_FLUSH_CHAIN` (100) the microtask drops `pendingMicroEffects` and calls `console.error` instead |
-| `flushEffects` | Per cycle: drain `pendingEffects` in a while loop, then `notifySettledIfQuiet`; repeats while callbacks scheduled effects, up to `MAX_SETTLE_CYCLES` (100), then drops them and throws (microtask flush: `console.error`) |
+| `armMicrotaskFlush` | Counts `microtaskFlushChain`, queues one microtask that moves `pendingMicroEffects` into `pendingEffects`, flushes, then `notifyIdleOutsideFlush`; at `MAX_MICROTASK_FLUSH_CHAIN` (100) the microtask drops `pendingMicroEffects` and calls `console.error` instead |
+| `flushEffects` | Per cycle: drain `pendingEffects` in a while loop, then `notifyIfIdle`; repeats while callbacks scheduled effects, up to `MAX_IDLE_CYCLES` (100), then drops them and throws (microtask flush: `console.error`) |
 | `runPendingEffectBatch` | Single pending effect runs directly; otherwise copies into `effectQueue`, clears `pendingEffects`, runs each via `runEffectIfActive` |
 | `runEffectIfActive` | Guards against disposed effects (checks `effect.__deps`). On a throw: inside a microtask flush, `console.error` unless `onError` ran, then continue; otherwise clear `pendingEffects` and `effectQueue` and rethrow |
 
@@ -172,7 +171,7 @@ addPendingEffect(subscriber)
 |----------|---------|
 | `batch()` | Public API — increments `batchDepth`, runs fn, flushes at outermost boundary |
 | `flushDirtyTargets` | Processes deferred writes from `dirtyTargets` at `batchDepth === 1` |
-| `flushBatchEffects` | Runs deferred effect creations, flushes pending effects, then `notifySettledOutsideFlush` |
+| `flushBatchEffects` | Runs deferred effect creations, flushes pending effects, then `notifyIdleOutsideFlush` |
 | `runDeferredEffects` | Executes effects created during batch |
 | `clearBatchState` | Emergency cleanup — clears both pending sets, deferred creations, dirty targets |
 | `handleBatchError` | Decrements depth, fires error hook, clears state at outermost |
@@ -191,9 +190,9 @@ addPendingEffect(subscriber)
 
 | Function | Purpose |
 |----------|---------|
-| `onSettled()` | Public API — adds a callback to `settledCallbacks`, returns an unsubscribe |
-| `notifySettledIfQuiet` | Calls settled callbacks (errors swallowed) when nothing is pending or armed and work happened since the last call |
-| `notifySettledOutsideFlush` | Notify entry outside `flushEffects`: sets `isNotifying` around `notifySettledIfQuiet` so callback writes queue, then `flushEffects` |
+| `onIdle()` | Public API — adds a callback to `idleCallbacks`, returns an unsubscribe |
+| `notifyIfIdle` | Calls idle callbacks (errors swallowed) when the graph is idle (no effect queued, no microtask flush armed) and work happened since the last call; a pending async derive does not block it |
+| `notifyIdleOutsideFlush` | Notify entry outside `flushEffects`: sets `isNotifying` around `notifyIfIdle` so callback writes queue, then `flushEffects` |
 | `until()` | Public API — throws inside a reactive scope, rejects at once on an aborted signal, else wraps `runUntil` in a Promise |
 | `runUntil` | Runs the predicate in an effect; resolves on a microtask once it is truthy and no read derive was pending; `timeout`/`signal` reject; a throwing predicate rejects with its error on a microtask instead of propagating to the writer; disposes its effect, timer and abort listener on resolve or reject |
 
@@ -219,9 +218,9 @@ addPendingEffect(subscriber)
 2. **Effect re-entrancy guard**: `__active` boolean on EffectFunction prevents an effect from running while already running.
 3. **Batch depth counting**: `batchDepth` must always return to 0. Incremented before `fn()`, decremented in all paths (success + error).
 4. **Cleanup order**: `cleanupEffect` removes from subscribers and clears `__prevDeps`/`__prevReads`. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).
-5. **`flushEffects` non-recursion**: Uses a while loop draining `pendingEffects`. Effects triggered during a flush are added to `pendingEffects` and picked up by the next loop iteration. Effects triggered by `onSettled` callbacks are picked up by the next settle cycle of the same `flushEffects` call (at most `MAX_SETTLE_CYCLES`), or by the `flushEffects` in `notifySettledOutsideFlush`; callbacks never flush re-entrantly. Re-runs of microtask effects never join a sync flush; they wait for `armMicrotaskFlush`.
-6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects (they have a `__parent`) and `schedule: 'microtask'` effects are exempt. Microtask re-runs are bounded instead: after `MAX_MICROTASK_FLUSH_CHAIN` (100) microtask flushes each armed from inside the previous one, `armMicrotaskFlush` drops `pendingMicroEffects` and reports with `console.error`. This bounds microtask self-writes, microtask cross-effect cycles and onSettled-to-microtask loops; sync cross-effect cycles stay uncapped.
-7. **Stable dependency skip**: `updateEffectSubscriptions` compares deps after execution via `tryRestoreStableDeps`. If stable, restores previous tracking structures (skips subscriber teardown/rebuild). If changed, only removes stale subscriber sets.
+5. **`flushEffects` non-recursion**: Uses a while loop draining `pendingEffects`. Effects triggered during a flush are added to `pendingEffects` and picked up by the next loop iteration. Effects triggered by `onIdle` callbacks are picked up by the next idle cycle of the same `flushEffects` call (at most `MAX_IDLE_CYCLES`), or by the `flushEffects` in `notifyIdleOutsideFlush`; callbacks never flush re-entrantly. Re-runs of microtask effects never join a sync flush; they wait for `armMicrotaskFlush`.
+6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects (they have a `__parent`) and `schedule: 'microtask'` effects are exempt. Microtask re-runs are bounded instead: after `MAX_MICROTASK_FLUSH_CHAIN` (100) microtask flushes each armed from inside the previous one, `armMicrotaskFlush` drops `pendingMicroEffects` and reports with `console.error`. This bounds microtask self-writes, microtask cross-effect cycles and onIdle-to-microtask loops; sync cross-effect cycles stay uncapped.
+7. **Stable dependency skip**: `handleRerunResult` compares a re-run's deps with the previous run's via `depsMatch`. If stable, keeps the existing tracking structures (skips subscriber teardown/rebuild) and `updateEffectSubscriptions` is not called. If changed, `updateEffectSubscriptions` only removes stale subscriber sets and registers new ones.
 8. **Batch dirty target processing**: `dirtyTargets` processed at `batchDepth === 1` (before decrement), so `scheduleSubscribersForTarget` sees `batchDepth > 0` and defers flushing. Processing after decrement would cause premature per-property flushing.
 9. **Tracking-only re-runs**: On effect re-execution, `isTrackingOnly = true` makes `trackDependency` call `recordEffectRead` in silent mode — skips subscriber set mutation and hook calls, only replays/records reads for dep comparison. Any throw must go through `clearRerunState` (done in `runEffectSafely`).
 
