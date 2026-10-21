@@ -1,0 +1,681 @@
+# Review package: ticket 02, de10f8381c93a4025995d73726b33f09ceed1a8a..a4d45bc4fbeae93f9d1a6d179c4770b699b2eb0c
+
+## Commits
+### a4d45bc
+refactor(core): cover reachable guards and delete dead ones
+
+The lcov report for src/index.ts still lists eighteen unhit branches
+and one unhit function after the reachable gaps were covered. Each one
+is a defensive guard. Pin the ten that a public API or hook path
+reaches with a test in the behavior file for its subject: an onError
+hook that reads or writes state while the failed effect is still
+current, state() on a hooked proxy, hooks on a frozen object, a derive
+onDispose hook that writes a dependency, a recompute that disposes its
+own derive before returning a promise, until() with a write or an
+abort after the predicate turned truthy or with a predicate that
+aborts its own signal, and an effect that disposes itself from a
+re-run after a child threw on its first run. That last path clears
+the effect's deps and reads before subscription update, so the
+missing-maps return there stays: without it the re-run throws a
+TypeError from removeStaleSubscribers.
+
+Delete the eight whose condition cannot occur or whose guarded code
+changes nothing: the identity and missing-set short-circuits in the
+dependency comparison helpers, the wrapped-method return in the
+hookless get handler (the typeof check above it already returns every
+function raw), and the stable-dependency restore path after a re-run.
+That path was reachable only when a nested first-run throw, caught by
+the parent, had cleared the re-run state; the deps were then identical
+to the previous run's, and removing stale subscribers, registering
+new ones and reindexing reads on identical sets are no-ops.
+
+Core-module coverage goes from BRH 522 of 540 and FNH 108 of 109 to
+BRH 543 of 543 and FNH 108 of 108.
+
+
+## Files changed
+ src/AGENTS.md                       |  9 +++----
+ src/index.ts                        | 33 ++++++------------------
+ tests/AGENTS.md                     |  8 +++---
+ tests/cleanup.test.ts               | 25 ++++++++++++++++++
+ tests/derive-async.test.ts          | 25 +++++++++++++++++-
+ tests/derive-hooks.test.ts          | 19 ++++++++++++++
+ tests/effect-hooks.test.ts          | 51 +++++++++++++++++++++++++++++++++++++
+ tests/property-dynamic-deps.test.ts |  2 +-
+ tests/settle-observation.test.ts    | 49 +++++++++++++++++++++++++++++++++++
+ tests/state-hooks.test.ts           | 35 +++++++++++++++++++++++++
+ 10 files changed, 220 insertions(+), 36 deletions(-)
+
+## Diff
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 159b57a..0448c79 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -71,21 +71,21 @@ ## Symbols
+ | `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
+ 
+ ## Internal Function Architecture
+ 
+ ### Proxy Handlers
+ 
+ Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get and set factories return leaner variants when no hooks are passed.
+ 
+ | Handler | Traps | Key behavior |
+ |---------|-------|-------------|
+-| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads, `getWrappedArrayMethod` for mutating methods, `wrapNestedObject` for nested wrapping |
++| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; only the hooked variant routes mutating array methods through `getWrappedArrayMethod` (the hookless one returns every function raw) |
+ | `createSetHandler()` | `set` | Delegates to `handleBatchFastPath` during batch, `performWrite` otherwise |
+ | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
+ | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
+ | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
+ 
+ Handler helpers:
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+@@ -121,26 +121,25 @@ ### Subscriber Scheduling Pipeline
+   → onSchedule hook only when the effect was newly queued
+ ```
+ 
+ ### Effect Lifecycle
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `effect()` | Public API — composes hooks, creates `runEffect` closure, registers as child |
+ | `runEffectSafely` | Saves/restores `currentEffect` + `isTrackingOnly`, delegates to `executeEffectBody` |
+ | `executeEffectBody` | Sets `isTrackingOnly` on re-runs, disposes children, picks the read-list fast path or temp-collection slow path, runs `fn()`, then `handleRerunResult` / `updateEffectSubscriptions` |
+-| `handleRerunResult` | Re-run outcome: full read-list match or matching temp deps → keep subscriptions (store the new read list); otherwise swap in the temp deps/reads |
++| `handleRerunResult` | Re-run outcome: full read-list match or matching temp deps (via `depsMatch` → `allDepsPropsMatch` → `propsMatch` → `setContainsAll`) → keep subscriptions (store the new read list); otherwise swap in the temp deps/reads |
+ | `handleReadListMismatch` | Drops `__readList` when the replay did not consume it exactly |
+ | `clearRerunState` | Resets all `rerun*` / `buildingReadList` module state |
+ | `disposeChildEffects` | Cleans up all child effects before re-running parent |
+-| `updateEffectSubscriptions` | Compares deps after execution, restores if stable, updates subscriber sets if changed |
+-| `tryRestoreStableDeps` | Short-circuits if deps unchanged (via `depsMatch` → `allDepsPropsMatch` → `propsMatch` → `setContainsAll`) |
++| `updateEffectSubscriptions` | First run or changed re-run: removes stale subscriber sets, registers new ones, reindexes reads, stores the deps/reads as previous; returns early when the effect's own dispose ran inside the body and cleared `__deps`/`__reads` |
+ | `removeStaleSubscribers` | Removes effect from targets no longer depended on |
+ | `registerNewSubscribers` | Adds effect to newly depended-on targets |
+ | `registerChildEffect` | Links effect to `currentEffect` via `__parent`/`__children` properties |
+ 
+ ### Effect Cleanup
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `cleanupEffect` | Removes from subscribers, then `resetEffectTracking` |
+ | `resetEffectTracking` | Dequeues from both pending sets, clears `__deps`/`__reads`/`__readList`/`__prevDeps`/`__prevReads` |
+@@ -214,21 +213,21 @@ ### Utilities
+ | `depsMatch` | Compares two dep sets by size + per-target property sets |
+ 
+ ## Critical Invariants
+ 
+ 1. **Proxy deduplication**: Never create two Proxies for the same target. Always check `proxyCache` and `[PROXY]` symbol first.
+ 2. **Effect re-entrancy guard**: `__active` boolean on EffectFunction prevents an effect from running while already running.
+ 3. **Batch depth counting**: `batchDepth` must always return to 0. Incremented before `fn()`, decremented in all paths (success + error).
+ 4. **Cleanup order**: `cleanupEffect` removes from subscribers and clears `__prevDeps`/`__prevReads`. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).
+ 5. **`flushEffects` non-recursion**: Uses a while loop draining `pendingEffects`. Effects triggered during a flush are added to `pendingEffects` and picked up by the next loop iteration. Effects triggered by `onIdle` callbacks are picked up by the next idle cycle of the same `flushEffects` call (at most `MAX_IDLE_CYCLES`), or by the `flushEffects` in `notifyIdleOutsideFlush`; callbacks never flush re-entrantly. Re-runs of microtask effects never join a sync flush; they wait for `armMicrotaskFlush`.
+ 6. **Infinite loop detection scope**: Only blocks direct self-mutation (effect reads prop X then writes prop X on same target). Indirect cycles through different effects are allowed. Nested child effects (they have a `__parent`) and `schedule: 'microtask'` effects are exempt. Microtask re-runs are bounded instead: after `MAX_MICROTASK_FLUSH_CHAIN` (100) microtask flushes each armed from inside the previous one, `armMicrotaskFlush` drops `pendingMicroEffects` and reports with `console.error`. This bounds microtask self-writes, microtask cross-effect cycles and onIdle-to-microtask loops; sync cross-effect cycles stay uncapped.
+-7. **Stable dependency skip**: `updateEffectSubscriptions` compares deps after execution via `tryRestoreStableDeps`. If stable, restores previous tracking structures (skips subscriber teardown/rebuild). If changed, only removes stale subscriber sets.
++7. **Stable dependency skip**: `handleRerunResult` compares a re-run's deps with the previous run's via `depsMatch`. If stable, keeps the existing tracking structures (skips subscriber teardown/rebuild) and `updateEffectSubscriptions` is not called. If changed, `updateEffectSubscriptions` only removes stale subscriber sets and registers new ones.
+ 8. **Batch dirty target processing**: `dirtyTargets` processed at `batchDepth === 1` (before decrement), so `scheduleSubscribersForTarget` sees `batchDepth > 0` and defers flushing. Processing after decrement would cause premature per-property flushing.
+ 9. **Tracking-only re-runs**: On effect re-execution, `isTrackingOnly = true` makes `trackDependency` call `recordEffectRead` in silent mode — skips subscriber set mutation and hook calls, only replays/records reads for dep comparison. Any throw must go through `clearRerunState` (done in `runEffectSafely`).
+ 
+ ## `derive()` Implementation
+ 
+ Creates an internal `state()` + `effect()` pair. Returns a Proxy over `internalState` with custom get/set traps. `value` and `pending` read through the reactive internal when inside an effect (for dependency propagation) or from the raw target otherwise. The `reactive` property controls the effect lifecycle (false → dispose, true → recreate); every other property reads `undefined` and rejects writes.
+ 
+ Async compute: a thenable result sets `pending = true` and bumps a `generation` counter. A synchronous result clears `pending`, and so does dispose. On settle, only the latest generation writes, and only while `pending` is still `true` (a later sync result or a dispose discards the settle, including `onError`): it sets `settleProcessed` and, inside a `batch`, writes the value (on resolve) and clears `pending`. A rejection also fires `onError`.
+ 
+ ## Modification Guidelines
+diff --git a/src/index.ts b/src/index.ts
+index c13b59f..4961c65 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -474,36 +474,34 @@ function cleanupEffectCompletely(effect: EffectFunction): void {
+ 			for (const c of eff.__children) pending.push(c)
+ 			eff.__children = undefined
+ 		}
+ 		eff.__parent?.__children?.delete(eff)
+ 		eff.__parent = undefined
+ 		eff.__active = false
+ 	}
+ }
+ 
+ function setContainsAll(superset: Set<PropertyKey>, subset: Set<PropertyKey>): boolean {
+-	if (superset === subset) return true
+ 	for (const prop of subset) {
+ 		if (!superset.has(prop)) return false
+ 	}
+ 	return true
+ }
+ 
+ function propsMatch(
+ 	prevReads: Map<object, Set<PropertyKey>>,
+ 	newReads: Map<object, Set<PropertyKey>>,
+ 	target: object
+ ): boolean {
+-	const prevProps = prevReads.get(target)
+-	const newProps = newReads.get(target)
+-	if (!prevProps || !newProps) return false
+-	if (prevProps === newProps) return true
++	// every builder of a reads map adds the target's Set together with the deps entry, so both lookups are defined
++	const prevProps = prevReads.get(target) as Set<PropertyKey>
++	const newProps = newReads.get(target) as Set<PropertyKey>
+ 	if (prevProps.size !== newProps.size) return false
+ 	return setContainsAll(prevProps, newProps)
+ }
+ 
+ function allDepsPropsMatch(
+ 	prevDeps: Set<object>,
+ 	newDeps: Set<object>,
+ 	prevReads: Map<object, Set<PropertyKey>>,
+ 	newReads: Map<object, Set<PropertyKey>>
+ ): boolean {
+@@ -513,21 +511,20 @@ function allDepsPropsMatch(
+ 	return true
+ }
+ 
+ function depsMatch(
+ 	prevDeps: Set<object>,
+ 	newDeps: Set<object>,
+ 	prevReads: Map<object, Set<PropertyKey>>,
+ 	newReads: Map<object, Set<PropertyKey>>
+ ): boolean {
+ 	if (prevDeps.size !== newDeps.size) return false
+-	if (prevDeps === newDeps && prevReads === newReads) return true
+ 	return allDepsPropsMatch(prevDeps, newDeps, prevReads, newReads)
+ }
+ 
+ // Proxy handler functions
+ function createDeleteHandler<T>(
+ 	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined
+ ): NonNullable<ProxyHandler<ProxyTarget>['deleteProperty']> {
+ 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
+ 		const had = Object.hasOwn(rawTarget, prop)
+ 		const ok = delete rawTarget[prop]
+@@ -571,22 +568,20 @@ function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value:
+ function createGetHandler<T>(
+ 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+ 	hooks: StateHooks<T> | undefined
+ ): NonNullable<ProxyHandler<ProxyTarget>['get']> {
+ 	if (!onRead && !hooks) {
+ 		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
+ 			if (isInternalSymbol(prop)) return rawTarget[prop]
+ 			if (currentEffect) trackDependency(rawTarget, prop)
+ 			const value = rawTarget[prop]
+ 			if (value === null || typeof value !== 'object') return value
+-			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
+-			if (wrapped) return wrapped
+ 			return wrapNestedObject(value as object, undefined)
+ 		}
+ 	}
+ 
+ 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
+ 		if (isInternalSymbol(prop)) return rawTarget[prop]
+ 		if (currentEffect) trackDependency(rawTarget, prop)
+ 		const value = rawTarget[prop]
+ 
+ 		callHookSafe(onRead, prop, value, rawTarget as T)
+@@ -825,44 +820,32 @@ function removeStaleSubscribers(eff: EffectFunction, prevDeps: Set<object>, newD
+ 
+ function registerNewSubscribers(eff: EffectFunction, prevDeps: Set<object>, newDeps: Set<object>): void {
+ 	for (const dep of newDeps) {
+ 		if (!prevDeps.has(dep)) {
+ 			const subs = getSubscribers(dep)
+ 			subs.add(eff)
+ 		}
+ 	}
+ }
+ 
+-function tryRestoreStableDeps(
+-	eff: EffectFunction,
+-	prevDeps: Set<object> | undefined,
+-	prevReads: Map<object, Set<PropertyKey>> | undefined,
+-	newDeps: Set<object> | undefined,
+-	newReads: Map<object, Set<PropertyKey>> | undefined
+-): boolean {
+-	if (!prevDeps || !prevReads || !newDeps || !newReads) return false
+-	if (!depsMatch(prevDeps, newDeps, prevReads, newReads)) return false
+-	eff.__reads = prevReads
+-	eff.__deps = prevDeps
+-	return true
+-}
+-
++// Reached on a first run, or on a re-run handleRerunResult did not keep. A re-run can arrive here with deps
++// identical to prevDeps: a child effect that throws on its first run clears the re-run state in its own catch,
++// and when the parent catches that throw, no temp collections remain, so handleRerunResult returns false.
++// On identical sets every step below is a no-op, so no stable-dependency restore path is needed before them.
+ function updateEffectSubscriptions(
+ 	eff: EffectFunction,
+ 	prevDeps: Set<object> | undefined,
+ 	prevReads: Map<object, Set<PropertyKey>> | undefined
+ ): void {
+ 	const newDeps = eff.__deps
+ 	const newReads = eff.__reads
+-
+-	if (tryRestoreStableDeps(eff, prevDeps, prevReads, newDeps, newReads)) return
+-
++	// Both are cleared when the effect's own dispose handle is called from inside its body (cleanupEffect ran)
+ 	if (!newDeps || !newReads) return
+ 
+ 	if (prevDeps) {
+ 		removeStaleSubscribers(eff, prevDeps, newDeps)
+ 		registerNewSubscribers(eff, prevDeps, newDeps)
+ 		if (prevReads) reindexReads(eff, prevReads, newReads)
+ 	}
+ 	eff.__prevDeps = newDeps
+ 	eff.__prevReads = newReads
+ }
+diff --git a/tests/AGENTS.md b/tests/AGENTS.md
+index 7f2724e..913f28d 100644
+--- a/tests/AGENTS.md
++++ b/tests/AGENTS.md
+@@ -85,17 +85,17 @@ ## Coverage Targets
+ - Lines: 90%
+ - Includes: `src/**/*.ts`
+ - Excludes: `scripts/**/*.ts`
+ 
+ ## Hooks Tests
+ 
+ Test hooks instrumentation for each primitive. Each file verifies backward compatibility (works without hooks), individual hook firing, and error isolation (hook errors never break core).
+ 
+ | File | Tests | Covers |
+ |------|-------|--------|
+-| `state-hooks.test.ts` | 13 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
+-| `effect-hooks.test.ts` | 8 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
+-| `derive-hooks.test.ts` | 11 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
+-| `batch-hooks.test.ts` | 6 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
++| `state-hooks.test.ts` | 15 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
++| `effect-hooks.test.ts` | 11 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
++| `derive-hooks.test.ts` | 12 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
++| `batch-hooks.test.ts` | 7 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
+ | `hooks-compose.test.ts` | 7 | `composeHook` utility — undefined, single, array, forwarding, error isolation |
+ 
+ <!-- BEACON-START -->[Tests Index]|root: ./tests|IMPORTANT: Follow naming conventions and always dispose effects/derives in tests|.:{*.test.ts,PROPERTY_BASED_TESTING.md,biome.json}<!-- BEACON-END -->
+diff --git a/tests/cleanup.test.ts b/tests/cleanup.test.ts
+index 284e255..679fc0d 100644
+--- a/tests/cleanup.test.ts
++++ b/tests/cleanup.test.ts
+@@ -283,11 +283,36 @@ describe('Cleanup', {
+ 		$state.value = 2
+ 		assert.deepStrictEqual(results, ['e1:2', 'e3:2'])
+ 
+ 		dispose1()
+ 		dispose3()
+ 
+ 		results.length = 0
+ 		$state.value = 3
+ 		assert.deepStrictEqual(results, [])
+ 	})
++
++	it('disposes an effect from its own re-run after a child threw on its first run', (): void => {
++		const $state = state({
++			value: 0,
++		})
++		let runs = 0
++		let dispose = (): void => {}
++		dispose = effect((): void => {
++			runs++
++			void $state.value
++			if (runs === 1) return
++			try {
++				effect((): void => {
++					throw new Error('child')
++				})
++			} catch {}
++			dispose()
++		})
++
++		$state.value = 1
++		assert.strictEqual(runs, 2)
++
++		$state.value = 2
++		assert.strictEqual(runs, 2)
++	})
+ })
+diff --git a/tests/derive-async.test.ts b/tests/derive-async.test.ts
+index 81a7e0f..e995eda 100644
+--- a/tests/derive-async.test.ts
++++ b/tests/derive-async.test.ts
+@@ -1,13 +1,13 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+-import { derive, effect, onIdle, state, until } from '../src/index.ts'
++import { type DerivedValue, derive, effect, onIdle, state, until } from '../src/index.ts'
+ 
+ interface Deferred<T> {
+ 	promise: Promise<T>
+ 	reject: (reason?: unknown) => void
+ 	resolve: (value: T) => void
+ }
+ 
+ function deferred<T>(): Deferred<T> {
+ 	let reject: (reason?: unknown) => void = (): void => {}
+ 	let resolve: (value: T) => void = (): void => {}
+@@ -314,11 +314,34 @@ describe('Derive Async', {
+ 		await tick()
+ 		let idle = 0
+ 		const off = onIdle((): void => {
+ 			idle++
+ 		})
+ 		slow.resolve(1)
+ 		await tick()
+ 		off()
+ 		assert.equal(idle, 0)
+ 	})
++
++	it('does not notify pending readers when a recompute disposes its own derive before returning a promise', async (): Promise<void> => {
++		const $source = state({
++			n: 0,
++		})
++		const $computed: DerivedValue<number> = derive((): Promise<number> => {
++			if ($source.n > 0) $computed.reactive = false
++			return Promise.resolve($source.n)
++		})
++		await tick()
++		let runs = 0
++		const dispose = effect((): void => {
++			runs++
++			void $computed.pending
++		})
++		$source.n = 1
++		assert.equal($computed.reactive, false)
++		assert.equal($computed.pending, true)
++		await tick()
++		assert.equal($computed.pending, false)
++		assert.equal(runs, 1)
++		dispose()
++	})
+ })
+diff --git a/tests/derive-hooks.test.ts b/tests/derive-hooks.test.ts
+index 8bca14d..3275f5a 100644
+--- a/tests/derive-hooks.test.ts
++++ b/tests/derive-hooks.test.ts
+@@ -52,20 +52,39 @@ describe('Derive Hooks', {
+ 		const $d = derive(() => 42, {
+ 			onDispose: () => {
+ 				disposed = true
+ 			},
+ 		})
+ 		assert.strictEqual(disposed, false)
+ 		$d.reactive = false
+ 		assert.strictEqual(disposed, true)
+ 	})
+ 
++	it('does not recompute when onDispose writes a dependency', () => {
++		const $s = state({
++			n: 1,
++		})
++		let computations = 0
++		const $d = derive(() => $s.n * 2, {
++			onCompute: () => {
++				computations++
++			},
++			onDispose: () => {
++				$s.n = 5
++			},
++		})
++		assert.strictEqual(computations, 1)
++		$d.reactive = false
++		assert.strictEqual(computations, 1)
++		assert.strictEqual($d.value, 2)
++	})
++
+ 	it('re-creates and disposes one effect across reactive toggles', () => {
+ 		let computes = 0
+ 		let disposals = 0
+ 		const $s = state({
+ 			count: 1,
+ 		})
+ 		const $d = derive(() => $s.count * 10, {
+ 			onCompute: () => {
+ 				computes++
+ 			},
+diff --git a/tests/effect-hooks.test.ts b/tests/effect-hooks.test.ts
+index b983ebc..468e8c4 100644
+--- a/tests/effect-hooks.test.ts
++++ b/tests/effect-hooks.test.ts
+@@ -63,20 +63,71 @@ describe('Effect Hooks', {
+ 				)
+ 			},
+ 			{
+ 				message: 'boom',
+ 			}
+ 		)
+ 		assert.strictEqual(errors.length, 1)
+ 		assert.strictEqual(errors[0]?.message, 'boom')
+ 	})
+ 
++	it('lets onError write state while the failed effect is still current', () => {
++		const $log = state({
++			last: '',
++		})
++		assert.throws(
++			() => {
++				effect(
++					() => {
++						throw new Error('boom')
++					},
++					'failing',
++					{
++						onError: (err: Error) => {
++							$log.last = err.message
++						},
++					}
++				)
++			},
++			{
++				message: 'boom',
++			}
++		)
++		assert.strictEqual($log.last, 'boom')
++	})
++
++	it('lets onError read state while the failed effect is still current', () => {
++		const $config = state({
++			retries: 3,
++		})
++		const seen: number[] = []
++		assert.throws(
++			() => {
++				effect(
++					() => {
++						throw new Error('boom')
++					},
++					'failing',
++					{
++						onError: () => {
++							seen.push($config.retries)
++						},
++					}
++				)
++			},
++			{
++				message: 'boom',
++			}
++		)
++		assert.deepStrictEqual(seen, [3])
++	})
++
+ 	it('fires onDependencyAdd for new dependencies', () => {
+ 		const deps: [object, PropertyKey, string | undefined][] = []
+ 		const $s = state({
+ 			count: 0,
+ 		})
+ 		const dispose = effect(
+ 			() => {
+ 				const _v = $s.count
+ 			},
+ 			'tracker',
+diff --git a/tests/property-dynamic-deps.test.ts b/tests/property-dynamic-deps.test.ts
+index 24827b3..f1bd5c3 100644
+--- a/tests/property-dynamic-deps.test.ts
++++ b/tests/property-dynamic-deps.test.ts
+@@ -3,21 +3,21 @@ import { describe, it } from 'node:test'
+ import fc from 'fast-check'
+ import { effect, state } from '../src/index.ts'
+ 
+ /**
+  * Property-based tests for dynamic dependency tracking under arbitrary
+  * branch sequences.
+  *
+  * Beacon re-evaluates effect dependency sets on each run. When an effect
+  * conditionally reads from different state objects, toggling the condition
+  * must correctly add/remove subscriptions via updateEffectSubscriptions
+- * (and the tryRestoreStableDeps fast path).
++ * (and the handleRerunResult stable fast path).
+  *
+  * These tests verify that for any sequence of boolean toggles, the effect
+  * only fires when the currently-tracked dependency changes — never on
+  * updates to the inactive branch's dependency.
+  *
+  * @see tests/PROPERTY_BASED_TESTING.md — Opportunity #10
+  */
+ 
+ // --- Types ---
+ 
+diff --git a/tests/settle-observation.test.ts b/tests/settle-observation.test.ts
+index da2a4a5..516a7ee 100644
+--- a/tests/settle-observation.test.ts
++++ b/tests/settle-observation.test.ts
+@@ -126,20 +126,35 @@ describe('Settle Observation', {
+ 		s.n = 1
+ 		await p
+ 		await tick()
+ 		const after = evaluations
+ 		s.n = 2
+ 		await tick()
+ 		await tick()
+ 		assert.equal(evaluations, after)
+ 	})
+ 
++	it('until stops evaluating on a write made before its resolution microtask', async (): Promise<void> => {
++		const $s = state({
++			n: 0,
++		})
++		let evaluations = 0
++		const p = until((): number => {
++			evaluations++
++			return $s.n
++		})
++		$s.n = 1
++		$s.n = 2
++		assert.equal(await p, 1)
++		assert.equal(evaluations, 2)
++	})
++
+ 	it('onIdle fires once per batched flush and stops after unsubscribe', async (): Promise<void> => {
+ 		const s = state({
+ 			a: 0,
+ 			b: 0,
+ 		})
+ 		const stopReader = effect((): void => {
+ 			void s.a
+ 			void s.b
+ 		})
+ 		let calls = 0
+@@ -193,20 +208,54 @@ describe('Settle Observation', {
+ 		const s = state({
+ 			ready: false,
+ 		})
+ 		const p = until((): boolean => s.ready, {
+ 			signal: controller.signal,
+ 		})
+ 		controller.abort(new Error('changed mind'))
+ 		await assert.rejects(p, /changed mind/)
+ 	})
+ 
++	it('until resolves when the signal aborts after the predicate turned truthy', async (): Promise<void> => {
++		const controller = new AbortController()
++		const $s = state({
++			ready: false,
++		})
++		const p = until((): boolean => $s.ready, {
++			signal: controller.signal,
++		})
++		$s.ready = true
++		controller.abort(new Error('too late'))
++		assert.equal(await p, true)
++	})
++
++	it('until rejects with the abort reason when the predicate aborts the signal on its first evaluation', async (): Promise<void> => {
++		const controller = new AbortController()
++		const $s = state({
++			n: 0,
++		})
++		let evaluations = 0
++		const p = until(
++			(): boolean => {
++				evaluations++
++				controller.abort(new Error('gave up'))
++				return $s.n > 0
++			},
++			{
++				signal: controller.signal,
++			}
++		)
++		await assert.rejects(p, /gave up/)
++		$s.n = 1
++		assert.equal(evaluations, 1)
++	})
++
+ 	it('until disposes its effect after the signal aborts', async (): Promise<void> => {
+ 		const controller = new AbortController()
+ 		const $s = state({
+ 			n: 0,
+ 		})
+ 		const p = until((): boolean => $s.n > 0, {
+ 			signal: controller.signal,
+ 		})
+ 		controller.abort(new Error('changed mind'))
+ 		await assert.rejects(p, /changed mind/)
+diff --git a/tests/state-hooks.test.ts b/tests/state-hooks.test.ts
+index 490c14f..c159329 100644
+--- a/tests/state-hooks.test.ts
++++ b/tests/state-hooks.test.ts
+@@ -265,11 +265,46 @@ describe('State Hooks', {
+ 					},
+ 					() => {
+ 						calls.push(3)
+ 					},
+ 				],
+ 			}
+ 		)
+ 		$s.count = 1
+ 		assert.deepStrictEqual(calls, [1, 2, 3])
+ 	})
++
++	it('maintains object identity when hooked', () => {
++		const reads: PropertyKey[] = []
++		const $s = state(
++			{
++				value: 1,
++			},
++			{
++				onRead: (prop: PropertyKey) => {
++					reads.push(prop)
++				},
++			}
++		)
++		const $same = state($s)
++
++		assert.strictEqual($same, $s)
++		assert.deepStrictEqual(reads, [])
++	})
++
++	it('fires onRead for a frozen object', () => {
++		const reads: PropertyKey[] = []
++		const $frozen = state(
++			Object.freeze({
++				limit: 10,
++			}),
++			{
++				onRead: (prop: PropertyKey) => {
++					reads.push(prop)
++				},
++			}
++		)
++
++		assert.strictEqual($frozen.limit, 10)
++		assert.deepStrictEqual(reads, ['limit'])
++	})
+ })

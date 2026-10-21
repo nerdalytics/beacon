@@ -1,0 +1,114 @@
+# Review package: ticket 03, a4d45bc4fbeae93f9d1a6d179c4770b699b2eb0c..c16bb864f145f37d36a50b4c9c1a0bddff361545
+
+## Commits
+### c16bb86
+chore(core): switch the coverage gate on
+
+Node reads node.config.json only with --experimental-default-config-file,
+so until now the minimums in that file were inert and a coverage run
+below them exited 0. The coverage script now passes the flag, and a run
+that misses any minimum exits 1.
+
+The lcov reporter does not print test diagnostics, so with it alone the
+threshold error was invisible even though the exit code was 1. A second
+spec reporter on stdout prints that line; the lcov reporter and its
+destination are unchanged.
+
+CI runs the coverage script as a step of the test job on every matrix
+version, after the plain test step, so a pull request or trunk push that
+drops coverage fails on each runtime.
+
+The tests docs heading now uses the glossary term "coverage gate" and
+states that the script exits non-zero below any minimum.
+
+
+## Files changed
+ .github/workflows/build-test-publish.yml | 2 ++
+ package.json                             | 2 +-
+ tests/AGENTS.md                          | 4 ++--
+ 3 files changed, 5 insertions(+), 3 deletions(-)
+
+## Diff
+diff --git a/.github/workflows/build-test-publish.yml b/.github/workflows/build-test-publish.yml
+index 4e35ad5..845e421 100644
+--- a/.github/workflows/build-test-publish.yml
++++ b/.github/workflows/build-test-publish.yml
+@@ -41,20 +41,22 @@ jobs:
+           - latest
+     runs-on: ubuntu-latest
+     steps:
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+         with:
+           node-version: ${{ matrix.node-version }}
+           cache: npm
+       - run: npm ci
+       - run: npm test
++      - name: Check coverage gate
++        run: npm run test:coverage
+   check-version:
+     needs: test
+     if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'
+     runs-on: ubuntu-latest
+     outputs:
+       changed: ${{ steps.check.outputs.changed }}
+       version: ${{ steps.check.outputs.version }}
+     steps:
+       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+         with:
+diff --git a/package.json b/package.json
+index e312362..e8cc579 100644
+--- a/package.json
++++ b/package.json
+@@ -55,20 +55,20 @@
+ 		"benchmark": "node --expose-gc scripts/benchmark.ts -R 3",
+ 		"build": "tsc -p tsconfig.build.json",
+ 		"check": "npx @biomejs/biome check --enforce-assist=true",
+ 		"check:fix": "npx @biomejs/biome check --enforce-assist=true --write",
+ 		"format": "npx @biomejs/biome format --write",
+ 		"lint": "npx @biomejs/biome lint",
+ 		"lint:fix": "npx @biomejs/biome lint --fix",
+ 		"lint:fix:unsafe": "npx @biomejs/biome lint --fix --unsafe",
+ 		"prepublishOnly": "npm run build",
+ 		"test": "node --test --test-skip-pattern=\"COMPONENT NAME\" tests/**/*.ts",
+-		"test:coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.test.ts",
++		"test:coverage": "node --experimental-default-config-file --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info --test-reporter=spec --test-reporter-destination=stdout tests/**/*.test.ts",
+ 		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange",
+ 		"prebuild": "rm -rf dist/",
+ 		"postbuild": "npx esbuild dist/src/index.js --minify --sourcemap --sources-content=false --outfile=dist/src/index.min.js --format=esm --platform=node"
+ 	},
+ 	"sideEffects": false,
+ 	"type": "module",
+ 	"version": "2002.0.0",
+ 	"types": "dist/src/index.d.ts"
+ }
+diff --git a/tests/AGENTS.md b/tests/AGENTS.md
+index 913f28d..212156e 100644
+--- a/tests/AGENTS.md
++++ b/tests/AGENTS.md
+@@ -70,23 +70,23 @@ ## Cleanup
+ ```
+ 
+ ## Running Tests
+ 
+ | Command | Scope |
+ |---------|-------|
+ | `npm test` | All tests (`tests/**/*.ts`) |
+ | `npm run test:coverage` | All tests with coverage, lcov written to `lcov.info` |
+ | `node --test tests/<file>.test.ts` | One file (there are no per-category scripts) |
+ 
+-## Coverage Targets
++## Coverage Gate
+ 
+-Configured in `node.config.json`:
++Minimums in `node.config.json`; `npm run test:coverage` loads them and exits non-zero when a run misses any of them, locally and in CI:
+ - Branches: 100%
+ - Functions: 100%
+ - Lines: 90%
+ - Includes: `src/**/*.ts`
+ - Excludes: `scripts/**/*.ts`
+ 
+ ## Hooks Tests
+ 
+ Test hooks instrumentation for each primitive. Each file verifies backward compatibility (works without hooks), individual hook firing, and error isolation (hook errors never break core).
+ 

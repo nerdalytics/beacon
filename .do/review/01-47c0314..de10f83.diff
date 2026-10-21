@@ -1,0 +1,250 @@
+# Review package: ticket 01, 47c0314d94aa8e4a52de893120aa6d2d4fcd8f08..de10f8381c93a4025995d73726b33f09ceed1a8a
+
+## Commits
+### de10f83
+test(core): cover five reachable branches of derive, effect and batch
+
+The lcov report for src/index.ts lists branches that any caller of the
+public API can reach but no test exercised: the derive proxy's get trap
+for an unknown property and its set trap for a property other than
+reactive, the infinite-loop message for a named effect, the scheduler's
+already-queued return reached through array mutating methods inside a
+batch, and the dirty-target flush in the hooks path of batch(). Pin
+each with a test in the behavior file for its subject so the coverage
+gate can be switched on without excluding any of them.
+
+Core-module unhit branches go from 23 to 18 (BRH 515 to 523).
+
+
+## Files changed
+ tests/batch-core.test.ts    | 25 ++++++++++++++++++++++++-
+ tests/batch-hooks.test.ts   | 30 +++++++++++++++++++++++++++++-
+ tests/derive-core.test.ts   | 27 +++++++++++++++++++++++++++
+ tests/infinite-loop.test.ts | 17 +++++++++++++++++
+ 4 files changed, 97 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/tests/batch-core.test.ts b/tests/batch-core.test.ts
+index 2303c63..a2cf2f9 100644
+--- a/tests/batch-core.test.ts
++++ b/tests/batch-core.test.ts
+@@ -1,13 +1,13 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+-import { batch } from '../src/index.ts'
++import { batch, effect, state } from '../src/index.ts'
+ 
+ describe('Batch Core', {
+ 	concurrency: true,
+ 	timeout: 1000,
+ }, (): void => {
+ 	it('executes function synchronously', (): void => {
+ 		let executed = false
+ 
+ 		batch((): void => {
+ 			executed = true
+@@ -113,20 +113,43 @@ describe('Batch Core', {
+ 			b: 2,
+ 		})
+ 
+ 		const arr = batch((): number[] => [1, 2, 3])
+ 		assert.deepStrictEqual(arr, [1, 2, 3])
+ 
+ 		const fn = batch((): (() => string) => (): string => 'function result')
+ 		assert.strictEqual(fn(), 'function result')
+ 	})
+ 
++	it('runs an effect once when two arrays it reads are both mutated in one batch', (): void => {
++		const $lists = state({
++			a: [1],
++			b: [2],
++		})
++		let effectCount = 0
++
++		const dispose = effect((): void => {
++			effectCount++
++			void $lists.a.length
++			void $lists.b.length
++		})
++		effectCount = 0
++
++		batch((): void => {
++			$lists.a.push(3)
++			$lists.b.push(4)
++		})
++
++		assert.strictEqual(effectCount, 1)
++		dispose()
++	})
++
+ 	it('allows deep nesting', (): void => {
+ 		let depth = 0
+ 		const maxDepth = 50
+ 
+ 		const nest = (n: number): number => {
+ 			if (n <= 0) return depth
+ 			return batch((): number => {
+ 				depth++
+ 				return nest(n - 1)
+ 			})
+diff --git a/tests/batch-hooks.test.ts b/tests/batch-hooks.test.ts
+index 26e2894..8c28a41 100644
+--- a/tests/batch-hooks.test.ts
++++ b/tests/batch-hooks.test.ts
+@@ -1,13 +1,13 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+-import { batch } from '../src/index.ts'
++import { batch, effect, state } from '../src/index.ts'
+ 
+ describe('Batch Hooks', {
+ 	concurrency: true,
+ 	timeout: 1000,
+ }, () => {
+ 	it('works without hooks (backward compat)', () => {
+ 		const result = batch(() => 42)
+ 		assert.strictEqual(result, 42)
+ 	})
+ 
+@@ -74,19 +74,47 @@ describe('Batch Hooks', {
+ 				starts.push(d)
+ 			},
+ 		}
+ 		batch(() => {
+ 			batch(() => {}, innerHooks)
+ 		}, outerHooks)
+ 		assert.deepStrictEqual(starts, [1, 2])
+ 		assert.deepStrictEqual(ends, [2, 1])
+ 	})
+ 
++	it('flushes a subscribed write made in the body when the batch ends', () => {
++		const $count = state({
++			value: 0,
++		})
++		const seen: number[] = []
++		const ends: number[] = []
++
++		const dispose = effect(() => {
++			seen.push($count.value)
++		})
++
++		batch(
++			() => {
++				$count.value = 1
++				assert.deepStrictEqual(seen, [0])
++			},
++			{
++				onBatchEnd: (depth: number) => {
++					ends.push(depth)
++				},
++			}
++		)
++
++		assert.deepStrictEqual(seen, [0, 1])
++		assert.deepStrictEqual(ends, [1])
++		dispose()
++	})
++
+ 	it('isolates hook errors from batch execution', () => {
+ 		const result = batch(() => 99, {
+ 			onBatchStart: () => {
+ 				throw new Error('hook error')
+ 			},
+ 		})
+ 		assert.strictEqual(result, 99)
+ 	})
+ })
+diff --git a/tests/derive-core.test.ts b/tests/derive-core.test.ts
+index 97301f3..4235994 100644
+--- a/tests/derive-core.test.ts
++++ b/tests/derive-core.test.ts
+@@ -166,20 +166,47 @@ describe('Derive Core', {
+ 		assert.strictEqual($doubled.reactive, false)
+ 
+ 		$count.value = 10
+ 		assert.strictEqual($doubled.value, 10)
+ 
+ 		$doubled.reactive = true
+ 		assert.strictEqual($doubled.reactive, true)
+ 		assert.strictEqual($doubled.value, 20)
+ 	})
+ 
++	it('reads an unknown property as undefined', (): void => {
++		const $count = state({
++			value: 5,
++		})
++		const $doubled = derive((): number => $count.value * 2)
++
++		assert.strictEqual(Reflect.get($doubled, 'other'), undefined)
++
++		$doubled.reactive = false
++	})
++
++	it('rejects assigning value', (): void => {
++		const $count = state({
++			value: 5,
++		})
++		const $doubled = derive((): number => $count.value * 2)
++		// The type marks value readonly; the cast reaches the proxy's set trap as a runtime caller would
++		const writable = $doubled as unknown as { value: number }
++
++		assert.throws((): void => {
++			writable.value = 99
++		}, TypeError)
++		assert.strictEqual($doubled.value, 10)
++
++		$doubled.reactive = false
++	})
++
+ 	it('propagates errors from computation', (): void => {
+ 		const $toggle = state({
+ 			value: false,
+ 		})
+ 
+ 		const $problematic = derive((): string => {
+ 			if ($toggle.value) {
+ 				throw new Error('Computation error')
+ 			}
+ 			return 'OK'
+diff --git a/tests/infinite-loop.test.ts b/tests/infinite-loop.test.ts
+index d8f9699..9b684d8 100644
+--- a/tests/infinite-loop.test.ts
++++ b/tests/infinite-loop.test.ts
+@@ -246,20 +246,37 @@ describe('Infinite Loop Detection', {
+ 			errorThrown = true
+ 			assert.ok(
+ 				error instanceof Error && error.message.includes('Infinite loop detected'),
+ 				`Expected infinite loop error, but got: ${error}`
+ 			)
+ 		}
+ 
+ 		assert.strictEqual(errorThrown, true, 'An infinite loop error should have been thrown')
+ 	})
+ 
++	it('should name the effect and property in the error for a named effect', (): void => {
++		const $count = state({
++			value: 0,
++		})
++
++		assert.throws(
++			(): void => {
++				effect((): void => {
++					$count.value = $count.value + 1
++				}, 'counter')
++			},
++			{
++				message: 'Infinite loop detected: effect "counter" cannot update property "value" it depends on',
++			}
++		)
++	})
++
+ 	it('should detect infinite loops in oscillating patterns', (): void => {
+ 		const $a = state({
+ 			value: 5,
+ 		})
+ 		let errorThrown = false
+ 
+ 		try {
+ 			// Create an effect that reads and writes to the same state
+ 			effect((): void => {
+ 				const currentValue = $a.value
