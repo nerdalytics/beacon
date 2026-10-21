@@ -62,7 +62,7 @@
 		"lint:fix:unsafe": "npx @biomejs/biome lint --fix --unsafe",
 		"prepublishOnly": "npm run build",
 		"test": "node --test --test-skip-pattern=\"COMPONENT NAME\" tests/**/*.ts",
-		"test:coverage": "node --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info tests/**/*.test.ts",
+		"test:coverage": "node --experimental-default-config-file --test --experimental-test-coverage --test-reporter=lcov --test-reporter-destination=lcov.info --test-reporter=spec --test-reporter-destination=stdout tests/**/*.test.ts",
 		"update-dependencies": "npx npm-check-updates --interactive --upgrade --removeRange",
 		"prebuild": "rm -rf dist/",
 		"postbuild": "npx esbuild dist/src/index.js --minify --sourcemap --sources-content=false --outfile=dist/src/index.min.js --format=esm --platform=node"

@@ -48,6 +48,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      - name: Check coverage gate
+        run: npm run test:coverage
   check-version:
     needs: test
     if: github.event_name == 'push' && github.ref == 'refs/heads/trunk'

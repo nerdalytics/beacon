@@ -77,9 +77,9 @@ $computed.reactive = false
 | `npm run test:coverage` | All tests with coverage, lcov written to `lcov.info` |
 | `node --test tests/<file>.test.ts` | One file (there are no per-category scripts) |
 
-## Coverage Targets
+## Coverage Gate
 
-Configured in `node.config.json`:
+Minimums in `node.config.json`; `npm run test:coverage` loads them and exits non-zero when a run misses any of them, locally and in CI:
 - Branches: 100%
 - Functions: 100%
 - Lines: 90%
