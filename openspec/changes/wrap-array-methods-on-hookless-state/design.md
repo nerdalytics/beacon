@@ -1,0 +1,46 @@
+# Design
+
+## Context
+
+See proposal.md, Why. Verified on a fresh build of trunk `cbd7448` on 2026-10-21; the reproductions and decisions are in the triage notes of `.do/inbox/2026-10-21-hookless-state-skips-array-method-wrap.md`. What shapes the approach:
+
+- The two get handlers that `state()` installs differ in one step: the hooked one asks for a wrapped method before returning a non-object value, the hookless one does not. The wrapper lookup already checks for an array target, a string property in the mutating-method set and a function value, so it is cheap to call on the hookless path.
+- The current wrapper applies the native method to the raw target and then schedules every subscriber of the array without a property. Nothing passes a trap, so the loop check, dependency tracking and state hooks do not run. The self-wake it issues inside an effect is dropped by the effect's active guard.
+- A native mutating method run on the Proxy reads `length` (and the indices it moves) through the get trap and writes them through the set trap. Inside a synchronous top-level effect that trips the loop check on `length` or an index. Outside an effect each write schedules per property and flushes separately unless a batch is open. A write of an equal value does not notify.
+- Inside a batch, writes from outside an effect take the fast path that records dirty targets; at the outermost boundary a dirty array schedules every subscriber of the array once. That is the one-wake-per-call behavior that triage decided on (Q24 a), already implemented for batched writes.
+- The wrapper is called as a method, so its `this` is the Proxy the caller went through. Sealed and frozen targets have no proxy back-reference property, so a lookup from the raw target would need the fallback cache; the receiver needs no lookup.
+
+## Goals / Non-Goals
+
+**Goals:**
+- One code path for every read and write an array method performs, on both kinds of state.
+- At most one wake per call, from the existing batch boundary.
+- No new state, counter or exemption in loop detection.
+- The hookless read path stays within 1% of trunk on the benchmark.
+
+**Non-Goals:**
+- Per-property wakes for array methods.
+- Changing the numeric caps in loop detection, or any other loop-detection logic.
+- Changing how plain index or `length` assignments notify.
+
+## Decisions
+
+- **The wrapper applies the native method to its call receiver (`this`) inside a batch, and returns the result.** The receiver is the Proxy, so every read and write passes the traps. Alternative: look the Proxy up from the raw target through the back-reference symbol or the proxy cache; rejected because the receiver is already the right object and the lookup has a fallback branch for non-extensible targets that the receiver avoids.
+- **The batch is the hookless `batch()` or its inlined depth bookkeeping; the implementer picks by the benchmark.** The public `batch()` without hooks is exactly the depth increment, dirty-target flush and effect flush the wrapper needs. Inlining avoids one closure per call. Alternative: a new internal "suspend notifications" flag; rejected because the batch mechanism already exists and composes with user batches.
+- **Both get handlers call the same wrapper lookup, placed before the non-object early return.** The lookup's first check is `Array.isArray` on the target, so a plain object read pays one call and one check. Alternative: keep the hookless handler untouched and special-case arrays at `state()` creation; rejected because nested arrays are wrapped lazily on read, so the get handler is where the decision has to live.
+- **A call that changes nothing wakes nobody.** This follows from routing writes through the set trap, which skips equal values, and matches the rule for direct assignments. Alternative: force a wake per call, as the current hooked wrapper does; rejected because it would need an extra scheduling call that the batch boundary does not provide and would notify without a state change.
+- **The method cache keys stay as they are unless the implementer finds a simpler shape.** The wrapper no longer closes over the target, so a cache keyed by native method alone would serve, but identity per target is what the existing tests may rely on; the implementer checks before changing it.
+- **Dependencies the method reads are tracked like any read.** An effect that calls a mutating method now depends on `length` and the indices the method touched. For synchronous top-level effects that is moot, since the call throws. For child and microtask effects it matches what hookless state does today.
+- **Docs change in the same tickets as the behavior they describe.** Four places name array interception; each says the methods are intercepted on all state and wake every subscriber once.
+- **Benchmark case: one subscriber on an array, a loop of `push` then `pop`, measured on both kinds of state, added before any library change.** It is the pattern the proposal changes. The baseline is the full suite run on the unchanged library with the new case present; the gate is the grand total of a full run on the final commit, at most 1% above the baseline (Q27 b, Q33). Below the gate there is no release: a further ticket iterates on the wrapper and the lookup until a full run meets it.
+
+## Risks / Trade-offs
+
+- [Each element move inside `shift`, `unshift`, `splice`, `sort` and `reverse` becomes a trap call, which hooked state did not pay before] → it is what hookless state pays today for the same call, and the benchmark grand total measures it; if the final run exceeds the baseline by more than 1% the release waits for the performance ticket to bring it back.
+- [A consumer relied on hooked state waking subscribers on a `sort` or `reverse` that changed nothing] → undocumented; the handbook describes wakes as reactions to changes. Called out in the release notes line of the version bump.
+- [The hookless read path pays an extra function call per property read] → the lookup returns on its first check for non-arrays; the `state read no effect` benchmark case gates it at 1%.
+- [A consumer called a mutating method inside a synchronous top-level effect on hooked state and depended on the silent stall] → the stall was a dropped notification, and the effect never observed its own write; the loop error now names the effect and the property, which is the documented behavior.
+
+## Migration Plan
+
+Single patch release. Order inside the change: the wrapper and the notification tests first, then the loop-detection and hook assertions, then the benchmark, docs and version bump, so every commit on the branch is green. Rollback: revert the squash commit; no data or API shape changes.
