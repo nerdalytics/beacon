@@ -1,0 +1,124 @@
+# Review package: ticket 01, bc9bad40af8bbabb417f41c8bda7dd1fe83f7fc4..e9bc6cd0058f1fef1c20b56e600512878c608f64
+
+## Commits
+### e9bc6cd
+test(state): add array push/pop benchmark on both kinds of state
+
+Measure the pattern the wrap-array-methods-on-hookless-state change
+alters: one effect subscribed to a reactive array's length, then a loop
+of push followed by pop, timed like the effect triggers case. Run it
+once on hookless state and once on state created with no-op onRead and
+onWrite hooks so the two code paths get separate figures.
+
+The library is unchanged in this commit, so the numbers this run
+records are the baseline later tickets compare against.
+
+
+## Files changed
+ scripts/benchmark.ts | 34 ++++++++++++++++++++++++++++++++++
+ 1 file changed, 34 insertions(+)
+
+## Diff
+diff --git a/scripts/benchmark.ts b/scripts/benchmark.ts
+index d9780cf..8060ec4 100644
+--- a/scripts/benchmark.ts
++++ b/scripts/benchmark.ts
+@@ -1,22 +1,24 @@
+ import { performance } from 'node:perf_hooks'
+ import { parseArgs } from 'node:util'
+ import type { DerivedValue, Unsubscribe } from '../src/index.ts'
+ import { batch, derive, effect, state } from '../src/index.ts'
++import type { StateHooks } from '../src/types.ts'
+ 
+ const DEFAULT_RUN_COUNT = 10
+ const LOOP_LENGTH = 1_000_000
+ const ERROR_FREQUENCY = 1000
+ const WARMUP_RUNS = 3
+ const BENCH_RUNS = 7
+ 
+ const EFFECT_TRIGGER_WRITES = 50_000
++const ARRAY_PUSH_POP_CALLS = 50_000
+ const MULTI_SOURCE_COUNT = 100
+ const MULTI_SOURCE_ITERATIONS = 100
+ const DERIVE_CHAIN_DEPTH = 10
+ const DERIVE_CHAIN_ITERATIONS = 1_000
+ const STATE_CREATION_COUNT = 100_000
+ const STATE_READ_COUNT = 1_000_000
+ const SINGLE_SUB_WRITES = 100_000
+ const MANY_SUB_COUNT = 100
+ const MANY_SUB_WRITES = 10_000
+ const DISJOINT_PROP_COUNT = 100
+@@ -284,20 +286,44 @@ function effectTriggers(): number {
+ 	})
+ 	const start = performance.now()
+ 	for (let i = 0; i < EFFECT_TRIGGER_WRITES; i++) {
+ 		s.v = i
+ 	}
+ 	const end = performance.now()
+ 	cleanup()
+ 	return end - start
+ }
+ 
++// No-op hooks: the hooked case measures the hooked method path, not hook work
++const noopStateHooks: StateHooks<number[]> = {
++	onRead: (): void => {},
++	onWrite: (): void => {},
++}
++
++function arrayPushPop(items: number[]): number {
++	const cleanup: Unsubscribe = effect((): void => {
++		void items.length
++	})
++	const start = performance.now()
++	for (let i = 0; i < ARRAY_PUSH_POP_CALLS; i++) {
++		items.push(i)
++		items.pop()
++	}
++	const end = performance.now()
++	cleanup()
++	return end - start
++}
++
++const arrayPushPopHookless = (): number => arrayPushPop(state<number[]>([]))
++
++const arrayPushPopHooks = (): number => arrayPushPop(state<number[]>([], noopStateHooks))
++
+ function manyDependencies(): number {
+ 	const sources = Array.from(
+ 		{
+ 			length: MULTI_SOURCE_COUNT,
+ 		},
+ 		(
+ 			_: unknown,
+ 			i: number
+ 		): {
+ 			v: number
+@@ -487,20 +513,28 @@ const suite: SuiteEntry[] = [
+ 		name: 'state write 1 sub         ',
+ 	},
+ 	{
+ 		fn: stateWrite100Subs,
+ 		name: 'state write 100 subs      ',
+ 	},
+ 	{
+ 		fn: effectTriggers,
+ 		name: 'effect triggers           ',
+ 	},
++	{
++		fn: arrayPushPopHookless,
++		name: 'array push/pop (hookless) ',
++	},
++	{
++		fn: arrayPushPopHooks,
++		name: 'array push/pop (hooks)    ',
++	},
+ 	{
+ 		fn: manyDependencies,
+ 		name: 'many dependencies         ',
+ 	},
+ 	{
+ 		fn: deriveChainDepth10,
+ 		name: 'derive chain depth 10     ',
+ 	},
+ 	{
+ 		fn: update100StatesIndividual,
