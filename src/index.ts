@@ -629,11 +629,17 @@ function getArrayLengthBeforeMutation(rawTarget: ProxyTarget, prop: PropertyKey)
 	return (rawTarget as unknown as unknown[]).length
 }
 
-function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean {
+function handleBatchFastPath<T>(
+	rawTarget: ProxyTarget,
+	prop: PropertyKey,
+	value: unknown,
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+): boolean {
 	const oldValue = rawTarget[prop]
 	if (Object.is(oldValue, value)) return true
 
 	rawTarget[prop] = value
+	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
 
 	// inlined, not findSubscribers: the call cost ~5% on the batch + derive benchmarks
 	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
@@ -668,32 +674,39 @@ function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
 function createSetHandler<T>(
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['set']> {
-	if (!onWrite) {
-		return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
-			if (batchDepth > 0 && !currentEffect) {
-				return handleBatchFastPath(rawTarget, prop, value)
-			}
-			if (!currentEffect) {
-				const oldValue = rawTarget[prop]
-				if (Object.is(oldValue, value)) return true
-				const subs = findSubscribers(rawTarget)
-				if (!subs?.size) {
-					rawTarget[prop] = value
-					return true
-				}
-				const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
-				rawTarget[prop] = value
-				scheduleSubscribersForTarget(rawTarget, prop)
-				notifyLengthChangeIfNeeded(rawTarget, oldLength)
-				return true
-			}
-			return performWrite(rawTarget, prop, value, undefined)
-		}
-	}
-
+	// One trap for hooked and hookless state: onWrite only observes, it never selects a notification path
 	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
+		if (batchDepth > 0 && !currentEffect) {
+			return handleBatchFastPath(rawTarget, prop, value, onWrite)
+		}
+		if (!currentEffect) {
+			return performUnbatchedWrite(rawTarget, prop, value, onWrite)
+		}
 		return performWrite(rawTarget, prop, value, onWrite)
 	}
+}
+
+// Outside any effect and batch: no loop check, and a target without subscribers skips scheduling
+function performUnbatchedWrite<T>(
+	rawTarget: ProxyTarget,
+	prop: PropertyKey,
+	value: unknown,
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+): boolean {
+	const oldValue = rawTarget[prop]
+	if (Object.is(oldValue, value)) return true
+	const subs = findSubscribers(rawTarget)
+	if (!subs?.size) {
+		rawTarget[prop] = value
+		if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
+		return true
+	}
+	const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
+	rawTarget[prop] = value
+	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
+	scheduleSubscribersForTarget(rawTarget, prop)
+	notifyLengthChangeIfNeeded(rawTarget, oldLength)
+	return true
 }
 
 function performWrite<T>(

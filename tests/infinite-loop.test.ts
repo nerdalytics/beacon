@@ -57,6 +57,19 @@ describe('Infinite Loop Detection', {
 		assert.strictEqual(errorThrown, true, 'An infinite loop error should have been thrown')
 	})
 
+	it('should detect direct infinite loops on state created with hooks', (): void => {
+		const $count = state({ value: 0 }, { onRead: (): void => {}, onWrite: (): void => {} })
+
+		assert.throws(() => {
+			unsubscribes.push(
+				effect((): void => {
+					$count.value = $count.value + 1
+				})
+			)
+			$count.value = 10
+		}, /Infinite loop detected/)
+	})
+
 	it('should allow a single read-write cycle but prevent infinite loops', (): void => {
 		const $counter = state({
 			value: 5,

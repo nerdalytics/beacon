@@ -74,12 +74,12 @@ Effect tracking data stored directly on the function object (O(1) property acces
 
 ### Proxy Handlers
 
-Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get and set factories return leaner variants when no hooks are passed.
+Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object.
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
 | `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; only the hooked variant routes mutating array methods through `getWrappedArrayMethod` (the hookless one returns every function raw) |
-| `createSetHandler()` | `set` | Delegates to `handleBatchFastPath` during batch, `performWrite` otherwise |
+| `createSetHandler()` | `set` | One trap for hooked and hookless state: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
 | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
@@ -97,9 +97,10 @@ Handler helpers:
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
 | `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
 | `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
+| `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
 | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check); inlines the `findSubscribers` lookup |
+| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup |
 | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
 | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
 

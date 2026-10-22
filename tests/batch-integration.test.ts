@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import { batch, derive, effect, state } from '../src/index.ts'
+import type { StateHooks } from '../src/types.ts'
 
 interface Item {
 	name: string
@@ -283,5 +284,32 @@ describe('Batch Integration', {
 
 		assert.strictEqual(computeCount, 1)
 		assert.strictEqual($filtered.value?.length, 2)
+	})
+
+	it('wakes an index subscriber once when a batch grows the array, with and without hooks', (): void => {
+		const noop = (): void => {}
+		const variants: Array<StateHooks<number[]> | undefined> = [
+			undefined,
+			{ onRead: noop },
+			{ onWrite: noop },
+			{ onRead: noop, onWrite: noop },
+		]
+
+		for (const hooks of variants) {
+			const $list = state([0, 1, 2], hooks)
+			let effectCount = 0
+
+			const dispose = effect((): void => {
+				effectCount++
+				$list[1]
+			})
+
+			batch((): void => {
+				$list[3] = 3
+			})
+
+			assert.strictEqual(effectCount, 2)
+			dispose()
+		}
 	})
 })
