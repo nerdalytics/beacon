@@ -1,0 +1,490 @@
+# Review package: ticket 03, c7036f6..54eebc2
+
+## Commits
+### 54eebc2
+fix(state): batch mutating array methods on both kinds of state
+
+Hookless state returned the native array methods raw, so a push woke
+each subscriber once per property it wrote, while hooked state wrapped
+them around the raw target and woke every subscriber on every call,
+even one that changed nothing. Both kinds now read the same wrapper,
+which applies the native method to its call receiver, the Proxy, inside
+a batch. Every read and write passes the traps, so loop detection and
+the state hooks observe them, equal values are skipped, and the batch
+boundary wakes each subscriber at most once per call. The cache is
+keyed by the native method because the wrapper no longer closes over a
+target.
+
+Tighten the sealed-array property test to assert the TypeError and a
+working write afterwards, and pin the length notification on a direct
+index write, which push no longer exercises unbatched.
+
+
+## Files changed
+ src/AGENTS.md                        |   8 +-
+ src/index.ts                         |  27 +++---
+ tests/AGENTS.md                      |   2 +-
+ tests/array-methods.test.ts          | 154 +++++++++++++++++++++++++++++++++++
+ tests/property-frozen-sealed.test.ts |  22 ++---
+ tests/state-effect.test.ts           |  20 +++++
+ 6 files changed, 202 insertions(+), 31 deletions(-)
+
+## Diff
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 0839144..b6a3bd1 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -51,59 +51,59 @@ ## EffectFunction Properties
+ | `__reads` | `Map<object, Set<PropertyKey>> \| undefined` | Per-property read tracking (which props read on which targets) |
+ | `__schedule` | `EffectSchedule \| undefined` | `'microtask'` routes scheduling through `pendingMicroEffects` |
+ | `effectName` | `string \| undefined` | Optional name for debugging/hooks |
+ 
+ ## Internal Data Structures (WeakMap-based)
+ 
+ | WeakMap | Type | Purpose |
+ |---------|------|---------|
+ | `proxyCache` | `object → object` | Reuse same Proxy for same target |
+ | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
+-| `arrayMethodCache` | `object → Map<PropertyKey, CachedMethod>` | Cached wrapped mutating array methods per target |
++| `arrayMethodCache` | `CachedMethod → CachedMethod` | One wrapper per native mutating array method; the wrapper acts on its call receiver, so no per-target entry is needed |
+ | `frozenHooksCache` | `object → StateHooks` | Hooks storage for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
+ 
+ ## Symbols
+ 
+ | Symbol | Purpose |
+ |--------|---------|
+ | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
+ | `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
+ | `PROXY` | Stores Proxy reference on target objects |
+ | `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
+ 
+ ## Internal Function Architecture
+ 
+ ### Proxy Handlers
+ 
+ Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object.
+ 
+ | Handler | Traps | Key behavior |
+ |---------|-------|-------------|
+-| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; only the hooked variant routes mutating array methods through `getWrappedArrayMethod` (the hookless one returns every function raw) |
++| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; both variants route mutating array methods through `getWrappedArrayMethod` before the non-object early return |
+ | `createSetHandler()` | `set` | One trap for hooked and hookless state: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
+ | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
+ | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
+ | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
+ 
+ Handler helpers:
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+ | `recordEffectRead` | Non-silent: records into `__deps`/`__reads` + fires `onDependencyAdd`. Silent: advances the read-list replay while it matches, else replays the prefix into temp collections and falls back to `recordSilentRead` |
+ | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
+ | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
+ | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
+ | `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
+ | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
+-| `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
+-| `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
++| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check) |
++| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: applies it to the call receiver (the Proxy) inside `batch()`, so every read and write passes the traps and each subscriber wakes at most once per call |
+ | `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
+ | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
+ | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
+ | `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup |
+ | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
+ | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
+ 
+ ### Subscriber Scheduling Pipeline
+ 
+ ```
+diff --git a/src/index.ts b/src/index.ts
+index 8f9c524..f4d1ad9 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -86,21 +86,22 @@ const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object,
+ // single-subscriber writes in the benchmark suite
+ const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<EffectFunction>>> = new WeakMap<
+ 	Set<EffectFunction>,
+ 	Map<PropertyKey, Set<EffectFunction>>
+ >()
+ 
+ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
+ 
+ // Function type for cached methods
+ type CachedMethod = (...args: unknown[]) => unknown
+-const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
++// Keyed by the native method: the wrapper acts on its call receiver, so one wrapper serves every array
++const arrayMethodCache: WeakMap<CachedMethod, CachedMethod> = new WeakMap()
+ const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+ const MAX_IDLE_CYCLES = 100
+ const MAX_MICROTASK_FLUSH_CHAIN = 100
+ // Up to this many subscribers a scan is cheaper than the per-property index lookups
+ const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
+ 
+ // Hooks consulted on the hot path; stored on the effect only when at least one is set
+ type EffectInternalHooks = {
+ 	onDependencyAdd?: HookFunction<[object, PropertyKey, string | undefined]> | undefined
+ 	onDependencyChange?: HookFunction<[object, PropertyKey]> | undefined
+@@ -125,35 +126,29 @@ type EffectFunction = {
+ 
+ // Helper types for objects with internal symbols
+ type SubscribersObject = ProxyTarget & {
+ 	[SUBSCRIBERS]?: Set<EffectFunction>
+ }
+ 
+ type ProxyObject = ProxyTarget & {
+ 	[PROXY]?: object
+ }
+ 
+-function wrapArrayMethod(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
+-	let cache = arrayMethodCache.get(target)
+-	if (!cache) {
+-		cache = new Map<PropertyKey, CachedMethod>()
+-		arrayMethodCache.set(target, cache)
+-	}
+-
+-	let wrapped = cache.get(prop)
++function wrapArrayMethod(nativeMethod: CachedMethod): CachedMethod {
++	let wrapped = arrayMethodCache.get(nativeMethod)
+ 	if (!wrapped) {
+-		wrapped = (...args: unknown[]): unknown => {
+-			const result = originalMethod.apply(target, args)
+-			scheduleSubscribersForTarget(target)
+-			return result
++		// The receiver is the Proxy the caller went through, so every read and write the method performs
++		// passes the traps; the batch collapses them into one wake per subscriber after the method returns
++		wrapped = function (this: unknown, ...args: unknown[]): unknown {
++			return batch((): unknown => nativeMethod.apply(this, args))
+ 		}
+-		cache.set(prop, wrapped)
++		arrayMethodCache.set(nativeMethod, wrapped)
+ 	}
+ 	return wrapped
+ }
+ 
+ function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>): void {
+ 	try {
+ 		if (Object.isExtensible(target)) {
+ 			Object.defineProperty(target, SUBSCRIBERS, {
+ 				configurable: true,
+ 				enumerable: false,
+@@ -555,32 +550,34 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
+ }
+ 
+ function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): CachedMethod | undefined {
+ 	if (
+ 		!Array.isArray(rawTarget) ||
+ 		typeof prop !== 'string' ||
+ 		!MUTATING_ARRAY_METHODS.has(prop) ||
+ 		typeof value !== 'function'
+ 	)
+ 		return undefined
+-	return wrapArrayMethod(rawTarget, prop, value as CachedMethod)
++	return wrapArrayMethod(value as CachedMethod)
+ }
+ 
+ function createGetHandler<T>(
+ 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+ 	hooks: StateHooks<T> | undefined
+ ): NonNullable<ProxyHandler<ProxyTarget>['get']> {
+ 	if (!onRead && !hooks) {
+ 		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
+ 			if (isInternalSymbol(prop)) return rawTarget[prop]
+ 			if (currentEffect) trackDependency(rawTarget, prop)
+ 			const value = rawTarget[prop]
++			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
++			if (wrapped) return wrapped
+ 			if (value === null || typeof value !== 'object') return value
+ 			return wrapNestedObject(value as object, undefined)
+ 		}
+ 	}
+ 
+ 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
+ 		if (isInternalSymbol(prop)) return rawTarget[prop]
+ 		if (currentEffect) trackDependency(rawTarget, prop)
+ 		const value = rawTarget[prop]
+ 
+diff --git a/tests/AGENTS.md b/tests/AGENTS.md
+index 7b27045..57730ab 100644
+--- a/tests/AGENTS.md
++++ b/tests/AGENTS.md
+@@ -3,21 +3,21 @@ # tests/ — Beacon Test Suite
+ Native Node.js test runner (`node --test`). No external test framework.
+ 
+ ## File Organization
+ 
+ | Category | Naming | Examples |
+ |----------|--------|---------|
+ | Core | `{primitive}-core.test.ts` | `state-core`, `effect-core`, `derive-core`, `batch-core` |
+ | Hooks | `{primitive}-hooks.test.ts` | `state-hooks`, `effect-hooks`, `derive-hooks`, `batch-hooks` |
+ | Hooks Utility | `hooks-{utility}.test.ts` | `hooks-compose` |
+ | Integration | `{feature1}-{feature2}.test.ts` | `state-effect`, `state-derive`, `batch-integration` |
+-| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation` |
++| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation`, `array-methods` |
+ | Property-based | `property-{invariant}.test.ts` | `property-cleanup`, `property-proxy-identity` (fast-check; see `PROPERTY_BASED_TESTING.md`) |
+ 
+ `npm test` passes `--test-skip-pattern="COMPONENT NAME"`, which skips any test named `COMPONENT NAME` (a placeholder name; no template file is checked in).
+ 
+ ## Test Structure
+ 
+ ```typescript
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+ import { state, effect, derive, batch } from '../src/index.ts'
+diff --git a/tests/array-methods.test.ts b/tests/array-methods.test.ts
+new file mode 100644
+index 0000000..fbea8d5
+--- /dev/null
++++ b/tests/array-methods.test.ts
+@@ -0,0 +1,154 @@
++import assert from 'node:assert/strict'
++import { describe, it } from 'node:test'
++import { batch, effect, state } from '../src/index.ts'
++import type { StateHooks } from '../src/types.ts'
++
++// Both kinds of state: hooks only observe, so every assertion runs against each
++const observingHooks: StateHooks<number[]> = {
++	onRead: (): void => {},
++	onWrite: (): void => {},
++}
++
++function bothKinds(initial: number[]): number[][] {
++	return [state([...initial]), state([...initial], observingHooks)]
++}
++
++describe('Array Mutating Methods', {
++	concurrency: true,
++	timeout: 1000,
++}, (): void => {
++	it('wakes an effect reading index 0 and length once after push on an empty array', (): void => {
++		for (const $list of bothKinds([])) {
++			const seen: [number | undefined, number][] = []
++			const dispose = effect((): void => {
++				seen.push([$list[0], $list.length])
++			})
++
++			$list.push(1)
++
++			assert.deepStrictEqual(seen, [
++				[undefined, 0],
++				[1, 1],
++			])
++			dispose()
++		}
++	})
++
++	it('wakes an effect reading only index 1 once after push', (): void => {
++		for (const $list of bothKinds([0, 1, 2])) {
++			let runs = 0
++			const dispose = effect((): void => {
++				runs++
++				void $list[1]
++			})
++
++			$list.push(3)
++
++			assert.strictEqual(runs, 2)
++			dispose()
++		}
++	})
++
++	it('does not wake an effect when sort or reverse leaves every element as it was', (): void => {
++		for (const $sorted of bothKinds([1, 2, 3])) {
++			let runs = 0
++			const dispose = effect((): void => {
++				runs++
++				for (let i = 0; i < 3; i++) void $sorted[i]
++			})
++
++			$sorted.sort()
++
++			assert.strictEqual(runs, 1)
++			dispose()
++		}
++
++		for (const $palindrome of bothKinds([1, 2, 1])) {
++			let runs = 0
++			const dispose = effect((): void => {
++				runs++
++				for (let i = 0; i < 3; i++) void $palindrome[i]
++			})
++
++			$palindrome.reverse()
++
++			assert.strictEqual(runs, 1)
++			dispose()
++		}
++	})
++
++	it('defers wakes from push and pop to the end of a user batch', (): void => {
++		for (const $list of bothKinds([])) {
++			let runs = 0
++			const dispose = effect((): void => {
++				runs++
++				void $list.length
++			})
++
++			batch((): void => {
++				$list.push(1)
++				$list.pop()
++				assert.strictEqual(runs, 1)
++			})
++
++			assert.strictEqual(runs, 2)
++			assert.strictEqual($list.length, 0)
++			dispose()
++		}
++	})
++
++	it('returns what the native method returns and leaves the same contents', (): void => {
++		const descending = (a: number, b: number): number => b - a
++		const cases: [string, (list: number[]) => unknown][] = [
++			['push', (list: number[]): unknown => list.push(4, 5)],
++			['pop', (list: number[]): unknown => list.pop()],
++			['shift', (list: number[]): unknown => list.shift()],
++			['unshift', (list: number[]): unknown => list.unshift(8, 9)],
++			['splice', (list: number[]): unknown => list.splice(1, 2, 9)],
++			['sort', (list: number[]): unknown => list.sort(descending)],
++			['reverse', (list: number[]): unknown => list.reverse()],
++		]
++		for (const [name, call] of cases) {
++			const plain = [0, 1, 2, 3]
++			const expected = call(plain)
++			for (const $list of bothKinds([0, 1, 2, 3])) {
++				const result = call($list)
++				assert.deepStrictEqual(
++					result === $list ? '<receiver>' : result,
++					expected === plain ? '<receiver>' : expected,
++					name
++				)
++				assert.deepStrictEqual([...$list], plain, name)
++			}
++		}
++
++		for (const $list of bothKinds([1, 3, 2])) {
++			assert.strictEqual($list.sort(descending), $list)
++			assert.deepStrictEqual([...$list], [3, 2, 1])
++		}
++	})
++
++	it('propagates the TypeError from push on a sealed array and stays usable', (): void => {
++		for (const $list of [state(Object.seal([1])), state(Object.seal([1]), observingHooks)]) {
++			let runs = 0
++			const dispose = effect((): void => {
++				runs++
++				void $list[0]
++			})
++
++			assert.throws((): void => {
++				$list.push(2)
++			}, TypeError)
++
++			assert.deepStrictEqual([...$list], [1])
++			$list[0] = 7
++			assert.strictEqual(runs, 2)
++			batch((): void => {
++				$list[0] = 8
++			})
++			assert.strictEqual($list[0], 8)
++			assert.strictEqual(runs, 3)
++			dispose()
++		}
++	})
++})
+diff --git a/tests/property-frozen-sealed.test.ts b/tests/property-frozen-sealed.test.ts
+index 0e16c50..e666236 100644
+--- a/tests/property-frozen-sealed.test.ts
++++ b/tests/property-frozen-sealed.test.ts
+@@ -432,35 +432,35 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
+ 			fc.property(
+ 				fc.array(intArb, {
+ 					maxLength: 10,
+ 					minLength: 1,
+ 				}),
+ 				intArb,
+ 				(arr: number[], pushValue: number): void => {
+ 					const sealed = Object.seal([...arr])
+ 					const $s = state(sealed)
+ 
++					let runs = 0
+ 					const dispose = effect((): void => {
+-						void ($s as number[]).length
++						runs++
++						void ($s as number[])[0]
+ 					})
+ 
+-					// push on a sealed array — the engine may throw since sealed
+-					// arrays cannot add new indexed properties. We verify the
+-					// system remains stable either way.
+-					try {
++					// A sealed array cannot grow: the native push throws through the wrapper's batch
++					assert.throws((): void => {
+ 						;($s as number[]).push(pushValue)
+-						// If push succeeded, the method was served from frozenMethodCache
+-						assert.ok(true, 'push did not throw')
+-					} catch {
+-						// Expected on most engines — sealed arrays cannot grow
+-						assert.ok(true, 'push threw as expected for sealed array')
+-					}
++					}, TypeError)
++					assert.deepStrictEqual([...($s as number[])], arr)
++
++					// The failed call left no batch depth behind: the next write still notifies
++					;($s as number[])[0] = (arr[0] ?? 0) + 1
++					assert.strictEqual(runs, 2, 'write after the failed push should re-run the effect')
+ 
+ 					dispose()
+ 				}
+ 			),
+ 			{
+ 				numRuns: 200,
+ 			}
+ 		)
+ 	})
+ })
+diff --git a/tests/state-effect.test.ts b/tests/state-effect.test.ts
+index c718cd5..f91f5fc 100644
+--- a/tests/state-effect.test.ts
++++ b/tests/state-effect.test.ts
+@@ -221,20 +221,40 @@ describe('State-Effect Integration', {
+ 		assert.strictEqual(index1Count, 2)
+ 
+ 		$list.items[2] = 30
+ 		assert.strictEqual(index0Count, 2)
+ 		assert.strictEqual(index1Count, 2)
+ 
+ 		dispose0()
+ 		dispose1()
+ 	})
+ 
++	it('notifies length readers on a direct index write past the end', (): void => {
++		const $list = state([1, 2, 3])
++		const lengths: number[] = []
++
++		const dispose = effect((): void => {
++			lengths.push($list.length)
++		})
++
++		$list[3] = 4
++		assert.deepStrictEqual(lengths, [3, 4])
++
++		$list[0] = 10
++		assert.deepStrictEqual(lengths, [3, 4])
++
++		$list.length = 2
++		assert.deepStrictEqual(lengths, [3, 4, 2])
++
++		dispose()
++	})
++
+ 	it('tracks object property deletion', (): void => {
+ 		const $obj = state<DynamicObject>({
+ 			a: 1,
+ 			b: 2,
+ 			c: 3,
+ 		})
+ 		const keys: string[] = []
+ 
+ 		const dispose = effect((): void => {
+ 			keys.push(Object.keys($obj).join(','))
