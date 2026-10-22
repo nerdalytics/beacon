@@ -1,8 +1,8 @@
-# 02: Wrap mutating methods through the Proxy in a batch on both kinds of state
+# 03: Wrap mutating methods through the Proxy in a batch on both kinds of state
 
 **Area:** state
 
-**Blocked by:** 01
+**Blocked by:** 02
 
 **What to build:** Reading `push`, `pop`, `shift`, `unshift`, `splice`, `sort` or `reverse` from a reactive array returns the same wrapper whether the state was created with hooks or without. The wrapper applies the native method to its call receiver, which is the Proxy the caller went through, inside a batch, and returns the native result. Every read and write the method performs therefore passes the Proxy traps, and the batch boundary wakes each subscriber of the array at most once per call, after the method returns, whatever properties the subscriber read. A call that leaves every element and `length` as they were wakes nobody, the same as a direct write of an equal value. Inside a user batch the wakes wait for the outermost boundary. On a sealed or frozen array the native method's `TypeError` propagates. The design document records the decisions: receiver not lookup, the hookless batch mechanism or its inlined depth bookkeeping, the wrapper lookup placed before the non-object early return in both get handlers. Existing tests that counted one run per property write on hookless arrays move to the single-wake count; no test may accept either count.
 

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Defines how a mutating array method (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`) called on reactive state notifies subscribers, composes with batches, is checked for self-feeding loops, and is observed by state hooks, identically for state created with and without hooks.
+Defines how a mutating array method (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`) called on reactive state notifies subscribers, composes with batches, is checked for self-feeding loops, and is observed by state hooks, identically for state created with and without hooks; and that the presence of a hook never changes which subscribers a write wakes or when.
 
 ## ADDED Requirements
 
@@ -16,6 +16,17 @@ Reactive state SHALL expose the same behavior for the seven mutating array metho
 #### Scenario: Same loop outcome on both kinds of state
 - **WHEN** a synchronous top-level effect calls a mutating method on a reactive array, on state created without hooks and on state created with hooks
 - **THEN** both raise the same infinite-loop error
+
+### Requirement: Hook presence does not change notification
+Reactive state SHALL notify the same subscribers at the same moment whether the state was created with hooks or without, for every write path: outside a batch, inside a batch from outside any effect, and inside an effect. The `onWrite` hook SHALL be called after the raw write on every path on which a write changes a value, including a write inside a batch. A write of an equal value SHALL stay silent on every path and SHALL NOT call `onWrite`.
+
+#### Scenario: Batched write wakes the same subscribers on every kind of state
+- **WHEN** an effect reads only index 1 of a reactive array `[0, 1, 2]` and a batch assigns index 3 from outside any effect, on state created without hooks, with `onRead` only, with `onWrite` only, and with both
+- **THEN** the effect re-runs exactly once on each
+
+#### Scenario: onWrite sees a batched write
+- **WHEN** state with an `onWrite` hook holds `{ a: 1 }` and a batch assigns `a = 2` from outside any effect
+- **THEN** the hook is called once with property `a`, old value `1`, new value `2` and the raw target, and a batched assignment of `a = 2` again calls it no further time
 
 ### Requirement: One wake per method call
 A mutating array method called from outside any batch SHALL wake each subscriber of that array at most once per call, after the method has returned, regardless of which properties the subscriber read and how many properties the method changed. A call that changes no element and leaves `length` unchanged SHALL wake no subscriber.

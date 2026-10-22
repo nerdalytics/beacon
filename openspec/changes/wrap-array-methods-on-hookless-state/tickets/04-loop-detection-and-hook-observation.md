@@ -1,8 +1,8 @@
-# 03: Loop detection and hook observation of mutating methods
+# 04: Loop detection and hook observation of mutating methods
 
 **Area:** state
 
-**Blocked by:** 02
+**Blocked by:** 03
 
 **What to build:** With the methods running through the Proxy, the existing read-then-write loop check and the state hooks see what a mutating method does. This ticket pins that with tests; it adds no code unless a test exposes a gap. A synchronous top-level effect that calls any of the seven methods on a reactive array raises the infinite-loop error on both kinds of state, naming the effect when it has a name, because the method reads `length` and the indices it moves before writing them. A child effect does not raise. A microtask effect keeps its exemption; the test for it must converge on its own (push while `length` is below 3), because an unconditional self-feeding microtask effect runs into the microtask cap that belongs to a separate change. On state with hooks, `onRead` sees the method name and every property the method reads, and `onWrite` sees each property the method writes with the same arguments a direct access produces; an equal-value write of `length` is not reported, as it is not for a direct assignment.
 
