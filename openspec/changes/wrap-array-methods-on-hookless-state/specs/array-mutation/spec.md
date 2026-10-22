@@ -59,7 +59,7 @@ A mutating array method reads the properties it writes. When a synchronous top-l
 
 #### Scenario: Method that writes nothing does not throw
 - **WHEN** a synchronous top-level effect calls `sort` or `reverse` on a reactive array with fewer than two elements
-- **THEN** no infinite-loop error is raised, as for a direct write of an equal value
+- **THEN** no infinite-loop error is raised, because the call performs no write
 
 #### Scenario: Child effect does not throw
 - **WHEN** a child effect calls `push` on a reactive array
