@@ -92,7 +92,7 @@ Test hooks instrumentation for each primitive. Each file verifies backward compa
 
 | File | Tests | Covers |
 |------|-------|--------|
-| `state-hooks.test.ts` | 15 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
+| `state-hooks.test.ts` | 16 | `onRead`, `onWrite`, batched `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
 | `effect-hooks.test.ts` | 11 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
 | `derive-hooks.test.ts` | 12 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
 | `batch-hooks.test.ts` | 7 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |

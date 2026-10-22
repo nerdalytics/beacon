@@ -32,7 +32,7 @@ Global mutable state driving the reactive system:
 | `idleCallbacks` | `Set<IdleCallback>` | `onIdle` subscribers |
 | `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last idle notification (a flush ran, or an async derive settled) |
 | `untilEvaluating`, `untilSawPending` | `boolean` | Set while an `until` predicate runs; records whether it read a pending derive |
-| `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the hookless fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
+| `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
 
 ## EffectFunction Properties
 
