@@ -33,7 +33,8 @@ Single-file core: `src/index.ts` (~1400 lines). Zero external dependencies. Prox
 - Nested objects automatically wrapped in Proxies (deep reactivity)
 - Infinite loop detection: throws if effect writes to a state property it reads from (child effects and microtask effects are exempt; microtask re-runs stop after 100 chained microtask flushes with a `console.error`)
 - Cyclic dependencies between different effects: allowed via queue-based non-recursive `flushEffects`
-- Array mutating methods intercepted: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
+- Array mutating methods intercepted on state with and without hooks: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
+  - Each runs through the Proxy inside a batch, so it wakes each subscriber of the array at most once per call, is subject to the loop check inside an effect, and is seen by the read and write hooks
 - Frozen/sealed objects: fallback to WeakMap storage
 - `derive()` must be disposed to prevent memory leaks (creates internal state + effect pair)
 
