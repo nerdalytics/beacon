@@ -38,8 +38,8 @@ See proposal.md, Why. Verified on a fresh build of trunk `cbd7448` on 2026-10-21
 
 ## Risks / Trade-offs
 
-- [Each element move inside `shift`, `unshift`, `splice`, `sort` and `reverse` becomes a trap call, which hooked state did not pay before] → it is what hookless state pays today for the same call, and the benchmark grand total measures it; if the final run exceeds the baseline by more than 1% the release waits for the performance ticket to bring it back.
-- [A consumer relied on hooked state waking subscribers on a `sort` or `reverse` that changed nothing] → undocumented; the handbook describes wakes as reactions to changes. Called out in the release notes line of the version bump.
+- [Each element move inside `shift`, `unshift`, `splice`, `sort` and `reverse` becomes a trap call, which hooked state did not pay before] → it is what hookless state pays today for the same call, and the benchmark grand total measures it; if the final run exceeds the baseline by more than 1% the change waits for the performance ticket to bring it back.
+- [A consumer relied on hooked state waking subscribers on a `sort` or `reverse` that changed nothing] → undocumented; the handbook describes wakes as reactions to changes. To be called out in the notes of the release that carries the behavior.
 - [The hookless read path pays an extra function call per property read] → the lookup returns on its first check for non-arrays; the `state read no effect` benchmark case gates it at 1%.
 - [A consumer called a mutating method inside a synchronous top-level effect on hooked state and depended on the silent stall] → the stall was a dropped notification, and the effect never observed its own write; the loop error now names the effect and the property, which is the documented behavior.
 

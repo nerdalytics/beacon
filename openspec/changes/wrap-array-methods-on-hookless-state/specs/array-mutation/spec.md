@@ -51,11 +51,15 @@ A mutating array method called inside a batch SHALL defer its wakes to the outer
 - **THEN** the effect does not re-run before the batch ends and re-runs at most once after it
 
 ### Requirement: Mutating methods are subject to loop detection
-A mutating array method reads the properties it writes. When a synchronous top-level effect calls one on a reactive array, the system SHALL raise the same infinite-loop error it raises for an effect that writes a property it read. Child effects and microtask effects SHALL keep the exemption they have for property writes; the system SHALL NOT add a new exemption or a new counter for array methods.
+A mutating array method reads the properties it writes. When a synchronous top-level effect calls one on a reactive array and the call writes a property, the system SHALL raise the same infinite-loop error it raises for an effect that writes a property it read. A call that writes nothing SHALL raise nothing. Child effects and microtask effects SHALL keep their exemption; the system SHALL NOT add a new exemption or counter for array methods.
 
 #### Scenario: Each method throws in a synchronous top-level effect
-- **WHEN** a synchronous top-level effect calls `push`, `pop`, `shift`, `unshift`, `splice`, `sort` or `reverse` on a reactive array it did not otherwise read
+- **WHEN** a synchronous top-level effect calls `push`, `pop`, `shift`, `unshift`, `splice`, `sort` or `reverse` on a reactive array it did not otherwise read, the array holding at least two elements for `sort` and `reverse`
 - **THEN** the effect's first run raises the infinite-loop error, and the error names the effect when it has a name
+
+#### Scenario: Method that writes nothing does not throw
+- **WHEN** a synchronous top-level effect calls `sort` or `reverse` on a reactive array with fewer than two elements
+- **THEN** no infinite-loop error is raised, as for a direct write of an equal value
 
 #### Scenario: Child effect does not throw
 - **WHEN** a child effect calls `push` on a reactive array
