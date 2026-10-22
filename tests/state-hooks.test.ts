@@ -250,6 +250,35 @@ describe('State Hooks', {
 		assert.ok(reads.some((r) => r === 'push'))
 	})
 
+	it('fires onWrite for each property push writes with the arguments a direct write produces', () => {
+		const calls: unknown[][] = []
+		const raw: number[] = []
+		const $list = state(raw, {
+			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown, target: number[]) => {
+				calls.push([prop, oldValue, newValue, target])
+			},
+		})
+
+		$list.push(1)
+
+		// push sets length to the value it already holds after the index write, so length is not reported
+		assert.deepStrictEqual(calls, [['0', undefined, 1, raw]])
+	})
+
+	it('fires onRead with the method name and length for push', () => {
+		const reads: PropertyKey[] = []
+		const $list = state([] as number[], {
+			onRead: (prop: PropertyKey) => {
+				reads.push(prop)
+			},
+		})
+
+		$list.push(1)
+
+		assert.ok(reads.includes('push'))
+		assert.ok(reads.includes('length'))
+	})
+
 	it('fires onWrite for direct array index assignment', () => {
 		const writes: string[] = []
 		const $s = state(
