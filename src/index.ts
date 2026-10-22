@@ -91,9 +91,10 @@ const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<Effec
 
 const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
 
-// Function type for cached methods
-type CachedMethod = (...args: unknown[]) => unknown
-const arrayMethodCache: WeakMap<object, Map<PropertyKey, CachedMethod>> = new WeakMap()
+// A native mutating array method, or the wrapper the Proxy hands out in its place
+type ArrayMethod = (...args: unknown[]) => unknown
+// Keyed by the native method: the wrapper acts on its call receiver, so one wrapper serves every array
+const arrayMethodCache: WeakMap<ArrayMethod, ArrayMethod> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 const MAX_IDLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
@@ -132,21 +133,15 @@ type ProxyObject = ProxyTarget & {
 	[PROXY]?: object
 }
 
-function wrapArrayMethod(target: object, prop: PropertyKey, originalMethod: CachedMethod): CachedMethod {
-	let cache = arrayMethodCache.get(target)
-	if (!cache) {
-		cache = new Map<PropertyKey, CachedMethod>()
-		arrayMethodCache.set(target, cache)
-	}
-
-	let wrapped = cache.get(prop)
+function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
+	let wrapped = arrayMethodCache.get(nativeMethod)
 	if (!wrapped) {
-		wrapped = (...args: unknown[]): unknown => {
-			const result = originalMethod.apply(target, args)
-			scheduleSubscribersForTarget(target)
-			return result
+		// The receiver is the Proxy the caller went through, so every read and write the method performs
+		// passes the traps; the batch collapses them into one wake per subscriber after the method returns
+		wrapped = function (this: unknown, ...args: unknown[]): unknown {
+			return batch((): unknown => nativeMethod.apply(this, args))
 		}
-		cache.set(prop, wrapped)
+		arrayMethodCache.set(nativeMethod, wrapped)
 	}
 	return wrapped
 }
@@ -554,7 +549,7 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	}
 }
 
-function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): CachedMethod | undefined {
+function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): ArrayMethod | undefined {
 	if (
 		!Array.isArray(rawTarget) ||
 		typeof prop !== 'string' ||
@@ -562,7 +557,7 @@ function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value:
 		typeof value !== 'function'
 	)
 		return undefined
-	return wrapArrayMethod(rawTarget, prop, value as CachedMethod)
+	return wrapArrayMethod(value as ArrayMethod)
 }
 
 function createGetHandler<T>(
@@ -574,6 +569,8 @@ function createGetHandler<T>(
 			if (isInternalSymbol(prop)) return rawTarget[prop]
 			if (currentEffect) trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
+			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
+			if (wrapped) return wrapped
 			if (value === null || typeof value !== 'object') return value
 			return wrapNestedObject(value as object, undefined)
 		}

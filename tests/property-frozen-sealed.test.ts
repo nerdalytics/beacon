@@ -439,21 +439,21 @@ describe('Property-Based: Frozen/Sealed Object Reactivity', {
 					const sealed = Object.seal([...arr])
 					const $s = state(sealed)
 
+					let runs = 0
 					const dispose = effect((): void => {
-						void ($s as number[]).length
+						runs++
+						void ($s as number[])[0]
 					})
 
-					// push on a sealed array — the engine may throw since sealed
-					// arrays cannot add new indexed properties. We verify the
-					// system remains stable either way.
-					try {
+					// A sealed array cannot grow: the native push throws through the wrapper's batch
+					assert.throws((): void => {
 						;($s as number[]).push(pushValue)
-						// If push succeeded, the method was served from frozenMethodCache
-						assert.ok(true, 'push did not throw')
-					} catch {
-						// Expected on most engines — sealed arrays cannot grow
-						assert.ok(true, 'push threw as expected for sealed array')
-					}
+					}, TypeError)
+					assert.deepStrictEqual([...($s as number[])], arr)
+
+					// The failed call left no batch depth behind: the next write still notifies
+					;($s as number[])[0] = (arr[0] ?? 0) + 1
+					assert.strictEqual(runs, 2, 'write after the failed push should re-run the effect')
 
 					dispose()
 				}

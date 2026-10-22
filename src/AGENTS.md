@@ -58,7 +58,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 |---------|------|---------|
 | `proxyCache` | `object → object` | Reuse same Proxy for same target |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
-| `arrayMethodCache` | `object → Map<PropertyKey, CachedMethod>` | Cached wrapped mutating array methods per target |
+| `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; the wrapper acts on its call receiver, so no per-target entry is needed |
 | `frozenHooksCache` | `object → StateHooks` | Hooks storage for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
 
 ## Symbols
@@ -78,7 +78,7 @@ Five handler factories, each returns a ProxyHandler method. `state()` without ho
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
-| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; only the hooked variant routes mutating array methods through `getWrappedArrayMethod` (the hookless one returns every function raw) |
+| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; both variants route mutating array methods through `getWrappedArrayMethod` before the non-object early return |
 | `createSetHandler()` | `set` | One trap for hooked and hookless state: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
@@ -95,8 +95,8 @@ Handler helpers:
 | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
 | `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
-| `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
-| `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
+| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check) |
+| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: applies it to the call receiver (the Proxy) inside `batch()`, so every read and write passes the traps and each subscriber wakes at most once per call |
 | `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
 | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
