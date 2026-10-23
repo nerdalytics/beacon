@@ -715,11 +715,18 @@ function lookupArrayMethod(
 	return wrapArrayMethod(value)
 }
 
-function getWrappedArrayMethod(
+// Called by every property read of hookless state: the three-argument shape the trap called before the direct
+// path existed, so the hookless read path keeps its call shape (Q61 a)
+function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): ArrayMethod | undefined {
+	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
+	return lookupArrayMethod(rawTarget, prop, value as ArrayMethod, undefined)
+}
+
+function getHookedArrayMethod(
 	rawTarget: ProxyTarget,
 	prop: PropertyKey,
 	value: unknown,
-	composed: ComposedStateHooks<object> | undefined
+	composed: ComposedStateHooks<object>
 ): ArrayMethod | undefined {
 	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
 	return lookupArrayMethod(rawTarget, prop, value as ArrayMethod, composed)
@@ -733,7 +740,7 @@ function createGetHandler<T>(
 			if (isInternalSymbol(prop)) return rawTarget[prop]
 			if (currentEffect) trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
-			const wrapped = getWrappedArrayMethod(rawTarget, prop, value, undefined)
+			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
 			if (wrapped) return wrapped
 			if (value === null || typeof value !== 'object') return value
 			return wrapNestedObject(value as object, undefined)
@@ -750,7 +757,7 @@ function createGetHandler<T>(
 
 		callHookSafe(onRead, prop, value, rawTarget as T)
 
-		const wrapped = getWrappedArrayMethod(rawTarget, prop, value, composedForObject)
+		const wrapped = getHookedArrayMethod(rawTarget, prop, value, composedForObject)
 		if (wrapped) return wrapped
 
 		if (value === null || typeof value !== 'object') return value
