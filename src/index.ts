@@ -254,11 +254,13 @@ function directPush(this: DirectArrayContext, ...items: unknown[]): number {
 	const length = target.length
 	recordDirectRead(this, 'length', length)
 	const result = NATIVE_PUSH.apply(target, items) as number
-	// The length the set trap would have seen at each write: it skips an equal (undefined) item, so length
-	// stays behind and the final length write is the one that reports the growth
+	// The length the set trap would have seen at each write: it skips an equal (undefined) item without writing,
+	// so that slot stays a hole (Q62 b), length stays behind and the final length write reports the growth
 	let seenLength = length
 	for (let i = 0; i < items.length; i++) {
-		if (recordDirectWrite(this, String(length + i), undefined, items[i], true)) seenLength = length + i + 1
+		const index = String(length + i)
+		if (recordDirectWrite(this, index, undefined, items[i], true)) seenLength = length + i + 1
+		else delete target[index]
 	}
 	recordDirectWrite(this, 'length', seenLength, result, false)
 	return result

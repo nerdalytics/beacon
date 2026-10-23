@@ -250,13 +250,52 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 		}
 	})
 
-	it('stores undefined from push as an own element, as the native method does', (): void => {
-		for (const [kind, $list] of bothKinds([])) {
+	it('reports to the hooks the sequence a plain Proxy reports from inside a child effect', (): void => {
+		const cases: [string, unknown[], (list: unknown[]) => unknown][] = [
+			['push', [0, 1, 2], (list: unknown[]): unknown => list.push(3)],
+			['pop', [0, 1, 2], (list: unknown[]): unknown => list.pop()],
+		]
+		for (const [name, initial, call] of cases) {
+			const plain = [...initial]
+			const expected = call(plain)
+			const inChildEffect = (list: unknown[]): unknown => {
+				let result: unknown
+				effect((): void => {
+					effect((): void => {
+						result = call(list)
+					})
+				})()
+				return result
+			}
+			assert.deepStrictEqual(recordedCalls(initial, inChildEffect), referenceCalls(initial, call), name)
+			for (const [kind, $list] of bothKinds(initial)) {
+				assert.strictEqual(inChildEffect($list), expected, `${name} ${kind}`)
+				assert.deepStrictEqual([...$list], plain, `${name} ${kind}`)
+			}
+		}
+	})
+
+	it('leaves a hole for push(undefined) as the set trap does, and reports only the length write', (): void => {
+		// The set trap skips an equal value without writing, so the index stays absent and only length grows
+		// (Q62 b); the hook sequence and the wakes are those of the Proxy path
+		for (const [kind, $list] of bothKinds([0, 1, 2])) {
+			const subscription = subscribe($list)
+
 			$list.push(undefined)
 
-			assert.strictEqual($list.length, 1, kind)
-			assert.strictEqual(Object.hasOwn($list, 0), true, kind)
+			assert.strictEqual($list.length, 4, kind)
+			assert.strictEqual(Object.hasOwn($list, 3), false, kind)
+			assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], kind)
+			subscription.dispose()
 		}
+		const calls: HookCall[] = []
+		const raw: unknown[] = [0, 1, 2]
+		state(raw, recordingHooks(calls, raw)).push(undefined)
+		assert.deepStrictEqual(calls, [
+			['onRead', 'push', Array.prototype.push],
+			['onRead', 'length', 3],
+			['onWrite', 'length', 3, 4],
+		])
 	})
 
 	it('runs push and pop called with another receiver on that receiver', (): void => {
