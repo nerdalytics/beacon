@@ -563,13 +563,11 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 }
 
 function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): ArrayMethod | undefined {
-	if (
-		!Array.isArray(rawTarget) ||
-		typeof prop !== 'string' ||
-		!MUTATING_ARRAY_METHODS.has(prop) ||
-		typeof value !== 'function'
-	)
-		return undefined
+	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
+	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
+	const wrapped = arrayMethodCache.get(value as ArrayMethod)
+	if (wrapped) return wrapped
+	if (typeof prop !== 'string' || !MUTATING_ARRAY_METHODS.has(prop)) return undefined
 	return wrapArrayMethod(value as ArrayMethod)
 }
 
