@@ -104,27 +104,18 @@ const NATIVE_POP: ArrayMethod = Array.prototype.pop as ArrayMethod
 
 type ArrayTarget = ProxyTarget & unknown[]
 
-// The composed hooks of one state object, as the get trap and the direct push/pop path consult them
-type ComposedStateHooks<T> = {
-	hooks: StateHooks<T>
-	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined
-	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined
-	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
-}
-
-// What the direct push and pop of one array act on: its raw target, its Proxy and its hooks
+// What the direct push and pop of one array act on: its raw target and its composed hooks
 type DirectArrayContext = {
 	hooks: StateHooks<object> | undefined
 	onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined
 	onRead: HookFunction<[PropertyKey, unknown, object]> | undefined
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
-	proxy: object
 	target: ArrayTarget
 }
 
-type DirectArrayMethods = { pop: ArrayMethod; push: ArrayMethod }
-// One pair per array: the direct path acts on the raw target, so its wrappers cannot be shared across arrays
-const directArrayMethods: WeakMap<object, DirectArrayMethods> = new WeakMap()
+// Keyed by the Proxy, which is the receiver the shared push and pop wrappers see; registered in state() for
+// array targets, so the get trap's lookup stays the one every property read already paid for
+const directArrayContexts: WeakMap<object, DirectArrayContext> = new WeakMap()
 const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
 const MAX_IDLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
@@ -180,40 +171,34 @@ function applyInBatch(method: ArrayMethod, receiver: unknown, args: unknown[]): 
 function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
 	let wrapped = arrayMethodCache.get(nativeMethod)
 	if (!wrapped) {
-		// The receiver is the Proxy the caller went through, so every read and write the method performs
-		// passes the traps; the batch collapses them into one wake per subscriber after the method returns
-		wrapped = function (this: unknown, ...args: unknown[]): unknown {
-			return applyInBatch(nativeMethod, this, args)
+		if (nativeMethod === NATIVE_PUSH) {
+			wrapped = directPushWrapper
+		} else if (nativeMethod === NATIVE_POP) {
+			wrapped = directPopWrapper
+		} else {
+			// The receiver is the Proxy the caller went through, so every read and write the method performs
+			// passes the traps; the batch collapses them into one wake per subscriber after the method returns
+			wrapped = function (this: unknown, ...args: unknown[]): unknown {
+				return applyInBatch(nativeMethod, this, args)
+			}
 		}
 		arrayMethodCache.set(nativeMethod, wrapped)
 	}
 	return wrapped
 }
 
-function createDirectArrayMethods(
-	target: ArrayTarget,
-	composed: ComposedStateHooks<object> | undefined
-): DirectArrayMethods {
-	const context: DirectArrayContext = {
-		hooks: composed?.hooks,
-		onDelete: composed?.onDelete,
-		onRead: composed?.onRead,
-		onWrite: composed?.onWrite,
-		proxy: proxyCache.get(target) as object,
-		target,
-	}
-	// A call on another receiver, such as push.call(otherArray), is not about this array: it takes the shared
-	// Proxy-receiver wrapper, as the other five methods do
-	return {
-		pop: function (this: unknown, ...args: unknown[]): unknown {
-			if (this !== context.proxy) return applyInBatch(NATIVE_POP, this, args)
-			return applyInBatch(directPop as ArrayMethod, context, args)
-		},
-		push: function (this: unknown, ...items: unknown[]): unknown {
-			if (this !== context.proxy) return applyInBatch(NATIVE_PUSH, this, items)
-			return applyInBatch(directPush as ArrayMethod, context, items)
-		},
-	}
+// The wrappers the cache hands out for the native push and pop: a receiver with a context is a reactive array
+// and takes the direct path; any other receiver, such as push.call(otherArray), runs the native method in a batch
+function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
+	const context = directArrayContexts.get(this as object)
+	if (context === undefined) return applyInBatch(NATIVE_PUSH, this, items)
+	return applyInBatch(directPush as ArrayMethod, context, items)
+}
+
+function directPopWrapper(this: unknown, ...args: unknown[]): unknown {
+	const context = directArrayContexts.get(this as object)
+	if (context === undefined) return applyInBatch(NATIVE_POP, this, args)
+	return applyInBatch(directPop as ArrayMethod, context, args)
 }
 
 // The get trap's bookkeeping for a property the native method reads on the raw target
@@ -692,50 +677,22 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	}
 }
 
-// Everything past the two cheap checks lives here, not in getWrappedArrayMethod: every property read calls that
-// one, and a bigger body there cost ~4% on plain-object reads
-function lookupArrayMethod(
-	rawTarget: ProxyTarget,
-	prop: PropertyKey,
-	value: ArrayMethod,
-	composed: ComposedStateHooks<object> | undefined
-): ArrayMethod | undefined {
-	if (value === NATIVE_PUSH || value === NATIVE_POP) {
-		let direct = directArrayMethods.get(rawTarget)
-		if (!direct) {
-			direct = createDirectArrayMethods(rawTarget as ArrayTarget, composed)
-			directArrayMethods.set(rawTarget, direct)
-		}
-		return value === NATIVE_PUSH ? direct.push : direct.pop
-	}
-	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
-	const wrapped = arrayMethodCache.get(value)
-	if (wrapped) return wrapped
-	if (typeof prop !== 'string' || !MUTATING_ARRAY_METHODS.has(prop)) return undefined
-	return wrapArrayMethod(value)
-}
-
-// Called by every property read of hookless state: the three-argument shape the trap called before the direct
-// path existed, so the hookless read path keeps its call shape (Q61 a)
+// Every property read calls this: any change to its body, even in code a plain-object read never reaches, cost
+// 2 to 5% on the read benchmark, so the direct push/pop dispatch lives in the cached wrappers instead (Q61 a)
 function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): ArrayMethod | undefined {
 	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
-	return lookupArrayMethod(rawTarget, prop, value as ArrayMethod, undefined)
-}
-
-function getHookedArrayMethod(
-	rawTarget: ProxyTarget,
-	prop: PropertyKey,
-	value: unknown,
-	composed: ComposedStateHooks<object>
-): ArrayMethod | undefined {
-	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
-	return lookupArrayMethod(rawTarget, prop, value as ArrayMethod, composed)
+	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
+	const wrapped = arrayMethodCache.get(value as ArrayMethod)
+	if (wrapped) return wrapped
+	if (typeof prop !== 'string' || !MUTATING_ARRAY_METHODS.has(prop)) return undefined
+	return wrapArrayMethod(value as ArrayMethod)
 }
 
 function createGetHandler<T>(
-	composed: ComposedStateHooks<T> | undefined
+	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+	hooks: StateHooks<T> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['get']> {
-	if (!composed) {
+	if (!onRead && !hooks) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
 			if (isInternalSymbol(prop)) return rawTarget[prop]
 			if (currentEffect) trackDependency(rawTarget, prop)
@@ -747,9 +704,6 @@ function createGetHandler<T>(
 		}
 	}
 
-	const onRead = composed.onRead
-	const hooks = composed.hooks as StateHooks<object>
-	const composedForObject = composed as unknown as ComposedStateHooks<object>
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
 		if (isInternalSymbol(prop)) return rawTarget[prop]
 		if (currentEffect) trackDependency(rawTarget, prop)
@@ -757,12 +711,31 @@ function createGetHandler<T>(
 
 		callHookSafe(onRead, prop, value, rawTarget as T)
 
-		const wrapped = getHookedArrayMethod(rawTarget, prop, value, composedForObject)
+		const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
 		if (wrapped) return wrapped
 
 		if (value === null || typeof value !== 'object') return value
-		return wrapNestedObject(value as object, hooks)
+		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
 	}
+}
+
+// An array target gets the context its direct push and pop find through the Proxy receiver
+function registerArrayContext<T>(
+	target: ProxyTarget,
+	proxy: object,
+	hooks: StateHooks<T> | undefined,
+	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
+	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+): void {
+	if (!Array.isArray(target)) return
+	directArrayContexts.set(proxy, {
+		hooks: hooks as StateHooks<object> | undefined,
+		onDelete: onDelete as DirectArrayContext['onDelete'],
+		onRead: onRead as DirectArrayContext['onRead'],
+		onWrite: onWrite as DirectArrayContext['onWrite'],
+		target: target as ArrayTarget,
+	})
 }
 
 function createHasHandler<T>(
@@ -945,7 +918,7 @@ function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: State
 
 const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
 	deleteProperty: createDeleteHandler(undefined),
-	get: createGetHandler(undefined),
+	get: createGetHandler(undefined, undefined),
 	has: createHasHandler(undefined),
 	ownKeys: createOwnKeysHandler(undefined),
 	set: createSetHandler(undefined),
@@ -967,6 +940,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
 		proxyCache.set(target, proxy)
 		defineProxyProperties(target, proxy, undefined)
+		registerArrayContext(target, proxy, undefined, undefined, undefined, undefined)
 		return proxy
 	}
 
@@ -978,7 +952,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 
 	const handler: ProxyHandler<ProxyTarget> = {
 		deleteProperty: createDeleteHandler(onDelete),
-		get: createGetHandler({ hooks, onDelete, onRead, onWrite }),
+		get: createGetHandler(onRead, hooks),
 		has: createHasHandler(onHas),
 		ownKeys: createOwnKeysHandler(onOwnKeys),
 		set: createSetHandler(onWrite),
@@ -987,6 +961,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	const proxy = new Proxy(target, handler) as T
 	proxyCache.set(target, proxy)
 	defineProxyProperties(target, proxy, hooks as StateHooks | undefined)
+	registerArrayContext(target, proxy, hooks, onDelete, onRead, onWrite)
 	return proxy
 }
 
