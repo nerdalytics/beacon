@@ -1,0 +1,5 @@
+# Per-property wake when a mutating array method runs inside a child or microtask effect
+
+**Status:** needs-triage
+
+The delta spec of `wrap-array-methods-on-hookless-state` says a mutating method wakes each subscriber of the array once per call regardless of which properties the subscriber read. The scout for ticket 07 found that this holds only outside an effect: the set trap at `src/index.ts` line 699 (HEAD `9757d48`) takes `performWrite` when an effect is running, and that path schedules subscribers per written property (lines 742 to 743) and never the whole array, so a subscriber that read only index 1 of `[0, 1, 2]` does not wake when a child effect pushes a fourth element. No test pins the wake set inside an effect (`tests/infinite-loop.test.ts` lines 374 and 387 assert only no-throw and contents). Q58 a keeps the direct push and pop path of ticket 07 identical to this Proxy behavior. Whether the Proxy path itself should record the dirty array inside child and microtask effects, as the batch fast path does, is open and would be a spec change for all seven methods.
