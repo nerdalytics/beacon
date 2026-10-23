@@ -26,7 +26,7 @@ Global mutable state driving the reactive system:
 | `effectErrorHandled` | `boolean` | Set by `runEffectSafely` on a throw: whether the effect had an `onError` hook |
 | `effectQueue` | `EffectFunction[]` | Reused array `runPendingEffectBatch` drains when more than one effect is pending |
 | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
-| `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
+| `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling; an array maps to the shared `ARRAY_DIRTY_PROPS` sentinel, since it wakes every subscriber at the batch end |
 | `rerunReadList`, `rerunReadIndex`, `rerunStable` | | Re-run fast path: replays the effect's `__readList` and advances while reads match |
 | `rerunTempDeps`, `rerunTempReads`, `buildingReadList` | | Re-run slow path: collect fresh deps/reads and build a new read list |
 | `idleCallbacks` | `Set<IdleCallback>` | `onIdle` subscribers |
@@ -95,12 +95,12 @@ Handler helpers:
 | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
 | `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
-| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check) |
-| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`, for state with and without hooks: applies it to the call receiver (the Proxy) inside `batch()`, so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check) |
+| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`, for state with and without hooks: applies it to the call receiver (the Proxy) inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
 | `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
 | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup |
+| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
 | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
 | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
 
@@ -170,7 +170,9 @@ addPendingEffect(subscriber)
 
 | Function | Purpose |
 |----------|---------|
-| `batch()` | Public API — increments `batchDepth`, runs fn, flushes at outermost boundary |
+| `batch()` | Public API — increments `batchDepth`, runs fn, then `endBatch` (or `abortBatch` on a throw) |
+| `abortBatch` | Decrements `batchDepth`; clears batch state at the outermost boundary |
+| `endBatch` | Flushes `dirtyTargets` at `batchDepth === 1`, decrements, flushes effects at the outermost boundary; shared by `batch()` and the array method wrapper |
 | `flushDirtyTargets` | Processes deferred writes from `dirtyTargets` at `batchDepth === 1` |
 | `flushBatchEffects` | Runs deferred effect creations, flushes pending effects, then `notifyIdleOutsideFlush` |
 | `runDeferredEffects` | Executes effects created during batch |

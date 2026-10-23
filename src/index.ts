@@ -64,6 +64,9 @@ let rerunReadIndex = 0
 let rerunStable = false
 let buildingReadList: (object | PropertyKey)[] | null = null
 const dirtyTargets: Map<object, Set<PropertyKey>> = new Map<object, Set<PropertyKey>>()
+// A dirty array wakes every subscriber at the batch end, so its entry never records properties: this shared
+// empty set stands in for the per-batch Set an array method call would otherwise allocate
+const ARRAY_DIRTY_PROPS: Set<PropertyKey> = new Set<PropertyKey>()
 const idleCallbacks: Set<IdleCallback> = new Set<IdleCallback>()
 let settleProcessed = false
 let flushProcessed = false
@@ -139,7 +142,17 @@ function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
 		// The receiver is the Proxy the caller went through, so every read and write the method performs
 		// passes the traps; the batch collapses them into one wake per subscriber after the method returns
 		wrapped = function (this: unknown, ...args: unknown[]): unknown {
-			return batch((): unknown => nativeMethod.apply(this, args))
+			// the hookless batch() bookkeeping without the batch(fn) closure: one allocation less per call
+			batchDepth++
+			let result: unknown
+			try {
+				result = nativeMethod.apply(this, args)
+			} catch (err) {
+				abortBatch()
+				throw err
+			}
+			endBatch()
+			return result
 		}
 		arrayMethodCache.set(nativeMethod, wrapped)
 	}
@@ -550,13 +563,11 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 }
 
 function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): ArrayMethod | undefined {
-	if (
-		!Array.isArray(rawTarget) ||
-		typeof prop !== 'string' ||
-		!MUTATING_ARRAY_METHODS.has(prop) ||
-		typeof value !== 'function'
-	)
-		return undefined
+	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
+	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
+	const wrapped = arrayMethodCache.get(value as ArrayMethod)
+	if (wrapped) return wrapped
+	if (typeof prop !== 'string' || !MUTATING_ARRAY_METHODS.has(prop)) return undefined
 	return wrapArrayMethod(value as ArrayMethod)
 }
 
@@ -638,6 +649,14 @@ function handleBatchFastPath<T>(
 	rawTarget[prop] = value
 	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
 
+	// A target already in dirtyTargets had subscribers at its first write, so only the first write looks them up
+	const props = dirtyTargets.get(rawTarget)
+	if (props === ARRAY_DIRTY_PROPS) return true
+	if (props) {
+		props.add(prop)
+		return true
+	}
+
 	// inlined, not findSubscribers: the call cost ~5% on the batch + derive benchmarks
 	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
 	if (subs === undefined && (hasFallbackSubs || (rawTarget as ProxyObject)[PROXY] === undefined)) {
@@ -645,13 +664,11 @@ function handleBatchFastPath<T>(
 	}
 	if (!subs?.size) return true
 
-	let props = dirtyTargets.get(rawTarget)
-	if (!props) {
-		props = new Set<PropertyKey>()
-		dirtyTargets.set(rawTarget, props)
+	if (Array.isArray(rawTarget)) {
+		dirtyTargets.set(rawTarget, ARRAY_DIRTY_PROPS)
+	} else {
+		dirtyTargets.set(rawTarget, new Set<PropertyKey>([prop]))
 	}
-	props.add(prop)
-
 	return true
 }
 
@@ -1075,7 +1092,7 @@ export function effect(
 
 function flushDirtyTargets(): void {
 	for (const [target, props] of dirtyTargets) {
-		if (Array.isArray(target)) {
+		if (props === ARRAY_DIRTY_PROPS) {
 			scheduleSubscribersForTarget(target)
 		} else {
 			for (const prop of props) {
@@ -1095,6 +1112,7 @@ function clearBatchState(): void {
 
 function runDeferredEffects(): void {
 	const len = deferredEffectCreations.length
+	if (len === 0) return
 	for (let i = 0; i < len; i++) {
 		const eff = deferredEffectCreations[i]
 		if (eff) eff()
@@ -1125,6 +1143,18 @@ function handleBatchError(
 	}
 }
 
+function abortBatch(): void {
+	batchDepth--
+	if (batchDepth === 0) clearBatchState()
+}
+
+// Dirty targets flush at depth 1, before the decrement, so their scheduling still sees an open batch
+function endBatch(): void {
+	if (batchDepth === 1 && dirtyTargets.size > 0) flushDirtyTargets()
+	batchDepth--
+	if (batchDepth === 0) flushBatchEffects()
+}
+
 /** Group multiple state mutations so effects flush once at the outermost batch boundary. */
 export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 	if (!hooks) {
@@ -1133,17 +1163,10 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 		try {
 			result = fn()
 		} catch (err) {
-			batchDepth--
-			if (batchDepth === 0) clearBatchState()
+			abortBatch()
 			throw err
 		}
-		if (batchDepth === 1 && dirtyTargets.size > 0) {
-			flushDirtyTargets()
-		}
-		batchDepth--
-		if (batchDepth === 0) {
-			flushBatchEffects()
-		}
+		endBatch()
 		return result
 	}
 
@@ -1163,14 +1186,7 @@ export function batch<T>(fn: () => T, hooks?: BatchHooks): T {
 		handleBatchError(err, onBatchError, entryDepth)
 		throw err
 	}
-	if (batchDepth === 1 && dirtyTargets.size > 0) {
-		flushDirtyTargets()
-	}
-
-	batchDepth--
-	if (batchDepth === 0) {
-		flushBatchEffects()
-	}
+	endBatch()
 
 	callHookSafe(onBatchEnd, entryDepth)
 
