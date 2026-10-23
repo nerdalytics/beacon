@@ -58,7 +58,8 @@ Effect tracking data stored directly on the function object (O(1) property acces
 |---------|------|---------|
 | `proxyCache` | `object → object` | Reuse same Proxy for same target |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
-| `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; the wrapper acts on its call receiver, so no per-target entry is needed |
+| `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native `shift`, `unshift`, `splice`, `sort` and `reverse`; the wrapper acts on its call receiver, so no per-target entry is needed |
+| `directArrayMethods` | `object → { pop, push }` | One direct `push`/`pop` pair per array target; each acts on the raw target and replays the trap bookkeeping with the state's hooks, so it cannot be shared across arrays |
 | `frozenHooksCache` | `object → StateHooks` | Hooks storage for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
 
 ## Symbols
@@ -95,8 +96,13 @@ Handler helpers:
 | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
 | `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
-| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check) |
-| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`, for state with and without hooks: applies it to the call receiver (the Proxy) inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; the native `push`/`pop` identity check next, which hands out the target's `directArrayMethods` pair; then the `arrayMethodCache` hit, before the method-name check) |
+| `applyInBatch` | Runs a method on a receiver inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure); shared by the Proxy-receiver wrappers and the direct `push`/`pop` |
+| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`, for state with and without hooks: applies it via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+| `createDirectArrayMethods` | Builds the `push`/`pop` pair of one array target with its Proxy and composed hooks; a call on any other receiver (such as `push.call(otherArray)`) falls back to the native method via `applyInBatch` |
+| `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
+| `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
+| `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed, returning whether the trap would have written: inside an effect the loop check runs before the equal skip, then `onWrite` and per-property scheduling (plus `length` for an index write that grew the array); outside an effect `onWrite` and one `ARRAY_DIRTY_PROPS` entry per batch |
 | `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
 | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
