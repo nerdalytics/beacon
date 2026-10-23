@@ -690,18 +690,27 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	}
 }
 
-// Kept out of getWrappedArrayMethod, which every property read calls: a bigger body there cost ~4% on plain reads
-function getDirectArrayMethod(
+// Everything past the two cheap checks lives here, not in getWrappedArrayMethod: every property read calls that
+// one, and a bigger body there cost ~4% on plain-object reads
+function lookupArrayMethod(
 	rawTarget: ProxyTarget,
+	prop: PropertyKey,
 	value: ArrayMethod,
 	composed: ComposedStateHooks<object> | undefined
-): ArrayMethod {
-	let direct = directArrayMethods.get(rawTarget)
-	if (!direct) {
-		direct = createDirectArrayMethods(rawTarget as ArrayTarget, composed)
-		directArrayMethods.set(rawTarget, direct)
+): ArrayMethod | undefined {
+	if (value === NATIVE_PUSH || value === NATIVE_POP) {
+		let direct = directArrayMethods.get(rawTarget)
+		if (!direct) {
+			direct = createDirectArrayMethods(rawTarget as ArrayTarget, composed)
+			directArrayMethods.set(rawTarget, direct)
+		}
+		return value === NATIVE_PUSH ? direct.push : direct.pop
 	}
-	return value === NATIVE_PUSH ? direct.push : direct.pop
+	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
+	const wrapped = arrayMethodCache.get(value)
+	if (wrapped) return wrapped
+	if (typeof prop !== 'string' || !MUTATING_ARRAY_METHODS.has(prop)) return undefined
+	return wrapArrayMethod(value)
 }
 
 function getWrappedArrayMethod(
@@ -711,14 +720,7 @@ function getWrappedArrayMethod(
 	composed: ComposedStateHooks<object> | undefined
 ): ArrayMethod | undefined {
 	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
-	if (value === NATIVE_PUSH || value === NATIVE_POP) {
-		return getDirectArrayMethod(rawTarget, value as ArrayMethod, composed)
-	}
-	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
-	const wrapped = arrayMethodCache.get(value as ArrayMethod)
-	if (wrapped) return wrapped
-	if (typeof prop !== 'string' || !MUTATING_ARRAY_METHODS.has(prop)) return undefined
-	return wrapArrayMethod(value as ArrayMethod)
+	return lookupArrayMethod(rawTarget, prop, value as ArrayMethod, composed)
 }
 
 function createGetHandler<T>(
