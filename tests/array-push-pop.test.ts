@@ -9,8 +9,9 @@ type HookCall =
 	| ['onRead', PropertyKey, unknown]
 	| ['onWrite', PropertyKey, unknown, unknown]
 
-// The reference (Q59 a): a plain Proxy over the same array reports each trap the native method runs. A set of an
-// equal value is neither reported nor written, because that is what the set trap does with it
+// The reference (Q59 a): a plain Proxy over the same array reports each trap the native method runs. A set of a
+// value equal to that of an existing property is neither reported nor written, because that is what the set trap
+// does with it; a set of undefined to an absent property is a change (Q65 a)
 function referenceCalls(initial: unknown[], call: (list: unknown[]) => unknown): HookCall[] {
 	const calls: HookCall[] = []
 	const proxy = new Proxy([...initial], {
@@ -25,7 +26,7 @@ function referenceCalls(initial: unknown[], call: (list: unknown[]) => unknown):
 		},
 		set: (target: unknown[], prop: PropertyKey, value: unknown): boolean => {
 			const oldValue = Reflect.get(target, prop)
-			if (Object.is(oldValue, value)) return true
+			if (Object.is(oldValue, value) && Object.hasOwn(target, prop)) return true
 			calls.push(['onWrite', prop, oldValue, value])
 			return Reflect.set(target, prop, value)
 		},
@@ -119,6 +120,8 @@ const popInitials: [string, unknown[]][] = [
 	['empty', []],
 	// biome-ignore lint/suspicious/noSparseArray: a trailing hole is the case where pop deletes nothing
 	['trailing hole', [0, ,]],
+	// an own undefined is deleted and reported, unlike the hole
+	['trailing undefined', [0, undefined]],
 ]
 
 describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void => {
@@ -275,16 +278,16 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 		}
 	})
 
-	it('leaves a hole for push(undefined) as the set trap does, and reports only the length write', (): void => {
-		// The set trap skips an equal value without writing, so the index stays absent and only length grows
-		// (Q62 b); the hook sequence and the wakes are those of the Proxy path
+	it('stores an own element for push(undefined), as a plain array does, and reports the index write', (): void => {
+		// A write of undefined to an absent index is a change (Q65 a): the element exists afterwards, the readers
+		// of the array wake, and the hooks see the index write; the length write is equal, as the index write grew it
 		for (const [kind, $list] of bothKinds([0, 1, 2])) {
 			const subscription = subscribe($list)
 
 			$list.push(undefined)
 
 			assert.strictEqual($list.length, 4, kind)
-			assert.strictEqual(Object.hasOwn($list, 3), false, kind)
+			assert.strictEqual(Object.hasOwn($list, 3), true, kind)
 			assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], kind)
 			subscription.dispose()
 		}
@@ -294,8 +297,28 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 		assert.deepStrictEqual(calls, [
 			['onRead', 'push', Array.prototype.push],
 			['onRead', 'length', 3],
-			['onWrite', 'length', 3, 4],
+			['onWrite', '3', undefined, undefined],
 		])
+	})
+
+	it('stores a write of undefined to an absent index on the Proxy path as a plain array does', (): void => {
+		// The set trap is shared by every write that is not a direct push or pop: unshift, splice and an index
+		// assignment that grows the array all create the element and report it
+		const writes: [string, (list: unknown[]) => unknown][] = [
+			['unshift(undefined)', (list: unknown[]): unknown => list.unshift(undefined)],
+			['splice(3, 0, undefined)', (list: unknown[]): unknown => list.splice(3, 0, undefined)],
+			['list[3] = undefined', (list: unknown[]): unknown => (list[3] = undefined)],
+		]
+		for (const [name, write] of writes) {
+			assert.deepStrictEqual(recordedCalls([0, 1, 2], write), referenceCalls([0, 1, 2], write), name)
+			for (const [kind, $list] of bothKinds([0, 1, 2])) {
+				const plain: unknown[] = [0, 1, 2]
+				write(plain)
+				write($list)
+				assert.deepStrictEqual(Object.keys($list), Object.keys(plain), `${name} ${kind}`)
+				assert.deepStrictEqual([...$list], plain, `${name} ${kind}`)
+			}
+		}
 	})
 
 	it('runs push and pop called with another receiver on that receiver', (): void => {

@@ -207,30 +207,30 @@ function recordDirectRead(context: DirectArrayContext, prop: PropertyKey, value:
 	callHookSafe(context.onRead, prop, value, context.target)
 }
 
-// The set trap's bookkeeping for a write the native method already performed on the raw target. Returns whether
-// the trap would have written: an equal value stays silent, but inside an effect the loop check still runs first
+// The set trap's bookkeeping for a write the native method already performed on the raw target: an equal value
+// stays silent, but inside an effect the loop check still runs first. A write that grew the array went to an
+// absent index, so it is a change whatever the item, as the set trap treats an absent property (Q65 a)
 function recordDirectWrite(
 	context: DirectArrayContext,
 	prop: PropertyKey,
 	oldValue: unknown,
 	value: unknown,
 	grewLength: boolean
-): boolean {
+): void {
 	const target = context.target
 	if (currentEffect) {
 		checkInfiniteLoop(target, prop)
-		if (Object.is(oldValue, value)) return false
+		if (!grewLength && Object.is(oldValue, value)) return
 		callHookSafe(context.onWrite, prop, oldValue, value, target)
 		// the effect path schedules per property; an index write that grew the array also wakes length readers
 		scheduleSubscribersForTarget(target, prop)
 		if (grewLength) scheduleSubscribersForTarget(target, 'length')
-		return true
+		return
 	}
-	if (Object.is(oldValue, value)) return false
+	if (!grewLength && Object.is(oldValue, value)) return
 	callHookSafe(context.onWrite, prop, oldValue, value, target)
 	// outside an effect the array goes dirty once and wakes every subscriber at the batch end
 	if (!dirtyTargets.has(target) && findSubscribers(target)?.size) dirtyTargets.set(target, ARRAY_DIRTY_PROPS)
-	return true
 }
 
 // Reads length, pushes on the raw target, then replays a set of each new index and of length
@@ -239,15 +239,10 @@ function directPush(this: DirectArrayContext, ...items: unknown[]): number {
 	const length = target.length
 	recordDirectRead(this, 'length', length)
 	const result = NATIVE_PUSH.apply(target, items) as number
-	// The length the set trap would have seen at each write: it skips an equal (undefined) item without writing,
-	// so that slot stays a hole (Q62 b), length stays behind and the final length write reports the growth
-	let seenLength = length
-	for (let i = 0; i < items.length; i++) {
-		const index = String(length + i)
-		if (recordDirectWrite(this, index, undefined, items[i], true)) seenLength = length + i + 1
-		else delete target[index]
-	}
-	recordDirectWrite(this, 'length', seenLength, result, false)
+	for (let i = 0; i < items.length; i++) recordDirectWrite(this, String(length + i), undefined, items[i], true)
+	// the index writes already grew the raw length, so the set trap sees the length write as equal: inside an
+	// effect only its loop check remains
+	recordDirectWrite(this, 'length', result, result, false)
 	return result
 }
 
@@ -780,7 +775,7 @@ function handleBatchFastPath<T>(
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): boolean {
 	const oldValue = rawTarget[prop]
-	if (Object.is(oldValue, value)) return true
+	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
 
 	rawTarget[prop] = value
 	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
@@ -806,6 +801,12 @@ function handleBatchFastPath<T>(
 		dirtyTargets.set(rawTarget, new Set<PropertyKey>([prop]))
 	}
 	return true
+}
+
+// Equal means equal to the value of a property that exists: a write of undefined to an absent property is a
+// change, as it is on a plain object (Q65 a). The own check runs only on the equal branch
+function isUnchangedWrite(rawTarget: ProxyTarget, prop: PropertyKey, oldValue: unknown, value: unknown): boolean {
+	return Object.is(oldValue, value) && Object.hasOwn(rawTarget, prop)
 }
 
 function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
@@ -844,7 +845,7 @@ function performUnbatchedWrite<T>(
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): boolean {
 	const oldValue = rawTarget[prop]
-	if (Object.is(oldValue, value)) return true
+	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
 	const subs = findSubscribers(rawTarget)
 	if (!subs?.size) {
 		rawTarget[prop] = value
@@ -868,7 +869,7 @@ function performWrite<T>(
 	checkInfiniteLoop(rawTarget, prop)
 
 	const oldValue = rawTarget[prop]
-	if (Object.is(oldValue, value)) return true
+	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
 
 	const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
 	rawTarget[prop] = value
