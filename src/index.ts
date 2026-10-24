@@ -209,7 +209,8 @@ function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
 
 // The wrappers the cache hands out for the native push and pop: a receiver whose [HOOKS] slot holds a context is
 // a reactive array and takes the direct path; any other receiver, such as push.call(otherArray), runs the native
-// method in a batch. A nullish receiver has no slot to read, so the native method raises its own TypeError
+// method in a batch. A nullish receiver has no slot to read, so the native method raises its own TypeError.
+// The raw target as receiver takes the direct path too, because its slot carries the context
 function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
 	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
 	if (!(context instanceof DirectArrayContext)) return applyInBatch(NATIVE_PUSH, this, items)

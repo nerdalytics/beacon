@@ -397,6 +397,37 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 		}
 	})
 
+	it('takes the direct path for push and pop called with the raw target as receiver', (): void => {
+		// The raw array carries the context in its slot, so a call on it does what a call on the Proxy does
+		const cases: [string, (list: unknown[], receiver: unknown[]) => unknown, unknown][] = [
+			['push', (list: unknown[], receiver: unknown[]): unknown => list.push.call(receiver, 3), 4],
+			['pop', (list: unknown[], receiver: unknown[]): unknown => list.pop.call(receiver), 2],
+		]
+		for (const [name, call, result] of cases) {
+			const calls: HookCall[] = []
+			const raw: unknown[] = [0, 1, 2]
+			call(state(raw, recordingHooks(calls, raw)), raw)
+			assert.deepStrictEqual(
+				calls,
+				referenceCalls([0, 1, 2], (list: unknown[]): unknown => call(list, list)),
+				name
+			)
+
+			const hookless: unknown[] = [0, 1, 2]
+			const hooked: unknown[] = [0, 1, 2]
+			const kinds: [string, unknown[], unknown[]][] = [
+				['hookless', hookless, state(hookless)],
+				['hooked', hooked, state(hooked, observingHooks)],
+			]
+			for (const [kind, rawList, $list] of kinds) {
+				const subscription = subscribe($list)
+				assert.strictEqual(call($list, rawList), result, `${name} ${kind}`)
+				assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], `${name} ${kind}`)
+				subscription.dispose()
+			}
+		}
+	})
+
 	it('runs push and pop called with another receiver on that receiver', (): void => {
 		// A hooked object state is the receiver that carries hooks where an array carries its direct context
 		const calls: HookCall[] = []
