@@ -102,11 +102,12 @@ Handler helpers:
 | `hooksSlotFor` | What `state()` stores in the `[HOOKS]` slot: for an array target a new `DirectArrayContext`, otherwise the hooks |
 | `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
 | `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
-| `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed, returning whether the trap would have written: inside an effect the loop check runs before the equal skip, then `onWrite` and per-property scheduling (plus `length` for an index write that grew the array); outside an effect `onWrite` and one `ARRAY_DIRTY_PROPS` entry per batch |
-| `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
-| `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
+| `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed: inside an effect the loop check runs before the equal skip, then `onWrite` and per-property scheduling (plus `length` for an index write that grew the array); outside an effect `onWrite` and one `ARRAY_DIRTY_PROPS` entry per batch. A write that grew the array went to an absent index, so it is never skipped as equal (Q65 a) |
+| `isUnchangedWrite` | The equal skip of every set path: `Object.is` against the current read, and for an equal `undefined` a `prop in rawTarget` check, so a write of `undefined` to an absent property counts as a change (Q65 a); a read that is not `undefined` proves the property exists |
+| `performUnbatchedWrite` | Outside any effect and batch: skips an unchanged write (`isUnchangedWrite`), skips scheduling when the target has no subscribers, else notifies per property |
+| `performWrite` | Checks infinite loop, skips an unchanged write (`isUnchangedWrite`), notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
+| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
 | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
 | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
 
