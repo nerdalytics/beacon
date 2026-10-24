@@ -56,7 +56,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 
 | WeakMap | Type | Purpose |
 |---------|------|---------|
-| `proxyCache` | `object → object` | Reuse same Proxy for same target |
+| `proxyCache` | `object → object` | The Proxy of a target that could not take the `[PROXY]` symbol (non-extensible, or a define that threw); an extensible target carries its Proxy in `[PROXY]` and gets no entry, since an entry per `state()` cost 2.6x on creation (GC ephemeron work) |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
 | `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; every wrapper acts on its call receiver, so no per-target entry is needed (`push` and `pop` map to `directPushWrapper`/`directPopWrapper`) |
 | `frozenHooksCache` | `object → StateHooks \| DirectArrayContext` | What the `[HOOKS]` slot would have held, for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
@@ -93,7 +93,7 @@ Handler helpers:
 | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
 | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
 | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
-| `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
+| `wrapNestedObject` | Returns the nested object's `[PROXY]`, else `state()` (which finds a non-extensible object's Proxy in `proxyCache` or wraps it) |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
 | `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check). Its body is a read-path hot spot: any change to it, even code a plain-object read never reaches, cost 2 to 5% on the read benchmark, so the direct `push`/`pop` dispatch lives in the cached wrappers |
 | `applyInBatch` | Runs a method on a receiver inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure); shared by the Proxy-receiver wrappers and the direct `push`/`pop` |
@@ -209,7 +209,7 @@ addPendingEffect(subscriber)
 
 | Function | Purpose |
 |----------|---------|
-| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; falls back to `storeHooksForFrozenTarget` otherwise |
+| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets and returns `true`; falls back to `storeHooksForFrozenTarget` and returns `false` otherwise, which makes `state()` register the Proxy in `proxyCache` |
 | `definePropertyOnTarget` | `Object.defineProperty` for the `PROXY` symbol, and for the `HOOKS` symbol when the slot has a value |
 | `storeHooksForFrozenTarget` | Writes the `HOOKS` slot value to `frozenHooksCache` for non-extensible targets |
 
@@ -223,7 +223,7 @@ addPendingEffect(subscriber)
 
 ## Critical Invariants
 
-1. **Proxy deduplication**: Never create two Proxies for the same target. Always check `proxyCache` and `[PROXY]` symbol first.
+1. **Proxy deduplication**: Never create two Proxies for the same target. Always check the `[PROXY]` symbol first, then `proxyCache` for a target that could not take the symbol.
 2. **Effect re-entrancy guard**: `__active` boolean on EffectFunction prevents an effect from running while already running.
 3. **Batch depth counting**: `batchDepth` must always return to 0. Incremented before `fn()`, decremented in all paths (success + error).
 4. **Cleanup order**: `cleanupEffect` removes from subscribers and clears `__prevDeps`/`__prevReads`. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).

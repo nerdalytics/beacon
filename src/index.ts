@@ -82,6 +82,8 @@ let untilSawPending = false
 let hasFallbackSubs = false
 
 // Proxy caching
+// Only targets that could not take the [PROXY] symbol: a WeakMap entry per state() cost 2.6x on creation (GC
+// ephemeron work), and an extensible target carries its Proxy on itself
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
 // Effects by the property they read, per subscriber Set. It may hold stale entries: scheduling re-checks __reads,
@@ -675,8 +677,9 @@ function isInternalSymbol(prop: PropertyKey): boolean {
 	return prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS
 }
 
+// The symbol read is the fast path; state() finds a non-extensible value's Proxy in proxyCache
 function wrapNestedObject(value: object, hooks: StateHooks<object> | undefined): object {
-	return proxyCache.get(value) ?? state(value, hooks)
+	return (value as ProxyObject)[PROXY] ?? state(value, hooks)
 }
 
 function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
@@ -923,16 +926,18 @@ function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: Hook
 	}
 }
 
-function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): void {
+// Returns whether the target took the [PROXY] symbol; only a target that did not needs the proxyCache entry
+function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): boolean {
 	try {
 		if (Object.isExtensible(target)) {
 			definePropertyOnTarget(target, proxy, hooks)
-		} else {
-			storeHooksForFrozenTarget(target, hooks)
+			return true
 		}
+		storeHooksForFrozenTarget(target, hooks)
 	} catch {
 		storeHooksForFrozenTarget(target, hooks)
 	}
+	return false
 }
 
 const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
@@ -957,8 +962,9 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 
 	if (!hooks) {
 		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
-		proxyCache.set(target, proxy)
-		defineProxyProperties(target, proxy, hooksSlotFor(target, undefined, undefined, undefined, undefined))
+		if (!defineProxyProperties(target, proxy, hooksSlotFor(target, undefined, undefined, undefined, undefined))) {
+			proxyCache.set(target, proxy)
+		}
 		return proxy
 	}
 
@@ -977,8 +983,9 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	} as ProxyHandler<ProxyTarget>
 
 	const proxy = new Proxy(target, handler) as T
-	proxyCache.set(target, proxy)
-	defineProxyProperties(target, proxy, hooksSlotFor(target, hooks, onDelete, onRead, onWrite))
+	if (!defineProxyProperties(target, proxy, hooksSlotFor(target, hooks, onDelete, onRead, onWrite))) {
+		proxyCache.set(target, proxy)
+	}
 	return proxy
 }
 
