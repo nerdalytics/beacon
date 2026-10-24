@@ -321,6 +321,37 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 		}
 	})
 
+	it('propagates the native TypeError for push and pop called on a nullish receiver', (): void => {
+		// The other five wrappers hand a nullish receiver to the native method; the direct path reads its slot first
+		const nativeMessage = (call: () => unknown): string => {
+			try {
+				call()
+			} catch (err) {
+				return (err as Error).message
+			}
+			throw new Error('native method did not throw')
+		}
+		for (const [kind, $list] of bothKinds([0])) {
+			for (const receiver of [null, undefined]) {
+				assert.throws(
+					(): void => {
+						$list.push.call(receiver, 1)
+					},
+					{ message: nativeMessage((): unknown => Array.prototype.push.call(receiver, 1)), name: 'TypeError' },
+					`${kind} push on ${receiver}`
+				)
+				assert.throws(
+					(): void => {
+						$list.pop.call(receiver)
+					},
+					{ message: nativeMessage((): unknown => Array.prototype.pop.call(receiver)), name: 'TypeError' },
+					`${kind} pop on ${receiver}`
+				)
+			}
+			assert.deepStrictEqual([...$list], [0], kind)
+		}
+	})
+
 	it('runs push and pop called with another receiver on that receiver', (): void => {
 		// A hooked object state is the receiver that carries hooks where an array carries its direct context
 		const calls: HookCall[] = []
