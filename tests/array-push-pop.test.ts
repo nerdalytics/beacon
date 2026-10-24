@@ -271,12 +271,20 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 				void $list.length
 			})
 
-			assert.throws((): void => {
-				$list.push(2)
-			}, TypeError, `${kind} push`)
-			assert.throws((): void => {
-				$list.pop()
-			}, TypeError, `${kind} pop`)
+			assert.throws(
+				(): void => {
+					$list.push(2)
+				},
+				TypeError,
+				`${kind} push`
+			)
+			assert.throws(
+				(): void => {
+					$list.pop()
+				},
+				TypeError,
+				`${kind} pop`
+			)
 
 			assert.deepStrictEqual([...$list], [1], kind)
 			// a synchronous wake proves the batch depth is back to 0
