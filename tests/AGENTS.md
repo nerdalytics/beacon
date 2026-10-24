@@ -10,7 +10,7 @@ Native Node.js test runner (`node --test`). No external test framework.
 | Hooks | `{primitive}-hooks.test.ts` | `state-hooks`, `effect-hooks`, `derive-hooks`, `batch-hooks` |
 | Hooks Utility | `hooks-{utility}.test.ts` | `hooks-compose` |
 | Integration | `{feature1}-{feature2}.test.ts` | `state-effect`, `state-derive`, `batch-integration` |
-| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation`, `array-methods` |
+| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation`, `array-methods`, `array-push-pop` |
 | Property-based | `property-{invariant}.test.ts` | `property-cleanup`, `property-proxy-identity` (fast-check; see `PROPERTY_BASED_TESTING.md`) |
 
 `npm test` passes `--test-skip-pattern="COMPONENT NAME"`, which skips any test named `COMPONENT NAME` (a placeholder name; no template file is checked in).

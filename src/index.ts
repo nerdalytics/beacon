@@ -82,6 +82,8 @@ let untilSawPending = false
 let hasFallbackSubs = false
 
 // Proxy caching
+// Only targets that could not take the [PROXY] symbol: a WeakMap entry per state() cost 2.6x on creation (GC
+// ephemeron work), and an extensible target carries its Proxy on itself
 const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
 const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
 // Effects by the property they read, per subscriber Set. It may hold stale entries: scheduling re-checks __reads,
@@ -98,7 +100,42 @@ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'un
 type ArrayMethod = (...args: unknown[]) => unknown
 // Keyed by the native method: the wrapper acts on its call receiver, so one wrapper serves every array
 const arrayMethodCache: WeakMap<ArrayMethod, ArrayMethod> = new WeakMap()
-const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+// Only these two take the direct path (Q52 a); any other function under their names keeps the Proxy receiver
+const NATIVE_PUSH: ArrayMethod = Array.prototype.push as ArrayMethod
+const NATIVE_POP: ArrayMethod = Array.prototype.pop as ArrayMethod
+
+type ArrayTarget = ProxyTarget & unknown[]
+
+// What the direct push and pop of one array act on: its raw target and its composed hooks. An array target
+// carries it in its [HOOKS] slot, where the shared wrappers read it through the Proxy receiver's internal-symbol
+// guard: a WeakMap keyed by the Proxy cost 2.7x on array state creation (GC ephemeron work). A class, so the
+// wrappers can tell it from the hooks object a non-array target keeps in the same slot
+class DirectArrayContext {
+	readonly hooks: StateHooks<object> | undefined
+	readonly onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined
+	readonly onRead: HookFunction<[PropertyKey, unknown, object]> | undefined
+	readonly onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
+	readonly target: ArrayTarget
+
+	constructor(
+		target: ArrayTarget,
+		hooks: StateHooks<object> | undefined,
+		onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined,
+		onRead: HookFunction<[PropertyKey, unknown, object]> | undefined,
+		onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
+	) {
+		this.hooks = hooks
+		this.onDelete = onDelete
+		this.onRead = onRead
+		this.onWrite = onWrite
+		this.target = target
+	}
+}
+
+// What the [HOOKS] slot of a target holds: the hooks of a non-array target, the direct context of an array
+type HooksSlot = StateHooks | DirectArrayContext | undefined
+
+const frozenHooksCache: WeakMap<object, StateHooks | DirectArrayContext> = new WeakMap()
 const MAX_IDLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
 // Up to this many subscribers a scan is cheaper than the per-property index lookups
@@ -133,30 +170,128 @@ type SubscribersObject = ProxyTarget & {
 }
 
 type ProxyObject = ProxyTarget & {
+	[HOOKS]?: HooksSlot
 	[PROXY]?: object
+}
+
+// The hookless batch() bookkeeping without the batch(fn) closure: one allocation less per method call
+function applyInBatch(method: ArrayMethod, receiver: unknown, args: unknown[]): unknown {
+	batchDepth++
+	let result: unknown
+	try {
+		result = method.apply(receiver, args)
+	} catch (err) {
+		abortBatch()
+		throw err
+	}
+	endBatch()
+	return result
 }
 
 function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
 	let wrapped = arrayMethodCache.get(nativeMethod)
 	if (!wrapped) {
-		// The receiver is the Proxy the caller went through, so every read and write the method performs
-		// passes the traps; the batch collapses them into one wake per subscriber after the method returns
-		wrapped = function (this: unknown, ...args: unknown[]): unknown {
-			// the hookless batch() bookkeeping without the batch(fn) closure: one allocation less per call
-			batchDepth++
-			let result: unknown
-			try {
-				result = nativeMethod.apply(this, args)
-			} catch (err) {
-				abortBatch()
-				throw err
+		if (nativeMethod === NATIVE_PUSH) {
+			wrapped = directPushWrapper
+		} else if (nativeMethod === NATIVE_POP) {
+			wrapped = directPopWrapper
+		} else {
+			// The receiver is the Proxy the caller went through, so every read and write the method performs
+			// passes the traps; the batch collapses them into one wake per subscriber after the method returns
+			wrapped = function (this: unknown, ...args: unknown[]): unknown {
+				return applyInBatch(nativeMethod, this, args)
 			}
-			endBatch()
-			return result
 		}
 		arrayMethodCache.set(nativeMethod, wrapped)
 	}
 	return wrapped
+}
+
+// The wrappers the cache hands out for the native push and pop: a Proxy receiver whose [HOOKS] slot holds a
+// context is a reactive array and takes the direct path; any other receiver, such as push.call(otherArray), runs
+// the native method in a batch. A nullish receiver has no slot to read, so the native method raises its own
+// TypeError. The raw target carries the same slot but never enters the traps, so a call on it runs the native
+// method silently, as the other five wrappers and a direct write on the raw object do (Q71 b)
+function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
+	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
+	if (!(context instanceof DirectArrayContext) || this === context.target) {
+		return applyInBatch(NATIVE_PUSH, this, items)
+	}
+	return applyInBatch(directPush as ArrayMethod, context, items)
+}
+
+function directPopWrapper(this: unknown, ...args: unknown[]): unknown {
+	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
+	if (!(context instanceof DirectArrayContext) || this === context.target) {
+		return applyInBatch(NATIVE_POP, this, args)
+	}
+	return applyInBatch(directPop as ArrayMethod, context, args)
+}
+
+// The get trap's bookkeeping for a property the native method reads on the raw target
+function recordDirectRead(context: DirectArrayContext, prop: PropertyKey, value: unknown): void {
+	if (currentEffect) trackDependency(context.target, prop)
+	callHookSafe(context.onRead, prop, value, context.target)
+}
+
+// The set trap's bookkeeping for a write the native method already performed on the raw target: an equal value
+// stays silent, but inside an effect the loop check still runs first. A write that grew the array went to an
+// absent index, so it is a change whatever the item, as the set trap treats an absent property (Q65 a)
+function recordDirectWrite(
+	context: DirectArrayContext,
+	prop: PropertyKey,
+	oldValue: unknown,
+	value: unknown,
+	grewLength: boolean
+): void {
+	const target = context.target
+	if (currentEffect) checkInfiniteLoop(target, prop)
+	if (!grewLength && Object.is(oldValue, value)) return
+	callHookSafe(context.onWrite, prop, oldValue, value, target)
+	if (currentEffect) {
+		// the effect path schedules per property; an index write that grew the array also wakes length readers
+		scheduleSubscribersForTarget(target, prop)
+		if (grewLength) scheduleSubscribersForTarget(target, 'length')
+		return
+	}
+	// outside an effect the array goes dirty once and wakes every subscriber at the batch end
+	if (!dirtyTargets.has(target) && findSubscribers(target)?.size) dirtyTargets.set(target, ARRAY_DIRTY_PROPS)
+}
+
+// Reads length, pushes on the raw target, then replays a set of each new index and of length
+function directPush(this: DirectArrayContext, ...items: unknown[]): number {
+	const target = this.target
+	const length = target.length
+	recordDirectRead(this, 'length', length)
+	const result = NATIVE_PUSH.apply(target, items) as number
+	for (let i = 0; i < items.length; i++) recordDirectWrite(this, String(length + i), undefined, items[i], true)
+	// the index writes already grew the raw length, so the set trap sees the length write as equal: inside an
+	// effect only its loop check remains
+	recordDirectWrite(this, 'length', result, result, false)
+	return result
+}
+
+// Reads length and the last index, pops on the raw target, then replays the delete of that index and a set
+// of length; the delete gets no loop check and no equal check, as the delete trap has none (Q57 a)
+function directPop(this: DirectArrayContext): unknown {
+	const target = this.target
+	const length = target.length
+	recordDirectRead(this, 'length', length)
+	if (length === 0) {
+		recordDirectWrite(this, 'length', 0, 0, false)
+		return undefined
+	}
+	const index = String(length - 1)
+	const value = target[index]
+	recordDirectRead(this, index, value)
+	const had = Object.hasOwn(target, index)
+	NATIVE_POP.call(target)
+	callHookSafe(this.onDelete, index, had, target)
+	if (had) scheduleSubscribersForTarget(target, index)
+	recordDirectWrite(this, 'length', length, length - 1, false)
+	// the get trap hands out the reactive wrapper of a nested object, so pop returns the same
+	if (value === null || typeof value !== 'object') return value
+	return wrapNestedObject(value, this.hooks)
 }
 
 function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>): void {
@@ -546,8 +681,9 @@ function isInternalSymbol(prop: PropertyKey): boolean {
 	return prop === SUBSCRIBERS || prop === PROXY || prop === HOOKS
 }
 
+// The symbol read is the fast path; state() finds a non-extensible value's Proxy in proxyCache
 function wrapNestedObject(value: object, hooks: StateHooks<object> | undefined): object {
-	return proxyCache.get(value) ?? state(value, hooks)
+	return (value as ProxyObject)[PROXY] ?? state(value, hooks)
 }
 
 function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
@@ -562,6 +698,8 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
 	}
 }
 
+// Every property read calls this: any change to its body, even in code a plain-object read never reaches, cost
+// 2 to 5% on the read benchmark, so the direct push/pop dispatch lives in the cached wrappers instead (Q61 a)
 function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): ArrayMethod | undefined {
 	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
 	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
@@ -575,11 +713,14 @@ function createGetHandler<T>(
 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
 	hooks: StateHooks<T> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['get']> {
+	// One keyed load per trap, before the internal-symbol check: a second load site reached only with array
+	// targets (the direct push/pop reading [HOOKS]) lost its map feedback whenever those arrays were collected,
+	// and V8 then deoptimized the trap on the next direct call, which cost 4% on every later property read
 	if (!onRead && !hooks) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
-			if (isInternalSymbol(prop)) return rawTarget[prop]
-			if (currentEffect) trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
+			if (isInternalSymbol(prop)) return value
+			if (currentEffect) trackDependency(rawTarget, prop)
 			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
 			if (wrapped) return wrapped
 			if (value === null || typeof value !== 'object') return value
@@ -588,9 +729,9 @@ function createGetHandler<T>(
 	}
 
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
-		if (isInternalSymbol(prop)) return rawTarget[prop]
-		if (currentEffect) trackDependency(rawTarget, prop)
 		const value = rawTarget[prop]
+		if (isInternalSymbol(prop)) return value
+		if (currentEffect) trackDependency(rawTarget, prop)
 
 		callHookSafe(onRead, prop, value, rawTarget as T)
 
@@ -600,6 +741,24 @@ function createGetHandler<T>(
 		if (value === null || typeof value !== 'object') return value
 		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
 	}
+}
+
+// An array target's [HOOKS] slot holds the context its direct push and pop find through the Proxy receiver
+function hooksSlotFor<T>(
+	target: ProxyTarget,
+	hooks: StateHooks<T> | undefined,
+	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
+	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+): HooksSlot {
+	if (!Array.isArray(target)) return hooks as StateHooks | undefined
+	return new DirectArrayContext(
+		target as ArrayTarget,
+		hooks as StateHooks<object> | undefined,
+		onDelete as DirectArrayContext['onDelete'],
+		onRead as DirectArrayContext['onRead'],
+		onWrite as DirectArrayContext['onWrite']
+	)
 }
 
 function createHasHandler<T>(
@@ -644,7 +803,7 @@ function handleBatchFastPath<T>(
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): boolean {
 	const oldValue = rawTarget[prop]
-	if (Object.is(oldValue, value)) return true
+	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
 
 	rawTarget[prop] = value
 	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
@@ -670,6 +829,13 @@ function handleBatchFastPath<T>(
 		dirtyTargets.set(rawTarget, new Set<PropertyKey>([prop]))
 	}
 	return true
+}
+
+// Equal means equal to the value of a property that exists: a write of undefined to an absent property is a
+// change, as it is on a plain object (Q65 a). A read that is not undefined proves the property exists, so only
+// an equal undefined write pays the existence check; `in` costs 4% there where Object.hasOwn cost 35%
+function isUnchangedWrite(rawTarget: ProxyTarget, prop: PropertyKey, oldValue: unknown, value: unknown): boolean {
+	return Object.is(oldValue, value) && (value !== undefined || prop in rawTarget)
 }
 
 function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
@@ -708,7 +874,7 @@ function performUnbatchedWrite<T>(
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): boolean {
 	const oldValue = rawTarget[prop]
-	if (Object.is(oldValue, value)) return true
+	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
 	const subs = findSubscribers(rawTarget)
 	if (!subs?.size) {
 		rawTarget[prop] = value
@@ -732,7 +898,7 @@ function performWrite<T>(
 	checkInfiniteLoop(rawTarget, prop)
 
 	const oldValue = rawTarget[prop]
-	if (Object.is(oldValue, value)) return true
+	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
 
 	const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
 	rawTarget[prop] = value
@@ -745,13 +911,13 @@ function performWrite<T>(
 	return true
 }
 
-function storeHooksForFrozenTarget(target: ProxyTarget, hooks: StateHooks | undefined): void {
+function storeHooksForFrozenTarget(target: ProxyTarget, hooks: HooksSlot): void {
 	if (hooks) {
 		frozenHooksCache.set(target, hooks)
 	}
 }
 
-function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: StateHooks | undefined): void {
+function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): void {
 	Object.defineProperty(target, PROXY, {
 		configurable: true,
 		enumerable: false,
@@ -768,16 +934,18 @@ function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: Stat
 	}
 }
 
-function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: StateHooks | undefined): void {
+// Returns whether the target took the [PROXY] symbol; only a target that did not needs the proxyCache entry
+function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): boolean {
 	try {
 		if (Object.isExtensible(target)) {
 			definePropertyOnTarget(target, proxy, hooks)
-		} else {
-			storeHooksForFrozenTarget(target, hooks)
+			return true
 		}
+		storeHooksForFrozenTarget(target, hooks)
 	} catch {
 		storeHooksForFrozenTarget(target, hooks)
 	}
+	return false
 }
 
 const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
@@ -802,8 +970,9 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 
 	if (!hooks) {
 		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
-		proxyCache.set(target, proxy)
-		defineProxyProperties(target, proxy, undefined)
+		if (!defineProxyProperties(target, proxy, hooksSlotFor(target, undefined, undefined, undefined, undefined))) {
+			proxyCache.set(target, proxy)
+		}
 		return proxy
 	}
 
@@ -822,8 +991,9 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	} as ProxyHandler<ProxyTarget>
 
 	const proxy = new Proxy(target, handler) as T
-	proxyCache.set(target, proxy)
-	defineProxyProperties(target, proxy, hooks as StateHooks | undefined)
+	if (!defineProxyProperties(target, proxy, hooksSlotFor(target, hooks, onDelete, onRead, onWrite))) {
+		proxyCache.set(target, proxy)
+	}
 	return proxy
 }
 
