@@ -2,6 +2,7 @@ import { performance } from 'node:perf_hooks'
 import { parseArgs } from 'node:util'
 import type { DerivedValue, Unsubscribe } from '../src/index.ts'
 import { batch, derive, effect, state } from '../src/index.ts'
+import type { StateHooks } from '../src/types.ts'
 
 const DEFAULT_RUN_COUNT = 10
 const LOOP_LENGTH = 1_000_000
@@ -10,6 +11,7 @@ const WARMUP_RUNS = 3
 const BENCH_RUNS = 7
 
 const EFFECT_TRIGGER_WRITES = 50_000
+const ARRAY_PUSH_POP_CALLS = 50_000
 const MULTI_SOURCE_COUNT = 100
 const MULTI_SOURCE_ITERATIONS = 100
 const DERIVE_CHAIN_DEPTH = 10
@@ -291,6 +293,30 @@ function effectTriggers(): number {
 	return end - start
 }
 
+// No-op hooks: the hooked case measures the hooked method path, not hook work
+const noopStateHooks: StateHooks<number[]> = {
+	onRead: (): void => {},
+	onWrite: (): void => {},
+}
+
+function arrayPushPop(items: number[]): number {
+	const cleanup: Unsubscribe = effect((): void => {
+		void items.length
+	})
+	const start = performance.now()
+	for (let i = 0; i < ARRAY_PUSH_POP_CALLS; i++) {
+		items.push(i)
+		items.pop()
+	}
+	const end = performance.now()
+	cleanup()
+	return end - start
+}
+
+const arrayPushPopHookless = (): number => arrayPushPop(state<number[]>([]))
+
+const arrayPushPopHooks = (): number => arrayPushPop(state<number[]>([], noopStateHooks))
+
 function manyDependencies(): number {
 	const sources = Array.from(
 		{
@@ -415,6 +441,67 @@ function update100StatesBatched(): number {
 	return end - start
 }
 
+// Blind spots of the cases above: creation of a target that takes a second symbol or none, a read that wraps
+// a nested object, the equal branch of the set trap, and the one push argument the set trap cannot tell from an
+// absent index
+
+function stateCreationArray(): number {
+	const start = performance.now()
+	for (let i = 0; i < STATE_CREATION_COUNT; i++) {
+		state([i])
+	}
+	return performance.now() - start
+}
+
+function stateCreationSealed(): number {
+	const start = performance.now()
+	for (let i = 0; i < STATE_CREATION_COUNT; i++) {
+		state(
+			Object.seal({
+				v: i,
+			})
+		)
+	}
+	return performance.now() - start
+}
+
+function stateReadNested(): number {
+	const s = state({
+		inner: {
+			v: 42,
+		},
+	})
+	const start = performance.now()
+	for (let i = 0; i < STATE_READ_COUNT; i++) {
+		void s.inner.v
+	}
+	return performance.now() - start
+}
+
+function stateWriteEqualValue(): number {
+	const s = state({
+		v: 42,
+	})
+	const start = performance.now()
+	for (let i = 0; i < LOOP_LENGTH; i++) s.v = 42
+	return performance.now() - start
+}
+
+function arrayPushPopUndefined(): number {
+	const items = state<unknown[]>([])
+	const cleanup: Unsubscribe = effect((): void => {
+		void items.length
+	})
+	const start = performance.now()
+	for (let i = 0; i < ARRAY_PUSH_POP_CALLS; i++) {
+		items.push(undefined)
+		items.pop()
+	}
+	const end = performance.now()
+	cleanup()
+	return end - start
+}
+
 function disjointSubscribers(): number {
 	const obj: Record<string, number> = {}
 	for (let i = 0; i < DISJOINT_PROP_COUNT; i++) obj[`p${i}`] = 0
@@ -495,6 +582,14 @@ const suite: SuiteEntry[] = [
 		name: 'effect triggers           ',
 	},
 	{
+		fn: arrayPushPopHookless,
+		name: 'array push/pop (hookless) ',
+	},
+	{
+		fn: arrayPushPopHooks,
+		name: 'array push/pop (hooks)    ',
+	},
+	{
 		fn: manyDependencies,
 		name: 'many dependencies         ',
 	},
@@ -524,6 +619,29 @@ const suite: SuiteEntry[] = [
 	{
 		fn: stateNoSubscribers,
 		name: 'state no subs after seal  ',
+	},
+	{
+		header: '--- Blind spots (creation shapes, nested read, equal and undefined writes) ---',
+	},
+	{
+		fn: stateCreationArray,
+		name: 'state creation (array)    ',
+	},
+	{
+		fn: stateCreationSealed,
+		name: 'state creation (sealed)   ',
+	},
+	{
+		fn: stateReadNested,
+		name: 'state read nested         ',
+	},
+	{
+		fn: stateWriteEqualValue,
+		name: 'state write equal value   ',
+	},
+	{
+		fn: arrayPushPopUndefined,
+		name: 'array push/pop (undefined)',
 	},
 ]
 

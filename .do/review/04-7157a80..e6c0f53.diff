@@ -1,0 +1,237 @@
+# Review package: ticket 04, 7157a80..e6c0f53
+
+## Commits
+### e6c0f53
+test(state): pin loop detection and hook observation of array methods
+
+With the mutating array methods running through the Proxy, the existing
+read-then-write loop check and the state hooks see what each method does.
+Pin that with tests on both kinds of state: every one of the seven
+methods raises the named infinite-loop error in a synchronous top-level
+effect, sort and reverse on fewer than two elements raise nothing, a
+child effect and a converging microtask effect keep their exemption, and
+onWrite and onRead report push with the arguments a direct access gives,
+leaving out the equal-value length write.
+
+
+## Files changed
+ tests/AGENTS.md             |  2 +-
+ tests/infinite-loop.test.ts | 94 +++++++++++++++++++++++++++++++++++++++++++++
+ tests/state-hooks.test.ts   | 29 ++++++++++++++
+ 3 files changed, 124 insertions(+), 1 deletion(-)
+
+## Diff
+diff --git a/tests/AGENTS.md b/tests/AGENTS.md
+index 57730ab..d8f4bb5 100644
+--- a/tests/AGENTS.md
++++ b/tests/AGENTS.md
+@@ -85,17 +85,17 @@ ## Coverage Gate
+ - Lines: 90%
+ - Includes: `src/**/*.ts`
+ - Excludes: `scripts/**/*.ts`
+ 
+ ## Hooks Tests
+ 
+ Test hooks instrumentation for each primitive. Each file verifies backward compatibility (works without hooks), individual hook firing, and error isolation (hook errors never break core).
+ 
+ | File | Tests | Covers |
+ |------|-------|--------|
+-| `state-hooks.test.ts` | 16 | `onRead`, `onWrite`, batched `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
++| `state-hooks.test.ts` | 18 | `onRead`, `onWrite`, batched `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
+ | `effect-hooks.test.ts` | 11 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
+ | `derive-hooks.test.ts` | 12 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
+ | `batch-hooks.test.ts` | 7 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
+ | `hooks-compose.test.ts` | 7 | `composeHook` utility — undefined, single, array, forwarding, error isolation |
+ 
+ <!-- BEACON-START -->[Tests Index]|root: ./tests|IMPORTANT: Follow naming conventions and always dispose effects/derives in tests|.:{*.test.ts,PROPERTY_BASED_TESTING.md,biome.json}<!-- BEACON-END -->
+diff --git a/tests/infinite-loop.test.ts b/tests/infinite-loop.test.ts
+index 848729d..c7bf841 100644
+--- a/tests/infinite-loop.test.ts
++++ b/tests/infinite-loop.test.ts
+@@ -1,26 +1,51 @@
+ import assert from 'node:assert/strict'
+ import { afterEach, describe, it } from 'node:test'
+ import { batch, derive, effect, state } from '../src/index.ts'
++import type { StateHooks } from '../src/types.ts'
+ 
+ /**
+  * Tests for infinite loop detection in reactive effects.
+  *
+  * These tests focus specifically on direct infinite loops - where an effect
+  * reads from a state and then writes to the same state, which would cause
+  * an infinite loop if not handled. The infinite loop detection mechanism
+  * throws an error in these cases to prevent the loop.
+  *
+  * These tests are distinct from cyclic dependency tests, which focus on
+  * indirect cycles between multiple effects and states that form circular
+  * dependencies but may not cause infinite loops.
+  */
++
++// Both kinds of state: hooks only observe, so the loop check must behave the same on each
++const observingHooks: StateHooks<number[]> = {
++	onRead: (): void => {},
++	onWrite: (): void => {},
++}
++
++function bothKinds(initial: number[]): [string, number[]][] {
++	return [
++		['no hooks', state([...initial])],
++		['hooks', state([...initial], observingHooks)],
++	]
++}
++
++const mutatingCalls: [string, (list: number[]) => unknown][] = [
++	['push', (list: number[]): unknown => list.push(1)],
++	['pop', (list: number[]): unknown => list.pop()],
++	['shift', (list: number[]): unknown => list.shift()],
++	['unshift', (list: number[]): unknown => list.unshift(1)],
++	['splice', (list: number[]): unknown => list.splice(0, 1)],
++	['sort', (list: number[]): unknown => list.sort()],
++	['reverse', (list: number[]): unknown => list.reverse()],
++]
++
+ describe('Infinite Loop Detection', {
+ 	concurrency: true,
+ 	timeout: 1000,
+ }, (): void => {
+ 	// Track all unsubscribe functions created in each test
+ 	let unsubscribes: Array<() => void> = []
+ 
+ 	afterEach((): void => {
+ 		// Clean up all effects created during the test
+ 		for (const unsubscribe of unsubscribes) {
+@@ -302,11 +327,80 @@ describe('Infinite Loop Detection', {
+ 		} catch (error: unknown) {
+ 			errorThrown = true
+ 			assert.ok(
+ 				error instanceof Error && error.message.includes('Infinite loop detected'),
+ 				`Expected infinite loop error, but got: ${error}`
+ 			)
+ 		}
+ 
+ 		assert.strictEqual(errorThrown, true, 'An infinite loop error should have been thrown')
+ 	})
++
++	it('raises the named loop error when a sync effect calls any mutating array method on both kinds of state', (): void => {
++		for (const [name, call] of mutatingCalls) {
++			for (const [kind, $list] of bothKinds([2, 1])) {
++				assert.throws(
++					(): void => {
++						unsubscribes.push(
++							effect((): void => {
++								call($list)
++							}, name)
++						)
++					},
++					new RegExp(`Infinite loop detected: effect "${name}" cannot update property "`),
++					`${name} ${kind}`
++				)
++			}
++		}
++	})
++
++	it('raises nothing when sort or reverse in a sync effect has fewer than two elements to move', (): void => {
++		for (const initial of [[], [5]]) {
++			for (const [, $list] of bothKinds(initial)) {
++				unsubscribes.push(
++					effect((): void => {
++						$list.sort()
++					})
++				)
++				unsubscribes.push(
++					effect((): void => {
++						$list.reverse()
++					})
++				)
++				assert.deepStrictEqual([...$list], initial)
++			}
++		}
++	})
++
++	it('lets a child effect push onto a reactive array without raising', (): void => {
++		for (const [, $list] of bothKinds([])) {
++			unsubscribes.push(
++				effect((): void => {
++					effect((): void => {
++						$list.push(1)
++					})
++				})
++			)
++			assert.deepStrictEqual([...$list], [1])
++		}
++	})
++
++	it('lets a microtask effect push until length reaches 3 without raising', async (): Promise<void> => {
++		for (const [, $list] of bothKinds([])) {
++			unsubscribes.push(
++				effect(
++					(): void => {
++						if ($list.length < 3) $list.push(1)
++					},
++					undefined,
++					undefined,
++					{ schedule: 'microtask' }
++				)
++			)
++			// One microtask flush per push: three pushes, one spare turn to prove it stops
++			for (let turn = 0; turn < 4; turn++) {
++				await new Promise<void>((resolve): void => queueMicrotask(resolve))
++			}
++			assert.deepStrictEqual([...$list], [1, 1, 1])
++		}
++	})
+ })
+diff --git a/tests/state-hooks.test.ts b/tests/state-hooks.test.ts
+index 8145a0f..1239abf 100644
+--- a/tests/state-hooks.test.ts
++++ b/tests/state-hooks.test.ts
+@@ -243,20 +243,49 @@ describe('State Hooks', {
+ 			{
+ 				onRead: (prop: PropertyKey) => {
+ 					reads.push(String(prop))
+ 				},
+ 			}
+ 		)
+ 		$s.items.push(4)
+ 		assert.ok(reads.some((r) => r === 'push'))
+ 	})
+ 
++	it('fires onWrite for each property push writes with the arguments a direct write produces', () => {
++		const calls: unknown[][] = []
++		const raw: number[] = []
++		const $list = state(raw, {
++			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown, target: number[]) => {
++				calls.push([prop, oldValue, newValue, target])
++			},
++		})
++
++		$list.push(1)
++
++		// push sets length to the value it already holds after the index write, so length is not reported
++		assert.deepStrictEqual(calls, [['0', undefined, 1, raw]])
++	})
++
++	it('fires onRead with the method name and length for push', () => {
++		const reads: PropertyKey[] = []
++		const $list = state([] as number[], {
++			onRead: (prop: PropertyKey) => {
++				reads.push(prop)
++			},
++		})
++
++		$list.push(1)
++
++		assert.ok(reads.includes('push'))
++		assert.ok(reads.includes('length'))
++	})
++
+ 	it('fires onWrite for direct array index assignment', () => {
+ 		const writes: string[] = []
+ 		const $s = state(
+ 			{
+ 				items: [1, 2, 3],
+ 			},
+ 			{
+ 				onWrite: (prop: PropertyKey) => {
+ 					writes.push(String(prop))
+ 				},

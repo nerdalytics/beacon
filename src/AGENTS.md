@@ -26,13 +26,13 @@ Global mutable state driving the reactive system:
 | `effectErrorHandled` | `boolean` | Set by `runEffectSafely` on a throw: whether the effect had an `onError` hook |
 | `effectQueue` | `EffectFunction[]` | Reused array `runPendingEffectBatch` drains when more than one effect is pending |
 | `deferredEffectCreations` | `EffectFunction[]` | Effects created inside batch (deferred until batch end) |
-| `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling |
+| `dirtyTargets` | `Map<object, Set<PropertyKey>>` | Batch fast path: tracks dirty target-property pairs for deferred scheduling; an array maps to the shared `ARRAY_DIRTY_PROPS` sentinel, since it wakes every subscriber at the batch end |
 | `rerunReadList`, `rerunReadIndex`, `rerunStable` | | Re-run fast path: replays the effect's `__readList` and advances while reads match |
 | `rerunTempDeps`, `rerunTempReads`, `buildingReadList` | | Re-run slow path: collect fresh deps/reads and build a new read list |
 | `idleCallbacks` | `Set<IdleCallback>` | `onIdle` subscribers |
 | `flushProcessed`, `settleProcessed` | `boolean` | Work happened since the last idle notification (a flush ran, or an async derive settled) |
 | `untilEvaluating`, `untilSawPending` | `boolean` | Set while an `until` predicate runs; records whether it read a pending derive |
-| `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the hookless fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
+| `hasFallbackSubs` | `boolean` | Armed when a target that carries `[PROXY]` (extensible at `state()` time) gets its subscriber set stored in `proxyCacheSubs`, i.e. it was sealed or frozen after `state()`; makes the fast paths consult the WeakMap for every target without `[SUBSCRIBERS]`. Never reset |
 
 ## EffectFunction Properties
 
@@ -56,10 +56,10 @@ Effect tracking data stored directly on the function object (O(1) property acces
 
 | WeakMap | Type | Purpose |
 |---------|------|---------|
-| `proxyCache` | `object → object` | Reuse same Proxy for same target |
+| `proxyCache` | `object → object` | The Proxy of a target that could not take the `[PROXY]` symbol (non-extensible, or a define that threw); an extensible target carries its Proxy in `[PROXY]` and gets no entry, since an entry per `state()` cost 2.6x on creation (GC ephemeron work) |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
-| `arrayMethodCache` | `object → Map<PropertyKey, CachedMethod>` | Cached wrapped mutating array methods per target |
-| `frozenHooksCache` | `object → StateHooks` | Hooks storage for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
+| `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; every wrapper acts on its call receiver, so no per-target entry is needed (`push` and `pop` map to `directPushWrapper`/`directPopWrapper`) |
+| `frozenHooksCache` | `object → StateHooks \| DirectArrayContext` | What the `[HOOKS]` slot would have held, for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
 
 ## Symbols
 
@@ -68,18 +68,18 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
 | `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
 | `PROXY` | Stores Proxy reference on target objects |
-| `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
+| `HOOKS` | On an extensible array target: its `DirectArrayContext` (raw target, raw hooks, composed `onDelete`/`onRead`/`onWrite`), which the direct `push`/`pop` read through the Proxy receiver (`proxy[HOOKS]` returns the raw slot; the raw target as receiver runs the native method silently, Q71 b). On any other extensible hooked target: its StateHooks, never read (nested propagation is by closure). A WeakMap keyed by the Proxy cost 2.7x on array state creation |
 
 ## Internal Function Architecture
 
 ### Proxy Handlers
 
-Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get and set factories return leaner variants when no hooks are passed.
+Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object.
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
-| `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; only the hooked variant routes mutating array methods through `getWrappedArrayMethod` (the hookless one returns every function raw) |
-| `createSetHandler()` | `set` | Delegates to `handleBatchFastPath` during batch, `performWrite` otherwise |
+| `createGetHandler()` | `get` | One keyed load of the raw target, then the internal-symbol early return (a separate load site for the symbols saw only array maps, lost its feedback when those arrays were collected, and deoptimized the trap on the next direct push/pop); delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; both variants route mutating array methods through `getWrappedArrayMethod` before the non-object early return |
+| `createSetHandler()` | `set` | One trap for hooked and hookless state: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
 | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
@@ -93,13 +93,21 @@ Handler helpers:
 | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
 | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
 | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
-| `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
+| `wrapNestedObject` | Returns the nested object's `[PROXY]`, else `state()` (which finds a non-extensible object's Proxy in `proxyCache` or wraps it) |
 | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
-| `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
-| `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
-| `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
+| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check). Its body is a read-path hot spot: any change to it, even code a plain-object read never reaches, cost 2 to 5% on the read benchmark, so the direct `push`/`pop` dispatch lives in the cached wrappers |
+| `applyInBatch` | Runs a method on a receiver inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure); shared by the Proxy-receiver wrappers and the direct `push`/`pop` |
+| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: the native `push` and `pop` get `directPushWrapper`/`directPopWrapper`; the other five get a wrapper that applies them via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+| `directPushWrapper` / `directPopWrapper` | Read the receiver's `[HOOKS]` slot (optional chaining, so a nullish receiver reads no slot): a `DirectArrayContext` (checked with `instanceof`, since a hooked object receiver keeps its hooks there) on a receiver that is not the context's own raw target runs `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`, the raw array target, `null` or `undefined`) gets the native method inside `applyInBatch`: the raw target never enters the traps, so the call is silent (no hook call, no wake, Q71 b), and a nullish receiver raises the native TypeError |
+| `hooksSlotFor` | What `state()` stores in the `[HOOKS]` slot: for an array target a new `DirectArrayContext`, otherwise the hooks |
+| `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
+| `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
+| `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed: the loop check (inside an effect only), the equal skip, then `onWrite`, shared by both paths; only the scheduling branches: per property inside an effect (plus `length` for an index write that grew the array), one `ARRAY_DIRTY_PROPS` entry per batch outside. A write that grew the array went to an absent index, so it is never skipped as equal (Q65 a) |
+| `isUnchangedWrite` | The equal skip of every set path: `Object.is` against the current read, and for an equal `undefined` a `prop in rawTarget` check, so a write of `undefined` to an absent property counts as a change (Q65 a); a read that is not `undefined` proves the property exists |
+| `performUnbatchedWrite` | Outside any effect and batch: skips an unchanged write (`isUnchangedWrite`), skips scheduling when the target has no subscribers, else notifies per property |
+| `performWrite` | Checks infinite loop, skips an unchanged write (`isUnchangedWrite`), notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check); inlines the `findSubscribers` lookup |
+| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
 | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
 | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
 
@@ -169,7 +177,9 @@ addPendingEffect(subscriber)
 
 | Function | Purpose |
 |----------|---------|
-| `batch()` | Public API — increments `batchDepth`, runs fn, flushes at outermost boundary |
+| `batch()` | Public API — increments `batchDepth`, runs fn, then `endBatch` (or `abortBatch` on a throw) |
+| `abortBatch` | Decrements `batchDepth`; clears batch state at the outermost boundary |
+| `endBatch` | Flushes `dirtyTargets` at `batchDepth === 1`, decrements, flushes effects at the outermost boundary; shared by `batch()` and the array method wrapper |
 | `flushDirtyTargets` | Processes deferred writes from `dirtyTargets` at `batchDepth === 1` |
 | `flushBatchEffects` | Runs deferred effect creations, flushes pending effects, then `notifyIdleOutsideFlush` |
 | `runDeferredEffects` | Executes effects created during batch |
@@ -200,9 +210,9 @@ addPendingEffect(subscriber)
 
 | Function | Purpose |
 |----------|---------|
-| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; falls back to `storeHooksForFrozenTarget` otherwise |
-| `definePropertyOnTarget` | `Object.defineProperty` for `PROXY` and `HOOKS` symbols |
-| `storeHooksForFrozenTarget` | Writes hooks to `frozenHooksCache` for non-extensible targets |
+| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets and returns `true`; falls back to `storeHooksForFrozenTarget` and returns `false` otherwise, which makes `state()` register the Proxy in `proxyCache` |
+| `definePropertyOnTarget` | `Object.defineProperty` for the `PROXY` symbol, and for the `HOOKS` symbol when the slot has a value |
+| `storeHooksForFrozenTarget` | Writes the `HOOKS` slot value to `frozenHooksCache` for non-extensible targets |
 
 ### Utilities
 
@@ -214,7 +224,7 @@ addPendingEffect(subscriber)
 
 ## Critical Invariants
 
-1. **Proxy deduplication**: Never create two Proxies for the same target. Always check `proxyCache` and `[PROXY]` symbol first.
+1. **Proxy deduplication**: Never create two Proxies for the same target. Always check the `[PROXY]` symbol first, then `proxyCache` for a target that could not take the symbol.
 2. **Effect re-entrancy guard**: `__active` boolean on EffectFunction prevents an effect from running while already running.
 3. **Batch depth counting**: `batchDepth` must always return to 0. Incremented before `fn()`, decremented in all paths (success + error).
 4. **Cleanup order**: `cleanupEffect` removes from subscribers and clears `__prevDeps`/`__prevReads`. `cleanupEffectCompletely` also handles children iteratively (not recursively — avoids stack overflow).

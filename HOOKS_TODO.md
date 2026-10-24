@@ -1,6 +1,6 @@
 # Hooks Roadmap
 
-Status-tracked plan and catalog for Beacon's hooks system. Every "shipped" row and every contract fact below was verified against `src/` at commit `41d285f`. The former `HOOKS_CATALOG.md` is folded into the Catalog section.
+Status-tracked plan and catalog for Beacon's hooks system. Every "shipped" row and every contract fact below was verified against `src/` at commit `c7ce796`. The former `HOOKS_CATALOG.md` is folded into the Catalog section.
 
 **Status legend**
 
@@ -33,6 +33,7 @@ Facts from `src/index.ts` that decide whether a catalog entry can be built as a 
 5. `onRun` fires before the effect body. There is no post-run slot, so a hook cannot time an effect.
 6. `onCompute` fires before `computeFn` with the previous value. The new value is only visible through `onCacheHit`.
 7. Hooks bind by closure at `state()` / `effect()` / `derive()` / `batch()` call time. Nested objects wrapped later inherit the parent's hooks through that closure, not through any per-target storage.
+8. The presence of a hook never changes which subscribers wake or when. Hooked and hookless state share one set trap, so a write notifies the same subscribers at the same moment on every path: outside a batch, inside a batch from outside any effect, and inside an effect.
 
 Anything that needs veto, throw-through, delay, or post-run timing is `blocked` until a new slot or a return-value contract exists.
 

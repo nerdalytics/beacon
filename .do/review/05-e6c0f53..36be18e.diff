@@ -1,0 +1,76 @@
+# Review package: ticket 05, e6c0f53..36be18e
+
+## Commits
+### 36be18e
+docs(core): describe array method interception on both kinds of state
+
+The root and source folder agent docs still described the seven mutating
+array methods as merely intercepted. Since the hookless get handler now
+routes them through the same wrapper as the hooked one, both documents
+state that the methods are intercepted on state with and without hooks,
+run through the Proxy inside a batch, wake each subscriber at most once
+per call, are subject to the loop check inside an effect, and are seen
+by the read and write hooks.
+
+
+## Files changed
+ AGENTS.md     | 3 ++-
+ src/AGENTS.md | 2 +-
+ 2 files changed, 3 insertions(+), 2 deletions(-)
+
+## Diff
+diff --git a/AGENTS.md b/AGENTS.md
+index 931bd6a..cee1f32 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -26,21 +26,22 @@ ## Architecture
+ - `onIdle(callback: IdleCallback): Unsubscribe` — runs the callback each time the graph goes idle after doing work (no effect queued, no microtask flush armed); a pending async computation does not keep the graph busy
+ - `until<T>(predicate: () => T, options?: UntilOptions): Promise<T>` — resolves once the predicate is truthy with no derive pending; `timeout` and `signal` reject; throws inside a reactive scope
+ - Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `DerivedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+ - Subpath `@nerdalytics/beacon/hooks`: hook types and `composeHook`
+ 
+ **Key behaviors:**
+ - Dependency tracking via WeakMaps + Symbols at the property level
+ - Nested objects automatically wrapped in Proxies (deep reactivity)
+ - Infinite loop detection: throws if effect writes to a state property it reads from (child effects and microtask effects are exempt; microtask re-runs stop after 100 chained microtask flushes with a `console.error`)
+ - Cyclic dependencies between different effects: allowed via queue-based non-recursive `flushEffects`
+-- Array mutating methods intercepted: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
++- Array mutating methods intercepted on state with and without hooks: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
++  - Each runs through the Proxy inside a batch, so it wakes each subscriber of the array at most once per call, is subject to the loop check inside an effect, and is seen by the read and write hooks
+ - Frozen/sealed objects: fallback to WeakMap storage
+ - `derive()` must be disposed to prevent memory leaks (creates internal state + effect pair)
+ 
+ ## Versioning
+ 
+ Epoch Semantic Versioning: `{EPOCH * 1000 + MAJOR}.MINOR.PATCH`
+ - Current: v2002.0.0 (`package.json` and `jsr.json` must match)
+ 
+ Commit format: `<type>(<scope>): <summary>` — imperative, present tense, no period, under 72 chars.
+ Types: `epoch`, `breaking`, `feat`, `fix`, `perf`, `refactor`, `style`, `test`, `docs`, `chore`
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 5d67e53..e865030 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -89,21 +89,21 @@ ### Proxy Handlers
+ | Function | Purpose |
+ |----------|---------|
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+ | `recordEffectRead` | Non-silent: records into `__deps`/`__reads` + fires `onDependencyAdd`. Silent: advances the read-list replay while it matches, else replays the prefix into temp collections and falls back to `recordSilentRead` |
+ | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
+ | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
+ | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
+ | `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
+ | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
+ | `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check) |
+-| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: applies it to the call receiver (the Proxy) inside `batch()`, so every read and write passes the traps and each subscriber wakes at most once per call |
++| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`, for state with and without hooks: applies it to the call receiver (the Proxy) inside `batch()`, so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+ | `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
+ | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
+ | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
+ | `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup |
+ | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
+ | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
+ 
+ ### Subscriber Scheduling Pipeline
+ 
+ ```

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { effect, state } from '../src/index.ts'
+import { batch, effect, state } from '../src/index.ts'
 
 describe('State Hooks', {
 	concurrency: true,
@@ -78,6 +78,38 @@ describe('State Hooks', {
 		)
 		$s.count = 0
 		assert.strictEqual(callCount, 0)
+	})
+
+	it('fires onWrite once for a batched write and not for a batched same-value write', () => {
+		const calls: unknown[][] = []
+		const raw = { a: 1 }
+		const $s = state(raw, {
+			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown, target: { a: number }) => {
+				calls.push([prop, oldValue, newValue, target])
+			},
+		})
+		let effectCount = 0
+		const dispose = effect(() => {
+			effectCount++
+			$s.a
+		})
+
+		batch(() => {
+			$s.a = 2
+		})
+		assert.deepStrictEqual(calls, [['a', 1, 2, raw]])
+		assert.strictEqual(calls[0]?.[3], raw)
+		assert.strictEqual(effectCount, 2)
+
+		batch(() => {
+			$s.a = 2
+		})
+		assert.strictEqual(calls.length, 1)
+
+		$s.a = 3
+		assert.deepStrictEqual(calls[1], ['a', 2, 3, raw])
+		assert.strictEqual(effectCount, 3)
+		dispose()
 	})
 
 	it('fires onDelete with correct arguments', () => {
@@ -216,6 +248,35 @@ describe('State Hooks', {
 		)
 		$s.items.push(4)
 		assert.ok(reads.some((r) => r === 'push'))
+	})
+
+	it('fires onWrite for each property push writes with the arguments a direct write produces', () => {
+		const calls: unknown[][] = []
+		const raw: number[] = []
+		const $list = state(raw, {
+			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown, target: number[]) => {
+				calls.push([prop, oldValue, newValue, target])
+			},
+		})
+
+		$list.push(1)
+
+		// push sets length to the value it already holds after the index write, so length is not reported
+		assert.deepStrictEqual(calls, [['0', undefined, 1, raw]])
+	})
+
+	it('fires onRead with the method name and length for push', () => {
+		const reads: PropertyKey[] = []
+		const $list = state([] as number[], {
+			onRead: (prop: PropertyKey) => {
+				reads.push(prop)
+			},
+		})
+
+		$list.push(1)
+
+		assert.ok(reads.includes('push'))
+		assert.ok(reads.includes('length'))
 	})
 
 	it('fires onWrite for direct array index assignment', () => {

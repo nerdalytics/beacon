@@ -1,0 +1,416 @@
+# Review package: ticket 02, 65bc858..0a80ce6
+
+## Commits
+### 0a80ce6
+docs(core): add the notification fact to the hook contract
+
+Hooks only observe. Record that a hook's presence never changes which
+subscribers wake or when, now that hooked and hookless state share one
+set trap, and move the roadmap's verified-at line to that commit.
+
+### c7ce796
+fix(state): use one set trap for hooked and hookless state
+
+State created with an onWrite hook took a set path that skipped the
+batch fast path. Inside a batch, from outside any effect, it scheduled
+per property, so a subscriber of an array that read an unchanged index
+did not wake, while the same write on hookless state marked the array
+dirty and woke every subscriber once at the batch end.
+
+Keep the hookless notification logic for every state object: batch fast
+path, no-subscriber shortcut and per-property schedule outside any
+effect, loop check inside an effect. Call onWrite as an observer after
+the raw write on every path that changes a value, including the batch
+fast path. An equal-value write stays silent on every path.
+
+The outside-effect body moves into performUnbatchedWrite because Biome
+rejects the unified trap inline for cognitive complexity.
+
+
+## Files changed
+ HOOKS_TODO.md                   |  3 ++-
+ src/AGENTS.md                   |  7 ++---
+ src/index.ts                    | 59 +++++++++++++++++++++++++----------------
+ tests/batch-integration.test.ts | 28 +++++++++++++++++++
+ tests/infinite-loop.test.ts     | 13 +++++++++
+ tests/state-hooks.test.ts       | 34 +++++++++++++++++++++++-
+ 6 files changed, 116 insertions(+), 28 deletions(-)
+
+## Diff
+diff --git a/HOOKS_TODO.md b/HOOKS_TODO.md
+index 4502669..8f70812 100644
+--- a/HOOKS_TODO.md
++++ b/HOOKS_TODO.md
+@@ -1,13 +1,13 @@
+ # Hooks Roadmap
+ 
+-Status-tracked plan and catalog for Beacon's hooks system. Every "shipped" row and every contract fact below was verified against `src/` at commit `41d285f`. The former `HOOKS_CATALOG.md` is folded into the Catalog section.
++Status-tracked plan and catalog for Beacon's hooks system. Every "shipped" row and every contract fact below was verified against `src/` at commit `c7ce796`. The former `HOOKS_CATALOG.md` is folded into the Catalog section.
+ 
+ **Status legend**
+ 
+ | Status | Meaning |
+ |--------|---------|
+ | `shipped` | In `src/` with tests |
+ | `open` | Not started; nothing in core blocks it |
+ | `blocked` | Needs a change to the hook contract first (see below) |
+ | `decide` | Needs a product decision before any work starts |
+ 
+@@ -26,20 +26,21 @@ ## Hook contract
+ 
+ Facts from `src/index.ts` that decide whether a catalog entry can be built as a plain hook:
+ 
+ 1. Hooks return `void`. Nothing a hook returns reaches core.
+ 2. Hook errors are swallowed by `callHookSafe`. A hook cannot throw to the caller.
+ 3. `onWrite` fires after `rawTarget[prop] = value`. A hook cannot veto, alter, or delay a write.
+ 4. Same-value writes return before `onWrite` (`Object.is` check). A hook never sees an unchanged write.
+ 5. `onRun` fires before the effect body. There is no post-run slot, so a hook cannot time an effect.
+ 6. `onCompute` fires before `computeFn` with the previous value. The new value is only visible through `onCacheHit`.
+ 7. Hooks bind by closure at `state()` / `effect()` / `derive()` / `batch()` call time. Nested objects wrapped later inherit the parent's hooks through that closure, not through any per-target storage.
++8. The presence of a hook never changes which subscribers wake or when. Hooked and hookless state share one set trap, so a write notifies the same subscribers at the same moment on every path: outside a batch, inside a batch from outside any effect, and inside an effect.
+ 
+ Anything that needs veto, throw-through, delay, or post-run timing is `blocked` until a new slot or a return-value contract exists.
+ 
+ ## Open core items
+ 
+ | # | Item | Status | Evidence |
+ |---|------|--------|----------|
+ | C1 | `frozenHooksCache` is written (`storeHooksForFrozenTarget`) and never read. The `HOOKS` symbol is defined on extensible targets and never read. Hooks on frozen targets fire through the closure either way. | `decide` | `grep -n frozenHooksCache src/index.ts` shows the declaration and one `set`; probe: `state(raw, {onRead})` then `Object.freeze(raw)`, a read fires the hook once |
+ | C2 | `state(obj, hooksB)` on an already-proxied `obj` returns the cached proxy and drops `hooksB` silently. A nested object proxied before its parent keeps its own (possibly empty) hooks. | `decide` | probe: parent `onRead` sees `["inner"]` only; a second `state()` call fires hooksA, never hooksB |
+ | C3 | Reading a nested object through a frozen proxy throws a Proxy invariant `TypeError`, with or without hooks. | `open` | probe: `Object.freeze(state({nested:{b:2}}))` then `.nested.b` |
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 0448c79..89f66b6 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -67,46 +67,47 @@ ## Symbols
+ |--------|---------|
+ | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
+ | `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
+ | `PROXY` | Stores Proxy reference on target objects |
+ | `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
+ 
+ ## Internal Function Architecture
+ 
+ ### Proxy Handlers
+ 
+-Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get and set factories return leaner variants when no hooks are passed.
++Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object.
+ 
+ | Handler | Traps | Key behavior |
+ |---------|-------|-------------|
+ | `createGetHandler()` | `get` | Delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; only the hooked variant routes mutating array methods through `getWrappedArrayMethod` (the hookless one returns every function raw) |
+-| `createSetHandler()` | `set` | Delegates to `handleBatchFastPath` during batch, `performWrite` otherwise |
++| `createSetHandler()` | `set` | One trap for hooked and hookless state: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
+ | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
+ | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
+ | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
+ 
+ Handler helpers:
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+ | `recordEffectRead` | Non-silent: records into `__deps`/`__reads` + fires `onDependencyAdd`. Silent: advances the read-list replay while it matches, else replays the prefix into temp collections and falls back to `recordSilentRead` |
+ | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
+ | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
+ | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
+ | `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
+ | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
+ | `getWrappedArrayMethod` | Intercepts mutating array methods, delegates to cache strategies |
+ | `wrapArrayMethod` | Wraps and caches a mutating array method in `arrayMethodCache` |
++| `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
+ | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
+ | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
+-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips hooks + loop check); inlines the `findSubscribers` lookup |
++| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup |
+ | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
+ | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
+ 
+ ### Subscriber Scheduling Pipeline
+ 
+ ```
+ scheduleSubscribersForTarget(target, prop?)
+   → findSubscribers(target)
+   → for each subscriber:
+       prop undefined → addPendingEffect(subscriber)
+diff --git a/src/index.ts b/src/index.ts
+index 4961c65..8f9c524 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -622,25 +622,31 @@ function notifyLengthChangeIfNeeded(rawTarget: ProxyTarget, oldLength: number |
+ 	}
+ }
+ 
+ function getArrayLengthBeforeMutation(rawTarget: ProxyTarget, prop: PropertyKey): number | undefined {
+ 	if (!Array.isArray(rawTarget) || typeof prop !== 'string') return undefined
+ 	const index = Number(prop)
+ 	if (Number.isNaN(index) || index < 0) return undefined
+ 	return (rawTarget as unknown as unknown[]).length
+ }
+ 
+-function handleBatchFastPath(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean {
++function handleBatchFastPath<T>(
++	rawTarget: ProxyTarget,
++	prop: PropertyKey,
++	value: unknown,
++	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
++): boolean {
+ 	const oldValue = rawTarget[prop]
+ 	if (Object.is(oldValue, value)) return true
+ 
+ 	rawTarget[prop] = value
++	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
+ 
+ 	// inlined, not findSubscribers: the call cost ~5% on the batch + derive benchmarks
+ 	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+ 	if (subs === undefined && (hasFallbackSubs || (rawTarget as ProxyObject)[PROXY] === undefined)) {
+ 		subs = proxyCacheSubs.get(rawTarget)
+ 	}
+ 	if (!subs?.size) return true
+ 
+ 	let props = dirtyTargets.get(rawTarget)
+ 	if (!props) {
+@@ -661,46 +667,53 @@ function checkInfiniteLoop(rawTarget: ProxyTarget, prop: PropertyKey): void {
+ 	const effectName = currentEffect.effectName
+ 	const errorMsg = effectName
+ 		? `Infinite loop detected: effect "${effectName}" cannot update property "${String(prop)}" it depends on`
+ 		: 'Infinite loop detected: effect cannot update a state it depends on'
+ 	throw new Error(errorMsg)
+ }
+ 
+ function createSetHandler<T>(
+ 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+ ): NonNullable<ProxyHandler<ProxyTarget>['set']> {
+-	if (!onWrite) {
+-		return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
+-			if (batchDepth > 0 && !currentEffect) {
+-				return handleBatchFastPath(rawTarget, prop, value)
+-			}
+-			if (!currentEffect) {
+-				const oldValue = rawTarget[prop]
+-				if (Object.is(oldValue, value)) return true
+-				const subs = findSubscribers(rawTarget)
+-				if (!subs?.size) {
+-					rawTarget[prop] = value
+-					return true
+-				}
+-				const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
+-				rawTarget[prop] = value
+-				scheduleSubscribersForTarget(rawTarget, prop)
+-				notifyLengthChangeIfNeeded(rawTarget, oldLength)
+-				return true
+-			}
+-			return performWrite(rawTarget, prop, value, undefined)
++	// One trap for hooked and hookless state: onWrite only observes, it never selects a notification path
++	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
++		if (batchDepth > 0 && !currentEffect) {
++			return handleBatchFastPath(rawTarget, prop, value, onWrite)
++		}
++		if (!currentEffect) {
++			return performUnbatchedWrite(rawTarget, prop, value, onWrite)
+ 		}
++		return performWrite(rawTarget, prop, value, onWrite)
+ 	}
++}
+ 
+-	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
+-		return performWrite(rawTarget, prop, value, onWrite)
++// Outside any effect and batch: no loop check, and a target without subscribers skips scheduling
++function performUnbatchedWrite<T>(
++	rawTarget: ProxyTarget,
++	prop: PropertyKey,
++	value: unknown,
++	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
++): boolean {
++	const oldValue = rawTarget[prop]
++	if (Object.is(oldValue, value)) return true
++	const subs = findSubscribers(rawTarget)
++	if (!subs?.size) {
++		rawTarget[prop] = value
++		if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
++		return true
+ 	}
++	const oldLength = getArrayLengthBeforeMutation(rawTarget, prop)
++	rawTarget[prop] = value
++	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
++	scheduleSubscribersForTarget(rawTarget, prop)
++	notifyLengthChangeIfNeeded(rawTarget, oldLength)
++	return true
+ }
+ 
+ function performWrite<T>(
+ 	rawTarget: ProxyTarget,
+ 	prop: PropertyKey,
+ 	value: unknown,
+ 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+ ): boolean {
+ 	checkInfiniteLoop(rawTarget, prop)
+ 
+diff --git a/tests/batch-integration.test.ts b/tests/batch-integration.test.ts
+index 5ac4cd7..4ebc25e 100644
+--- a/tests/batch-integration.test.ts
++++ b/tests/batch-integration.test.ts
+@@ -1,13 +1,14 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+ import { batch, derive, effect, state } from '../src/index.ts'
++import type { StateHooks } from '../src/types.ts'
+ 
+ interface Item {
+ 	name: string
+ 	price: number
+ }
+ 
+ describe('Batch Integration', {
+ 	concurrency: true,
+ 	timeout: 1000,
+ }, (): void => {
+@@ -277,11 +278,38 @@ describe('Batch Integration', {
+ 		computeCount = 0
+ 
+ 		batch((): void => {
+ 			$list.filter = 'e'
+ 			$list.sort = 'name'
+ 		})
+ 
+ 		assert.strictEqual(computeCount, 1)
+ 		assert.strictEqual($filtered.value?.length, 2)
+ 	})
++
++	it('wakes an index subscriber once when a batch grows the array, with and without hooks', (): void => {
++		const noop = (): void => {}
++		const variants: Array<StateHooks<number[]> | undefined> = [
++			undefined,
++			{ onRead: noop },
++			{ onWrite: noop },
++			{ onRead: noop, onWrite: noop },
++		]
++
++		for (const hooks of variants) {
++			const $list = state([0, 1, 2], hooks)
++			let effectCount = 0
++
++			const dispose = effect((): void => {
++				effectCount++
++				$list[1]
++			})
++
++			batch((): void => {
++				$list[3] = 3
++			})
++
++			assert.strictEqual(effectCount, 2)
++			dispose()
++		}
++	})
+ })
+diff --git a/tests/infinite-loop.test.ts b/tests/infinite-loop.test.ts
+index 9b684d8..c89c0a5 100644
+--- a/tests/infinite-loop.test.ts
++++ b/tests/infinite-loop.test.ts
+@@ -50,20 +50,33 @@ describe('Infinite Loop Detection', {
+ 			errorThrown = true
+ 			assert.ok(
+ 				error instanceof Error && error.message.includes('Infinite loop detected'),
+ 				`Expected infinite loop error, but got: ${error}`
+ 			)
+ 		}
+ 
+ 		assert.strictEqual(errorThrown, true, 'An infinite loop error should have been thrown')
+ 	})
+ 
++	it('should detect direct infinite loops on state created with hooks', (): void => {
++		const $count = state({ value: 0 }, { onRead: (): void => {}, onWrite: (): void => {} })
++
++		assert.throws(() => {
++			unsubscribes.push(
++				effect((): void => {
++					$count.value = $count.value + 1
++				})
++			)
++			$count.value = 10
++		}, /Infinite loop detected/)
++	})
++
+ 	it('should allow a single read-write cycle but prevent infinite loops', (): void => {
+ 		const $counter = state({
+ 			value: 5,
+ 		})
+ 		const values: number[] = []
+ 		let errorThrown = false
+ 		let effectRanCount = 0
+ 
+ 		try {
+ 			effect((): void => {
+diff --git a/tests/state-hooks.test.ts b/tests/state-hooks.test.ts
+index c159329..8145a0f 100644
+--- a/tests/state-hooks.test.ts
++++ b/tests/state-hooks.test.ts
+@@ -1,13 +1,13 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+-import { effect, state } from '../src/index.ts'
++import { batch, effect, state } from '../src/index.ts'
+ 
+ describe('State Hooks', {
+ 	concurrency: true,
+ 	timeout: 1000,
+ }, () => {
+ 	it('works without hooks (backward compat)', () => {
+ 		const $s = state({
+ 			count: 0,
+ 		})
+ 		$s.count = 1
+@@ -73,20 +73,52 @@ describe('State Hooks', {
+ 			{
+ 				onWrite: () => {
+ 					callCount++
+ 				},
+ 			}
+ 		)
+ 		$s.count = 0
+ 		assert.strictEqual(callCount, 0)
+ 	})
+ 
++	it('fires onWrite once for a batched write and not for a batched same-value write', () => {
++		const calls: unknown[][] = []
++		const raw = { a: 1 }
++		const $s = state(raw, {
++			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown, target: { a: number }) => {
++				calls.push([prop, oldValue, newValue, target])
++			},
++		})
++		let effectCount = 0
++		const dispose = effect(() => {
++			effectCount++
++			$s.a
++		})
++
++		batch(() => {
++			$s.a = 2
++		})
++		assert.deepStrictEqual(calls, [['a', 1, 2, raw]])
++		assert.strictEqual(calls[0]?.[3], raw)
++		assert.strictEqual(effectCount, 2)
++
++		batch(() => {
++			$s.a = 2
++		})
++		assert.strictEqual(calls.length, 1)
++
++		$s.a = 3
++		assert.deepStrictEqual(calls[1], ['a', 2, 3, raw])
++		assert.strictEqual(effectCount, 3)
++		dispose()
++	})
++
+ 	it('fires onDelete with correct arguments', () => {
+ 		const calls: unknown[][] = []
+ 		const $s = state(
+ 			{
+ 				temp: 'value',
+ 			} as Record<string, unknown>,
+ 			{
+ 				onDelete: (prop: PropertyKey, hadProperty: boolean, target: Record<string, unknown>) => {
+ 					calls.push([prop, hadProperty, target])
+ 				},

@@ -1,0 +1,5 @@
+# Duplicated body of the direct push and pop wrappers
+
+**Status:** needs-triage
+
+Review round 5 of ticket 07 (change `wrap-array-methods-on-hookless-state`, commit bb2659c) found that `directPushWrapper` and `directPopWrapper` in `src/index.ts` (lines 215 to 229 at that commit) share one six-line body and differ only in the native method and the direct function they hand to `applyInBatch`. The reviewer proposed one factory `directWrapper(native, direct)` called twice from `wrapArrayMethod`. The maintainer ruled Q73 a: file it, do not fix it in ticket 07, because the wrappers are the hot path that ticket measures (`array push/pop` cases, gate 1% per case against trunk, Q64 d and Q66 d), the `state read (no effect)` regression of 92f1922 came from how these wrappers read their `[HOOKS]` slot, and a factory-made closure would need the full interleaved re-run before it could land. Candidate for the library-wide performance tournament (`.do/inbox/2026-10-23-library-wide-performance-tournament.md`), which measures every change to this path against its own baseline.

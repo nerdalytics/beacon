@@ -228,6 +228,26 @@ describe('State-Effect Integration', {
 		dispose1()
 	})
 
+	it('notifies length readers on a direct index write past the end', (): void => {
+		const $list = state([1, 2, 3])
+		const lengths: number[] = []
+
+		const dispose = effect((): void => {
+			lengths.push($list.length)
+		})
+
+		$list[3] = 4
+		assert.deepStrictEqual(lengths, [3, 4])
+
+		$list[0] = 10
+		assert.deepStrictEqual(lengths, [3, 4])
+
+		$list.length = 2
+		assert.deepStrictEqual(lengths, [3, 4, 2])
+
+		dispose()
+	})
+
 	it('tracks object property deletion', (): void => {
 		const $obj = state<DynamicObject>({
 			a: 1,

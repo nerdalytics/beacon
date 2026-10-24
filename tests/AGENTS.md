@@ -10,7 +10,7 @@ Native Node.js test runner (`node --test`). No external test framework.
 | Hooks | `{primitive}-hooks.test.ts` | `state-hooks`, `effect-hooks`, `derive-hooks`, `batch-hooks` |
 | Hooks Utility | `hooks-{utility}.test.ts` | `hooks-compose` |
 | Integration | `{feature1}-{feature2}.test.ts` | `state-effect`, `state-derive`, `batch-integration` |
-| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation` |
+| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation`, `array-methods`, `array-push-pop` |
 | Property-based | `property-{invariant}.test.ts` | `property-cleanup`, `property-proxy-identity` (fast-check; see `PROPERTY_BASED_TESTING.md`) |
 
 `npm test` passes `--test-skip-pattern="COMPONENT NAME"`, which skips any test named `COMPONENT NAME` (a placeholder name; no template file is checked in).
@@ -92,7 +92,7 @@ Test hooks instrumentation for each primitive. Each file verifies backward compa
 
 | File | Tests | Covers |
 |------|-------|--------|
-| `state-hooks.test.ts` | 15 | `onRead`, `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
+| `state-hooks.test.ts` | 18 | `onRead`, `onWrite`, batched `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
 | `effect-hooks.test.ts` | 11 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
 | `derive-hooks.test.ts` | 12 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
 | `batch-hooks.test.ts` | 7 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
