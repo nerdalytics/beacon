@@ -709,11 +709,14 @@ function createGetHandler<T>(
 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
 	hooks: StateHooks<T> | undefined
 ): NonNullable<ProxyHandler<ProxyTarget>['get']> {
+	// One keyed load per trap, before the internal-symbol check: a second load site reached only with array
+	// targets (the direct push/pop reading [HOOKS]) lost its map feedback whenever those arrays were collected,
+	// and V8 then deoptimized the trap on the next direct call, which cost 4% on every later property read
 	if (!onRead && !hooks) {
 		return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
-			if (isInternalSymbol(prop)) return rawTarget[prop]
-			if (currentEffect) trackDependency(rawTarget, prop)
 			const value = rawTarget[prop]
+			if (isInternalSymbol(prop)) return value
+			if (currentEffect) trackDependency(rawTarget, prop)
 			const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
 			if (wrapped) return wrapped
 			if (value === null || typeof value !== 'object') return value
@@ -722,9 +725,9 @@ function createGetHandler<T>(
 	}
 
 	return (rawTarget: ProxyTarget, prop: PropertyKey): unknown => {
-		if (isInternalSymbol(prop)) return rawTarget[prop]
-		if (currentEffect) trackDependency(rawTarget, prop)
 		const value = rawTarget[prop]
+		if (isInternalSymbol(prop)) return value
+		if (currentEffect) trackDependency(rawTarget, prop)
 
 		callHookSafe(onRead, prop, value, rawTarget as T)
 
