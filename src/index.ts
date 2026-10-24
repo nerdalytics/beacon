@@ -239,17 +239,15 @@ function recordDirectWrite(
 	grewLength: boolean
 ): void {
 	const target = context.target
+	if (currentEffect) checkInfiniteLoop(target, prop)
+	if (!grewLength && Object.is(oldValue, value)) return
+	callHookSafe(context.onWrite, prop, oldValue, value, target)
 	if (currentEffect) {
-		checkInfiniteLoop(target, prop)
-		if (!grewLength && Object.is(oldValue, value)) return
-		callHookSafe(context.onWrite, prop, oldValue, value, target)
 		// the effect path schedules per property; an index write that grew the array also wakes length readers
 		scheduleSubscribersForTarget(target, prop)
 		if (grewLength) scheduleSubscribersForTarget(target, 'length')
 		return
 	}
-	if (!grewLength && Object.is(oldValue, value)) return
-	callHookSafe(context.onWrite, prop, oldValue, value, target)
 	// outside an effect the array goes dirty once and wakes every subscriber at the batch end
 	if (!dirtyTargets.has(target) && findSubscribers(target)?.size) dirtyTargets.set(target, ARRAY_DIRTY_PROPS)
 }
