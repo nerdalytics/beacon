@@ -253,6 +253,43 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 		}
 	})
 
+	it('propagates the TypeError from push and pop on an array sealed after state() and stays usable', (): void => {
+		// Sealed after state(), the array still carries its slots, so the direct path runs and the native call on
+		// the raw target throws; the batch depth has to come back to 0, or the next write would wait for a batch end
+		const hookless: unknown[] = [1]
+		const hooked: unknown[] = [1]
+		const kinds: [string, unknown[], unknown[]][] = [
+			['hookless', hookless, state(hookless)],
+			['hooked', hooked, state(hooked, observingHooks)],
+		]
+		for (const [kind, raw, $list] of kinds) {
+			Object.seal(raw)
+			let runs = 0
+			const dispose = effect((): void => {
+				runs++
+				void $list[0]
+				void $list.length
+			})
+
+			assert.throws((): void => {
+				$list.push(2)
+			}, TypeError, `${kind} push`)
+			assert.throws((): void => {
+				$list.pop()
+			}, TypeError, `${kind} pop`)
+
+			assert.deepStrictEqual([...$list], [1], kind)
+			// a synchronous wake proves the batch depth is back to 0
+			$list[0] = 7
+			assert.strictEqual(runs, 2, kind)
+			batch((): void => {
+				$list[0] = 8
+			})
+			assert.strictEqual(runs, 3, kind)
+			dispose()
+		}
+	})
+
 	it('reports to the hooks the sequence a plain Proxy reports from inside a child effect', (): void => {
 		const cases: [string, unknown[], (list: unknown[]) => unknown][] = [
 			['push', [0, 1, 2], (list: unknown[]): unknown => list.push(3)],
