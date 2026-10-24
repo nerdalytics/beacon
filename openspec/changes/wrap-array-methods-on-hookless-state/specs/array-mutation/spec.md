@@ -18,7 +18,7 @@ Reactive state SHALL expose the same behavior for the seven mutating array metho
 - **THEN** both raise the same infinite-loop error
 
 ### Requirement: Hook presence does not change notification
-Reactive state SHALL notify the same subscribers at the same moment whether the state was created with hooks or without, for every write path: outside a batch, inside a batch from outside any effect, and inside an effect. The `onWrite` hook SHALL be called after the raw write on every path on which a write changes a value, including a write inside a batch. A write of an equal value SHALL stay silent on every path and SHALL NOT call `onWrite`.
+Reactive state SHALL notify the same subscribers at the same moment whether the state was created with hooks or without, for every write path: outside a batch, inside a batch from outside any effect, and inside an effect. The `onWrite` hook SHALL be called after the raw write on every path on which a write changes a value, including a write inside a batch. A write of a value equal to the value of an existing property SHALL stay silent on every path and SHALL NOT call `onWrite`. A write of `undefined` to an absent property is a change: it SHALL create the property, notify, and call `onWrite` with old value `undefined`.
 
 #### Scenario: Batched write wakes the same subscribers on every kind of state
 - **WHEN** an effect reads only index 1 of a reactive array `[0, 1, 2]` and a batch assigns index 3 from outside any effect, on state created without hooks, with `onRead` only, with `onWrite` only, and with both
@@ -91,6 +91,9 @@ The return value of a wrapped method and the contents of the array afterwards SH
 - **WHEN** `sort((a, b) => b - a)` is called on a reactive array `[1, 3, 2]`
 - **THEN** it returns the same array and the array reads `[3, 2, 1]`
 
+#### Scenario: Push of undefined creates the element
+- WHEN `push(undefined)` is called on a reactive array `[0, 1, 2]`, on state created without hooks and on state created with hooks
+- THEN `length` reads `4`, index `3` is an own property as it is on a plain array, and on hooked state `onWrite` is called for index `3` with old value `undefined` and new value `undefined`
 #### Scenario: Push on a sealed array
 - **WHEN** `push(1)` is called on reactive state over a sealed array
 - **THEN** a `TypeError` is raised, as the native method raises, and the system stays usable

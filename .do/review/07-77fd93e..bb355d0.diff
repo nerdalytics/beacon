@@ -1,0 +1,794 @@
+# Review package: ticket 07, 77fd93e..bb355d0
+
+## Commits
+### bb355d0
+perf(state): dispatch direct push and pop from the cached wrappers
+
+A probe with the base's exact getWrappedArrayMethod body read plain
+objects at the base's speed, while every other body shape measured 2
+to 5% slower, even where the added code never runs for a plain
+object. Restore that body unchanged and move the direct dispatch into
+the wrappers the cache hands out for the native push and pop: they
+find the array's raw target and composed hooks through the Proxy
+receiver in directArrayContexts, which state() fills for array
+targets. A receiver without an entry gets the native method in a
+batch, as before. This drops the per-target wrapper pair, the second
+guard and the lookup helper (Q61 a).
+
+### 7f839b3
+perf(state): keep the three-argument guard call on hookless reads
+
+The 100 states individual benchmark ran about 6% slower than the base
+over four interleaved series. The only change on its path is the call
+every property read makes to the array method guard, which gained a
+fourth argument for the hooks. Give the hookless trap a guard with the
+three-argument shape it called before, and the hooked trap its own
+four-argument guard (Q61 a).
+
+### ae22ed0
+fix(state): leave a hole for push(undefined) on the direct path
+
+The set trap skips an equal value without writing, so push(undefined)
+through the Proxy path never created the index and only grew length.
+The direct path ran the native push first and stored an own element.
+Delete the skipped slot again so the array ends as it did before
+(Q62 b), and pin that with the hook sequence and the wakes on both
+kinds of state. Also compare the hook sequence from inside a child
+effect to the plain Proxy reference, and list the new test file in
+the tests index.
+
+### b41d79f
+perf(state): leave only the two cheap checks on the property read path
+
+The plain-object read benchmark still ran about 4% slower with the
+push/pop identity check inside getWrappedArrayMethod, which every
+property read calls. Keep only Array.isArray and the typeof check
+there and move the identity check, the direct pair lookup, the cache
+hit and the name check into lookupArrayMethod.
+
+### 0ab02f3
+perf(state): keep the array method lookup small on the read path
+
+Every property read calls getWrappedArrayMethod. With the direct
+push/pop lookup inlined into it, the plain-object read benchmark ran
+about 4% slower across three interleaved runs. Move that lookup into
+getDirectArrayMethod so the body on the read path stays as small as
+before.
+
+### 21bfffd
+perf(state): take a direct path for push and pop on reactive arrays
+
+About half of the array push/pop benchmark's self time went to V8's
+generic push and pop on a Proxy receiver. Run the native method on the
+raw target instead and replay by hand what the get, set and delete
+traps would have done: read length (and the last index for pop), set
+each new index and length, delete the popped index. The replay calls
+onRead, onWrite and onDelete with the arguments a direct property
+access produces, runs the loop check before the equal skip inside an
+effect, schedules per property inside an effect and marks the array
+dirty once outside one, so no observable behavior changes. The other
+five mutating methods keep the Proxy receiver; a push or pop called on
+another receiver falls back to it as well.
+
+Pin the hook call sequence and the woken subscribers for both kinds of
+state against a plain Proxy over the same array as the reference.
+
+
+## Files changed
+ src/AGENTS.md                |  13 +-
+ src/index.ts                 | 164 ++++++++++++++++++++--
+ tests/AGENTS.md              |   2 +-
+ tests/array-push-pop.test.ts | 315 +++++++++++++++++++++++++++++++++++++++++++
+ 4 files changed, 477 insertions(+), 17 deletions(-)
+
+## Diff
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index a65a12e..6b44c2d 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -51,21 +51,22 @@ ## EffectFunction Properties
+ | `__reads` | `Map<object, Set<PropertyKey>> \| undefined` | Per-property read tracking (which props read on which targets) |
+ | `__schedule` | `EffectSchedule \| undefined` | `'microtask'` routes scheduling through `pendingMicroEffects` |
+ | `effectName` | `string \| undefined` | Optional name for debugging/hooks |
+ 
+ ## Internal Data Structures (WeakMap-based)
+ 
+ | WeakMap | Type | Purpose |
+ |---------|------|---------|
+ | `proxyCache` | `object → object` | Reuse same Proxy for same target |
+ | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
+-| `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; the wrapper acts on its call receiver, so no per-target entry is needed |
++| `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; every wrapper acts on its call receiver, so no per-target entry is needed (`push` and `pop` map to `directPushWrapper`/`directPopWrapper`) |
++| `directArrayContexts` | `Proxy → DirectArrayContext` | Registered in `state()` for array targets: the raw target and composed hooks the direct `push`/`pop` find through their Proxy receiver; a receiver without an entry is not a reactive array |
+ | `frozenHooksCache` | `object → StateHooks` | Hooks storage for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
+ 
+ ## Symbols
+ 
+ | Symbol | Purpose |
+ |--------|---------|
+ | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
+ | `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
+ | `PROXY` | Stores Proxy reference on target objects |
+ | `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
+@@ -88,22 +89,28 @@ ### Proxy Handlers
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+ | `recordEffectRead` | Non-silent: records into `__deps`/`__reads` + fires `onDependencyAdd`. Silent: advances the read-list replay while it matches, else replays the prefix into temp collections and falls back to `recordSilentRead` |
+ | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
+ | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
+ | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
+ | `wrapNestedObject` | Returns the cached proxy for a nested object, or wraps it via `state()` |
+ | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
+-| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check) |
+-| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`, for state with and without hooks: applies it to the call receiver (the Proxy) inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
++| `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check). Its body is a read-path hot spot: any change to it, even code a plain-object read never reaches, cost 2 to 5% on the read benchmark, so the direct `push`/`pop` dispatch lives in the cached wrappers |
++| `applyInBatch` | Runs a method on a receiver inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure); shared by the Proxy-receiver wrappers and the direct `push`/`pop` |
++| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: the native `push` and `pop` get `directPushWrapper`/`directPopWrapper`; the other five get a wrapper that applies them via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
++| `directPushWrapper` / `directPopWrapper` | Look the receiver up in `directArrayContexts`: with a context they run `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`) gets the native method inside `applyInBatch` |
++| `registerArrayContext` | Called by `state()` after the Proxy exists: for an array target, stores its `DirectArrayContext` (raw target, raw hooks, composed `onDelete`/`onRead`/`onWrite`) under the Proxy |
++| `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
++| `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
++| `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed, returning whether the trap would have written: inside an effect the loop check runs before the equal skip, then `onWrite` and per-property scheduling (plus `length` for an index write that grew the array); outside an effect `onWrite` and one `ARRAY_DIRTY_PROPS` entry per batch |
+ | `performUnbatchedWrite` | Outside any effect and batch: compares via `Object.is`, skips scheduling when the target has no subscribers, else notifies per property |
+ | `performWrite` | Checks infinite loop, compares via `Object.is`, notifies subscribers |
+ | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
+ | `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
+ | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
+ | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
+ 
+ ### Subscriber Scheduling Pipeline
+ 
+ ```
+diff --git a/src/index.ts b/src/index.ts
+index be75c10..58a275a 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -91,20 +91,38 @@ const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<Effec
+ 	Set<EffectFunction>,
+ 	Map<PropertyKey, Set<EffectFunction>>
+ >()
+ 
+ const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
+ 
+ // A native mutating array method, or the wrapper the Proxy hands out in its place
+ type ArrayMethod = (...args: unknown[]) => unknown
+ // Keyed by the native method: the wrapper acts on its call receiver, so one wrapper serves every array
+ const arrayMethodCache: WeakMap<ArrayMethod, ArrayMethod> = new WeakMap()
++// Only these two take the direct path (Q52 a); any other function under their names keeps the Proxy receiver
++const NATIVE_PUSH: ArrayMethod = Array.prototype.push as ArrayMethod
++const NATIVE_POP: ArrayMethod = Array.prototype.pop as ArrayMethod
++
++type ArrayTarget = ProxyTarget & unknown[]
++
++// What the direct push and pop of one array act on: its raw target and its composed hooks
++type DirectArrayContext = {
++	hooks: StateHooks<object> | undefined
++	onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined
++	onRead: HookFunction<[PropertyKey, unknown, object]> | undefined
++	onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
++	target: ArrayTarget
++}
++
++// Keyed by the Proxy, which is the receiver the shared push and pop wrappers see; registered in state() for
++// array targets, so the get trap's lookup stays the one every property read already paid for
++const directArrayContexts: WeakMap<object, DirectArrayContext> = new WeakMap()
+ const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+ const MAX_IDLE_CYCLES = 100
+ const MAX_MICROTASK_FLUSH_CHAIN = 100
+ // Up to this many subscribers a scan is cheaper than the per-property index lookups
+ const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
+ 
+ // Hooks consulted on the hot path; stored on the effect only when at least one is set
+ type EffectInternalHooks = {
+ 	onDependencyAdd?: HookFunction<[object, PropertyKey, string | undefined]> | undefined
+ 	onDependencyChange?: HookFunction<[object, PropertyKey]> | undefined
+@@ -129,43 +147,140 @@ type EffectFunction = {
+ 
+ // Helper types for objects with internal symbols
+ type SubscribersObject = ProxyTarget & {
+ 	[SUBSCRIBERS]?: Set<EffectFunction>
+ }
+ 
+ type ProxyObject = ProxyTarget & {
+ 	[PROXY]?: object
+ }
+ 
++// The hookless batch() bookkeeping without the batch(fn) closure: one allocation less per method call
++function applyInBatch(method: ArrayMethod, receiver: unknown, args: unknown[]): unknown {
++	batchDepth++
++	let result: unknown
++	try {
++		result = method.apply(receiver, args)
++	} catch (err) {
++		abortBatch()
++		throw err
++	}
++	endBatch()
++	return result
++}
++
+ function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
+ 	let wrapped = arrayMethodCache.get(nativeMethod)
+ 	if (!wrapped) {
+-		// The receiver is the Proxy the caller went through, so every read and write the method performs
+-		// passes the traps; the batch collapses them into one wake per subscriber after the method returns
+-		wrapped = function (this: unknown, ...args: unknown[]): unknown {
+-			// the hookless batch() bookkeeping without the batch(fn) closure: one allocation less per call
+-			batchDepth++
+-			let result: unknown
+-			try {
+-				result = nativeMethod.apply(this, args)
+-			} catch (err) {
+-				abortBatch()
+-				throw err
++		if (nativeMethod === NATIVE_PUSH) {
++			wrapped = directPushWrapper
++		} else if (nativeMethod === NATIVE_POP) {
++			wrapped = directPopWrapper
++		} else {
++			// The receiver is the Proxy the caller went through, so every read and write the method performs
++			// passes the traps; the batch collapses them into one wake per subscriber after the method returns
++			wrapped = function (this: unknown, ...args: unknown[]): unknown {
++				return applyInBatch(nativeMethod, this, args)
+ 			}
+-			endBatch()
+-			return result
+ 		}
+ 		arrayMethodCache.set(nativeMethod, wrapped)
+ 	}
+ 	return wrapped
+ }
+ 
++// The wrappers the cache hands out for the native push and pop: a receiver with a context is a reactive array
++// and takes the direct path; any other receiver, such as push.call(otherArray), runs the native method in a batch
++function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
++	const context = directArrayContexts.get(this as object)
++	if (context === undefined) return applyInBatch(NATIVE_PUSH, this, items)
++	return applyInBatch(directPush as ArrayMethod, context, items)
++}
++
++function directPopWrapper(this: unknown, ...args: unknown[]): unknown {
++	const context = directArrayContexts.get(this as object)
++	if (context === undefined) return applyInBatch(NATIVE_POP, this, args)
++	return applyInBatch(directPop as ArrayMethod, context, args)
++}
++
++// The get trap's bookkeeping for a property the native method reads on the raw target
++function recordDirectRead(context: DirectArrayContext, prop: PropertyKey, value: unknown): void {
++	if (currentEffect) trackDependency(context.target, prop)
++	callHookSafe(context.onRead, prop, value, context.target)
++}
++
++// The set trap's bookkeeping for a write the native method already performed on the raw target. Returns whether
++// the trap would have written: an equal value stays silent, but inside an effect the loop check still runs first
++function recordDirectWrite(
++	context: DirectArrayContext,
++	prop: PropertyKey,
++	oldValue: unknown,
++	value: unknown,
++	grewLength: boolean
++): boolean {
++	const target = context.target
++	if (currentEffect) {
++		checkInfiniteLoop(target, prop)
++		if (Object.is(oldValue, value)) return false
++		callHookSafe(context.onWrite, prop, oldValue, value, target)
++		// the effect path schedules per property; an index write that grew the array also wakes length readers
++		scheduleSubscribersForTarget(target, prop)
++		if (grewLength) scheduleSubscribersForTarget(target, 'length')
++		return true
++	}
++	if (Object.is(oldValue, value)) return false
++	callHookSafe(context.onWrite, prop, oldValue, value, target)
++	// outside an effect the array goes dirty once and wakes every subscriber at the batch end
++	if (!dirtyTargets.has(target) && findSubscribers(target)?.size) dirtyTargets.set(target, ARRAY_DIRTY_PROPS)
++	return true
++}
++
++// Reads length, pushes on the raw target, then replays a set of each new index and of length
++function directPush(this: DirectArrayContext, ...items: unknown[]): number {
++	const target = this.target
++	const length = target.length
++	recordDirectRead(this, 'length', length)
++	const result = NATIVE_PUSH.apply(target, items) as number
++	// The length the set trap would have seen at each write: it skips an equal (undefined) item without writing,
++	// so that slot stays a hole (Q62 b), length stays behind and the final length write reports the growth
++	let seenLength = length
++	for (let i = 0; i < items.length; i++) {
++		const index = String(length + i)
++		if (recordDirectWrite(this, index, undefined, items[i], true)) seenLength = length + i + 1
++		else delete target[index]
++	}
++	recordDirectWrite(this, 'length', seenLength, result, false)
++	return result
++}
++
++// Reads length and the last index, pops on the raw target, then replays the delete of that index and a set
++// of length; the delete gets no loop check and no equal check, as the delete trap has none (Q57 a)
++function directPop(this: DirectArrayContext): unknown {
++	const target = this.target
++	const length = target.length
++	recordDirectRead(this, 'length', length)
++	if (length === 0) {
++		recordDirectWrite(this, 'length', 0, 0, false)
++		return undefined
++	}
++	const index = String(length - 1)
++	const value = target[index]
++	recordDirectRead(this, index, value)
++	const had = Object.hasOwn(target, index)
++	NATIVE_POP.call(target)
++	callHookSafe(this.onDelete, index, had, target)
++	if (had) scheduleSubscribersForTarget(target, index)
++	recordDirectWrite(this, 'length', length, length - 1, false)
++	// the get trap hands out the reactive wrapper of a nested object, so pop returns the same
++	if (value === null || typeof value !== 'object') return value
++	return wrapNestedObject(value, this.hooks)
++}
++
+ function storeSubscriberSet(target: object, subscriberSet: Set<EffectFunction>): void {
+ 	try {
+ 		if (Object.isExtensible(target)) {
+ 			Object.defineProperty(target, SUBSCRIBERS, {
+ 				configurable: true,
+ 				enumerable: false,
+ 				value: subscriberSet,
+ 				writable: false,
+ 			})
+ 			return
+@@ -555,20 +670,22 @@ function trackDependency(rawTarget: ProxyTarget, prop: PropertyKey): void {
+ 	if (isTrackingOnly) {
+ 		recordEffectRead(currentEffect, rawTarget, prop, true)
+ 	} else {
+ 		const subs = getSubscribers(rawTarget)
+ 		subs.add(currentEffect)
+ 		indexRead(subs, currentEffect, prop)
+ 		recordEffectRead(currentEffect, rawTarget, prop, false)
+ 	}
+ }
+ 
++// Every property read calls this: any change to its body, even in code a plain-object read never reaches, cost
++// 2 to 5% on the read benchmark, so the direct push/pop dispatch lives in the cached wrappers instead (Q61 a)
+ function getWrappedArrayMethod(rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): ArrayMethod | undefined {
+ 	if (!Array.isArray(rawTarget) || typeof value !== 'function') return undefined
+ 	// The cache hit comes before the name check: a wrapped method is read far more often than it is first wrapped
+ 	const wrapped = arrayMethodCache.get(value as ArrayMethod)
+ 	if (wrapped) return wrapped
+ 	if (typeof prop !== 'string' || !MUTATING_ARRAY_METHODS.has(prop)) return undefined
+ 	return wrapArrayMethod(value as ArrayMethod)
+ }
+ 
+ function createGetHandler<T>(
+@@ -595,20 +712,39 @@ function createGetHandler<T>(
+ 		callHookSafe(onRead, prop, value, rawTarget as T)
+ 
+ 		const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
+ 		if (wrapped) return wrapped
+ 
+ 		if (value === null || typeof value !== 'object') return value
+ 		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
+ 	}
+ }
+ 
++// An array target gets the context its direct push and pop find through the Proxy receiver
++function registerArrayContext<T>(
++	target: ProxyTarget,
++	proxy: object,
++	hooks: StateHooks<T> | undefined,
++	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
++	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
++	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
++): void {
++	if (!Array.isArray(target)) return
++	directArrayContexts.set(proxy, {
++		hooks: hooks as StateHooks<object> | undefined,
++		onDelete: onDelete as DirectArrayContext['onDelete'],
++		onRead: onRead as DirectArrayContext['onRead'],
++		onWrite: onWrite as DirectArrayContext['onWrite'],
++		target: target as ArrayTarget,
++	})
++}
++
+ function createHasHandler<T>(
+ 	onHas: HookFunction<[PropertyKey, boolean, T]> | undefined
+ ): NonNullable<ProxyHandler<ProxyTarget>['has']> {
+ 	return (rawTarget: ProxyTarget, prop: PropertyKey): boolean => {
+ 		trackDependency(rawTarget, prop)
+ 		const exists = prop in rawTarget
+ 		callHookSafe(onHas, prop, exists, rawTarget as T)
+ 		return exists
+ 	}
+ }
+@@ -797,40 +933,42 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
+ 	if (existingProxy) return existingProxy as T
+ 
+ 	const target = initial as ProxyTarget
+ 	const cached = proxyCache.get(target)
+ 	if (cached) return cached as T
+ 
+ 	if (!hooks) {
+ 		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
+ 		proxyCache.set(target, proxy)
+ 		defineProxyProperties(target, proxy, undefined)
++		registerArrayContext(target, proxy, undefined, undefined, undefined, undefined)
+ 		return proxy
+ 	}
+ 
+ 	const onDelete = composeHook(hooks.onDelete)
+ 	const onHas = composeHook(hooks.onHas)
+ 	const onOwnKeys = composeHook(hooks.onOwnKeys)
+ 	const onRead = composeHook(hooks.onRead)
+ 	const onWrite = composeHook(hooks.onWrite)
+ 
+ 	const handler: ProxyHandler<ProxyTarget> = {
+ 		deleteProperty: createDeleteHandler(onDelete),
+ 		get: createGetHandler(onRead, hooks),
+ 		has: createHasHandler(onHas),
+ 		ownKeys: createOwnKeysHandler(onOwnKeys),
+ 		set: createSetHandler(onWrite),
+ 	} as ProxyHandler<ProxyTarget>
+ 
+ 	const proxy = new Proxy(target, handler) as T
+ 	proxyCache.set(target, proxy)
+ 	defineProxyProperties(target, proxy, hooks as StateHooks | undefined)
++	registerArrayContext(target, proxy, hooks, onDelete, onRead, onWrite)
+ 	return proxy
+ }
+ 
+ function disposeChildEffects(eff: EffectFunction): void {
+ 	const existing = eff.__children
+ 	if (!existing?.size) return
+ 	eff.__children = undefined
+ 	for (const c of existing) {
+ 		cleanupEffectCompletely(c)
+ 	}
+diff --git a/tests/AGENTS.md b/tests/AGENTS.md
+index d8f4bb5..98de6ab 100644
+--- a/tests/AGENTS.md
++++ b/tests/AGENTS.md
+@@ -3,21 +3,21 @@ # tests/ — Beacon Test Suite
+ Native Node.js test runner (`node --test`). No external test framework.
+ 
+ ## File Organization
+ 
+ | Category | Naming | Examples |
+ |----------|--------|---------|
+ | Core | `{primitive}-core.test.ts` | `state-core`, `effect-core`, `derive-core`, `batch-core` |
+ | Hooks | `{primitive}-hooks.test.ts` | `state-hooks`, `effect-hooks`, `derive-hooks`, `batch-hooks` |
+ | Hooks Utility | `hooks-{utility}.test.ts` | `hooks-compose` |
+ | Integration | `{feature1}-{feature2}.test.ts` | `state-effect`, `state-derive`, `batch-integration` |
+-| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation`, `array-methods` |
++| Behavior | Descriptive name | `infinite-loop`, `cyclic-dependency`, `cleanup`, `effect-scheduling`, `derive-async`, `settle-observation`, `array-methods`, `array-push-pop` |
+ | Property-based | `property-{invariant}.test.ts` | `property-cleanup`, `property-proxy-identity` (fast-check; see `PROPERTY_BASED_TESTING.md`) |
+ 
+ `npm test` passes `--test-skip-pattern="COMPONENT NAME"`, which skips any test named `COMPONENT NAME` (a placeholder name; no template file is checked in).
+ 
+ ## Test Structure
+ 
+ ```typescript
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+ import { state, effect, derive, batch } from '../src/index.ts'
+diff --git a/tests/array-push-pop.test.ts b/tests/array-push-pop.test.ts
+new file mode 100644
+index 0000000..d5da416
+--- /dev/null
++++ b/tests/array-push-pop.test.ts
+@@ -0,0 +1,315 @@
++import assert from 'node:assert/strict'
++import { describe, it } from 'node:test'
++import { batch, effect, state } from '../src/index.ts'
++import type { StateHooks } from '../src/types.ts'
++
++// A hook call without its target argument; every call's target is checked to be the raw array as it is recorded
++type HookCall =
++	| ['onDelete', PropertyKey, boolean]
++	| ['onRead', PropertyKey, unknown]
++	| ['onWrite', PropertyKey, unknown, unknown]
++
++// The reference (Q59 a): a plain Proxy over the same array reports each trap the native method runs. A set of an
++// equal value is neither reported nor written, because that is what the set trap does with it
++function referenceCalls(initial: unknown[], call: (list: unknown[]) => unknown): HookCall[] {
++	const calls: HookCall[] = []
++	const proxy = new Proxy([...initial], {
++		deleteProperty: (target: unknown[], prop: PropertyKey): boolean => {
++			calls.push(['onDelete', prop, Object.hasOwn(target, prop)])
++			return Reflect.deleteProperty(target, prop)
++		},
++		get: (target: unknown[], prop: PropertyKey): unknown => {
++			const value = Reflect.get(target, prop)
++			calls.push(['onRead', prop, value])
++			return value
++		},
++		set: (target: unknown[], prop: PropertyKey, value: unknown): boolean => {
++			const oldValue = Reflect.get(target, prop)
++			if (Object.is(oldValue, value)) return true
++			calls.push(['onWrite', prop, oldValue, value])
++			return Reflect.set(target, prop, value)
++		},
++	})
++	call(proxy)
++	return calls
++}
++
++function recordingHooks(calls: HookCall[], raw: unknown[]): StateHooks<unknown[]> {
++	return {
++		onDelete: (prop: PropertyKey, had: boolean, target: unknown[]): void => {
++			assert.strictEqual(target, raw)
++			calls.push(['onDelete', prop, had])
++		},
++		onRead: (prop: PropertyKey, value: unknown, target: unknown[]): void => {
++			assert.strictEqual(target, raw)
++			calls.push(['onRead', prop, value])
++		},
++		onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown, target: unknown[]): void => {
++			assert.strictEqual(target, raw)
++			calls.push(['onWrite', prop, oldValue, newValue])
++		},
++	}
++}
++
++function recordedCalls(initial: unknown[], call: (list: unknown[]) => unknown): HookCall[] {
++	const calls: HookCall[] = []
++	const raw = [...initial]
++	call(state(raw, recordingHooks(calls, raw)))
++	return calls
++}
++
++const observingHooks: StateHooks<unknown[]> = {
++	onDelete: (): void => {},
++	onRead: (): void => {},
++	onWrite: (): void => {},
++}
++
++// Both kinds of state: hooks only observe, so every wake assertion runs against each
++function bothKinds(initial: unknown[]): [string, unknown[]][] {
++	return [
++		['hookless', state([...initial])],
++		['hooked', state([...initial], observingHooks)],
++	]
++}
++
++type Subscription = {
++	dispose: () => void
++	// Names of the effects re-run since the last call, sorted
++	woken: () => string[]
++}
++
++// One effect per way of reading a three-element array, plus one on an unrelated state
++function subscribe($list: unknown[]): Subscription {
++	const $other = state({ x: 0 })
++	const runs: string[] = []
++	const disposers: (() => void)[] = []
++	const reads: [string, () => unknown][] = [
++		['first', (): unknown => $list[0]],
++		['last', (): unknown => $list[2]],
++		['length', (): unknown => $list.length],
++		['other', (): unknown => $other.x],
++	]
++	for (const [name, read] of reads) {
++		disposers.push(
++			effect((): void => {
++				read()
++				runs.push(name)
++			})
++		)
++	}
++	runs.length = 0
++	return {
++		dispose: (): void => {
++			for (const dispose of disposers) dispose()
++		},
++		woken: (): string[] => runs.splice(0).sort(),
++	}
++}
++
++const pushCalls: [string, (list: unknown[]) => unknown][] = [
++	['push(3)', (list: unknown[]): unknown => list.push(3)],
++	['push(3, 4)', (list: unknown[]): unknown => list.push(3, 4)],
++	['push()', (list: unknown[]): unknown => list.push()],
++	['push(undefined)', (list: unknown[]): unknown => list.push(undefined)],
++	['batch push', (list: unknown[]): unknown => batch((): unknown => list.push(3))],
++]
++
++const popInitials: [string, unknown[]][] = [
++	['three elements', [0, 1, 2]],
++	['empty', []],
++	// biome-ignore lint/suspicious/noSparseArray: a trailing hole is the case where pop deletes nothing
++	['trailing hole', [0, ,]],
++]
++
++describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void => {
++	it('reports to the hooks the sequence a plain Proxy reports for push', (): void => {
++		for (const [name, call] of pushCalls) {
++			assert.deepStrictEqual(recordedCalls([0, 1, 2], call), referenceCalls([0, 1, 2], call), name)
++		}
++	})
++
++	it('reports to the hooks the sequence a plain Proxy reports for pop', (): void => {
++		const pop = (list: unknown[]): unknown => list.pop()
++		for (const [name, initial] of popInitials) {
++			assert.deepStrictEqual(recordedCalls(initial, pop), referenceCalls(initial, pop), name)
++		}
++		const batchedPop = (list: unknown[]): unknown => batch((): unknown => list.pop())
++		assert.deepStrictEqual(recordedCalls([0, 1, 2], batchedPop), referenceCalls([0, 1, 2], batchedPop))
++	})
++
++	it('wakes every subscriber of the array once per push or pop from outside any effect', (): void => {
++		for (const [kind, $list] of bothKinds([0, 1, 2])) {
++			const subscription = subscribe($list)
++
++			$list.push(3)
++			assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], `${kind} push`)
++
++			$list.pop()
++			assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], `${kind} pop`)
++
++			batch((): void => {
++				$list.push(3)
++				$list.pop()
++				assert.deepStrictEqual(subscription.woken(), [], `${kind} inside batch`)
++			})
++			assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], `${kind} after batch`)
++
++			$list.push()
++			assert.deepStrictEqual(subscription.woken(), [], `${kind} push()`)
++
++			subscription.dispose()
++		}
++	})
++
++	it('wakes only the readers of the written properties from inside a child effect', (): void => {
++		// Each case gets a fresh array and disposes its child before the next: two live children whose writes
++		// wake each other through length would cycle without end, as the loop check exempts them
++		const cases: [unknown[], (list: unknown[]) => unknown, string[]][] = [
++			[[0, 1, 2], (list: unknown[]): unknown => list.push(3), ['length']],
++			[[0, 1, 2], (list: unknown[]): unknown => list.pop(), ['last', 'length']],
++			[[], (list: unknown[]): unknown => list.pop(), []],
++		]
++		for (const [initial, call, expected] of cases) {
++			for (const [kind, $list] of bothKinds(initial)) {
++				const subscription = subscribe($list)
++
++				const dispose = effect((): void => {
++					effect((): void => {
++						call($list)
++					})
++				})
++				assert.deepStrictEqual(subscription.woken(), expected, `${kind} ${initial.length}`)
++
++				dispose()
++				subscription.dispose()
++			}
++		}
++	})
++
++	it('raises the loop error for pop on an empty array inside a sync effect that read length', (): void => {
++		for (const [kind, $list] of bothKinds([])) {
++			assert.throws(
++				(): void => {
++					effect((): void => {
++						$list.pop()
++					}, 'popper')
++				},
++				/Infinite loop detected: effect "popper" cannot update property "length"/,
++				kind
++			)
++		}
++	})
++
++	it('returns the reactive wrapper of a nested object from pop', (): void => {
++		const calls: HookCall[] = []
++		const hookless = [{ x: 1 }]
++		const hooked = [{ x: 1 }]
++		const kinds: [string, { x: number }[]][] = [
++			['hookless', state(hookless)],
++			[
++				'hooked',
++				state(hooked, {
++					onRead: (prop: PropertyKey, value: unknown): void => {
++						calls.push(['onRead', prop, value])
++					},
++				}),
++			],
++		]
++		for (const [kind, $list] of kinds) {
++			const inner = (kind === 'hookless' ? hookless : hooked)[0] as { x: number }
++			const popped = $list.pop() as { x: number }
++
++			assert.strictEqual(popped, state(inner), kind)
++			calls.length = 0
++			void popped.x
++			// The wrapper from hooked state carries the parent's hooks, as the get trap's wrapper does
++			assert.deepStrictEqual(calls, kind === 'hooked' ? [['onRead', 'x', 1]] : [], kind)
++		}
++	})
++
++	it('propagates the TypeError from pop on a sealed array and stays usable', (): void => {
++		for (const $list of [state(Object.seal([1])), state(Object.seal([1]), observingHooks)]) {
++			let runs = 0
++			const dispose = effect((): void => {
++				runs++
++				void $list[0]
++			})
++
++			assert.throws((): void => {
++				$list.pop()
++			}, TypeError)
++
++			assert.deepStrictEqual([...$list], [1])
++			$list[0] = 7
++			assert.strictEqual(runs, 2)
++			batch((): void => {
++				$list[0] = 8
++			})
++			assert.strictEqual(runs, 3)
++			dispose()
++		}
++	})
++
++	it('reports to the hooks the sequence a plain Proxy reports from inside a child effect', (): void => {
++		const cases: [string, unknown[], (list: unknown[]) => unknown][] = [
++			['push', [0, 1, 2], (list: unknown[]): unknown => list.push(3)],
++			['pop', [0, 1, 2], (list: unknown[]): unknown => list.pop()],
++		]
++		for (const [name, initial, call] of cases) {
++			const plain = [...initial]
++			const expected = call(plain)
++			const inChildEffect = (list: unknown[]): unknown => {
++				let result: unknown
++				effect((): void => {
++					effect((): void => {
++						result = call(list)
++					})
++				})()
++				return result
++			}
++			assert.deepStrictEqual(recordedCalls(initial, inChildEffect), referenceCalls(initial, call), name)
++			for (const [kind, $list] of bothKinds(initial)) {
++				assert.strictEqual(inChildEffect($list), expected, `${name} ${kind}`)
++				assert.deepStrictEqual([...$list], plain, `${name} ${kind}`)
++			}
++		}
++	})
++
++	it('leaves a hole for push(undefined) as the set trap does, and reports only the length write', (): void => {
++		// The set trap skips an equal value without writing, so the index stays absent and only length grows
++		// (Q62 b); the hook sequence and the wakes are those of the Proxy path
++		for (const [kind, $list] of bothKinds([0, 1, 2])) {
++			const subscription = subscribe($list)
++
++			$list.push(undefined)
++
++			assert.strictEqual($list.length, 4, kind)
++			assert.strictEqual(Object.hasOwn($list, 3), false, kind)
++			assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], kind)
++			subscription.dispose()
++		}
++		const calls: HookCall[] = []
++		const raw: unknown[] = [0, 1, 2]
++		state(raw, recordingHooks(calls, raw)).push(undefined)
++		assert.deepStrictEqual(calls, [
++			['onRead', 'push', Array.prototype.push],
++			['onRead', 'length', 3],
++			['onWrite', 'length', 3, 4],
++		])
++	})
++
++	it('runs push and pop called with another receiver on that receiver', (): void => {
++		for (const [kind, $list] of bothKinds([0])) {
++			const subscription = subscribe($list)
++			const plain = [9]
++
++			assert.strictEqual($list.push.call(plain, 1), 2, kind)
++			assert.strictEqual($list.pop.call(plain), 1, kind)
++
++			assert.deepStrictEqual(plain, [9], kind)
++			assert.deepStrictEqual([...$list], [0], kind)
++			assert.deepStrictEqual(subscription.woken(), [], kind)
++			subscription.dispose()
++		}
++	})
++})
