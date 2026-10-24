@@ -207,19 +207,24 @@ function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
 	return wrapped
 }
 
-// The wrappers the cache hands out for the native push and pop: a receiver whose [HOOKS] slot holds a context is
-// a reactive array and takes the direct path; any other receiver, such as push.call(otherArray), runs the native
-// method in a batch. A nullish receiver has no slot to read, so the native method raises its own TypeError.
-// The raw target as receiver takes the direct path too, because its slot carries the context
+// The wrappers the cache hands out for the native push and pop: a Proxy receiver whose [HOOKS] slot holds a
+// context is a reactive array and takes the direct path; any other receiver, such as push.call(otherArray), runs
+// the native method in a batch. A nullish receiver has no slot to read, so the native method raises its own
+// TypeError. The raw target carries the same slot but never enters the traps, so a call on it runs the native
+// method silently, as the other five wrappers and a direct write on the raw object do (Q71 b)
 function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
 	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
-	if (!(context instanceof DirectArrayContext)) return applyInBatch(NATIVE_PUSH, this, items)
+	if (!(context instanceof DirectArrayContext) || this === context.target) {
+		return applyInBatch(NATIVE_PUSH, this, items)
+	}
 	return applyInBatch(directPush as ArrayMethod, context, items)
 }
 
 function directPopWrapper(this: unknown, ...args: unknown[]): unknown {
 	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
-	if (!(context instanceof DirectArrayContext)) return applyInBatch(NATIVE_POP, this, args)
+	if (!(context instanceof DirectArrayContext) || this === context.target) {
+		return applyInBatch(NATIVE_POP, this, args)
+	}
 	return applyInBatch(directPop as ArrayMethod, context, args)
 }
 

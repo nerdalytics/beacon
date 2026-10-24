@@ -397,32 +397,28 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 		}
 	})
 
-	it('takes the direct path for push and pop called with the raw target as receiver', (): void => {
-		// The raw array carries the context in its slot, so a call on it does what a call on the Proxy does
-		const cases: [string, (list: unknown[], receiver: unknown[]) => unknown, unknown][] = [
-			['push', (list: unknown[], receiver: unknown[]): unknown => list.push.call(receiver, 3), 4],
-			['pop', (list: unknown[], receiver: unknown[]): unknown => list.pop.call(receiver), 2],
+	it('runs push and pop called with the raw target as receiver natively and silently', (): void => {
+		// The raw array never enters the traps, so a call on it is as silent as a direct write on it (Q71 b)
+		const cases: [string, unknown[], unknown, unknown[]][] = [
+			['push', [3], 4, [0, 1, 2, 3]],
+			['pop', [], 2, [0, 1]],
 		]
-		for (const [name, call, result] of cases) {
+		for (const [name, args, result, after] of cases) {
 			const calls: HookCall[] = []
-			const raw: unknown[] = [0, 1, 2]
-			call(state(raw, recordingHooks(calls, raw)), raw)
-			assert.deepStrictEqual(
-				calls,
-				referenceCalls([0, 1, 2], (list: unknown[]): unknown => call(list, list)),
-				name
-			)
-
 			const hookless: unknown[] = [0, 1, 2]
 			const hooked: unknown[] = [0, 1, 2]
 			const kinds: [string, unknown[], unknown[]][] = [
 				['hookless', hookless, state(hookless)],
-				['hooked', hooked, state(hooked, observingHooks)],
+				['hooked', hooked, state(hooked, recordingHooks(calls, hooked))],
 			]
 			for (const [kind, rawList, $list] of kinds) {
 				const subscription = subscribe($list)
-				assert.strictEqual(call($list, rawList), result, `${name} ${kind}`)
-				assert.deepStrictEqual(subscription.woken(), ['first', 'last', 'length'], `${name} ${kind}`)
+				const method = Reflect.get($list, name) as (this: unknown, ...args: unknown[]) => unknown
+				calls.length = 0
+				assert.strictEqual(method.call(rawList, ...args), result, `${name} ${kind}`)
+				assert.deepStrictEqual(rawList, after, `${name} ${kind}`)
+				assert.deepStrictEqual(calls, [], `${name} ${kind}`)
+				assert.deepStrictEqual(subscription.woken(), [], `${name} ${kind}`)
 				subscription.dispose()
 			}
 		}
