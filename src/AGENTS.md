@@ -59,8 +59,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | `proxyCache` | `object → object` | Reuse same Proxy for same target |
 | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
 | `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; every wrapper acts on its call receiver, so no per-target entry is needed (`push` and `pop` map to `directPushWrapper`/`directPopWrapper`) |
-| `directArrayContexts` | `Proxy → DirectArrayContext` | Registered in `state()` for array targets: the raw target and composed hooks the direct `push`/`pop` find through their Proxy receiver; a receiver without an entry is not a reactive array |
-| `frozenHooksCache` | `object → StateHooks` | Hooks storage for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
+| `frozenHooksCache` | `object → StateHooks \| DirectArrayContext` | What the `[HOOKS]` slot would have held, for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
 
 ## Symbols
 
@@ -69,7 +68,7 @@ Effect tracking data stored directly on the function object (O(1) property acces
 | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
 | `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
 | `PROXY` | Stores Proxy reference on target objects |
-| `HOOKS` | Stores StateHooks on extensible target objects; defined but never read (nested propagation is by closure) |
+| `HOOKS` | On an extensible array target: its `DirectArrayContext` (raw target, raw hooks, composed `onDelete`/`onRead`/`onWrite`), which the direct `push`/`pop` read through the Proxy receiver (`proxy[HOOKS]` returns the raw slot). On any other extensible hooked target: its StateHooks, never read (nested propagation is by closure). A WeakMap keyed by the Proxy cost 2.7x on array state creation |
 
 ## Internal Function Architecture
 
@@ -99,8 +98,8 @@ Handler helpers:
 | `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check). Its body is a read-path hot spot: any change to it, even code a plain-object read never reaches, cost 2 to 5% on the read benchmark, so the direct `push`/`pop` dispatch lives in the cached wrappers |
 | `applyInBatch` | Runs a method on a receiver inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure); shared by the Proxy-receiver wrappers and the direct `push`/`pop` |
 | `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: the native `push` and `pop` get `directPushWrapper`/`directPopWrapper`; the other five get a wrapper that applies them via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
-| `directPushWrapper` / `directPopWrapper` | Look the receiver up in `directArrayContexts`: with a context they run `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`) gets the native method inside `applyInBatch` |
-| `registerArrayContext` | Called by `state()` after the Proxy exists: for an array target, stores its `DirectArrayContext` (raw target, raw hooks, composed `onDelete`/`onRead`/`onWrite`) under the Proxy |
+| `directPushWrapper` / `directPopWrapper` | Read the receiver's `[HOOKS]` slot: a `DirectArrayContext` (checked with `instanceof`, since a hooked object receiver keeps its hooks there) runs `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`) gets the native method inside `applyInBatch` |
+| `hooksSlotFor` | What `state()` stores in the `[HOOKS]` slot: for an array target a new `DirectArrayContext`, otherwise the hooks |
 | `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
 | `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
 | `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed, returning whether the trap would have written: inside an effect the loop check runs before the equal skip, then `onWrite` and per-property scheduling (plus `length` for an index write that grew the array); outside an effect `onWrite` and one `ARRAY_DIRTY_PROPS` entry per batch |
@@ -211,8 +210,8 @@ addPendingEffect(subscriber)
 | Function | Purpose |
 |----------|---------|
 | `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets; falls back to `storeHooksForFrozenTarget` otherwise |
-| `definePropertyOnTarget` | `Object.defineProperty` for `PROXY` and `HOOKS` symbols |
-| `storeHooksForFrozenTarget` | Writes hooks to `frozenHooksCache` for non-extensible targets |
+| `definePropertyOnTarget` | `Object.defineProperty` for the `PROXY` symbol, and for the `HOOKS` symbol when the slot has a value |
+| `storeHooksForFrozenTarget` | Writes the `HOOKS` slot value to `frozenHooksCache` for non-extensible targets |
 
 ### Utilities
 

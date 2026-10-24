@@ -322,17 +322,35 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 	})
 
 	it('runs push and pop called with another receiver on that receiver', (): void => {
+		// A hooked object state is the receiver that carries hooks where an array carries its direct context
+		const calls: HookCall[] = []
+		const rawObject: Record<string, unknown> = { length: 0 }
+		const $object = state(rawObject, recordingHooks(calls, rawObject as unknown as unknown[]))
 		for (const [kind, $list] of bothKinds([0])) {
 			const subscription = subscribe($list)
 			const plain = [9]
 
 			assert.strictEqual($list.push.call(plain, 1), 2, kind)
 			assert.strictEqual($list.pop.call(plain), 1, kind)
+			assert.strictEqual($list.push.call($object, 1), 1, kind)
+			assert.strictEqual($list.pop.call($object), 1, kind)
 
 			assert.deepStrictEqual(plain, [9], kind)
+			assert.deepStrictEqual(rawObject, { length: 0 }, kind)
 			assert.deepStrictEqual([...$list], [0], kind)
 			assert.deepStrictEqual(subscription.woken(), [], kind)
 			subscription.dispose()
 		}
+		assert.deepStrictEqual(
+			calls.filter((call: HookCall): boolean => call[0] === 'onWrite'),
+			[
+				['onWrite', '0', undefined, 1],
+				['onWrite', 'length', 0, 1],
+				['onWrite', 'length', 1, 0],
+				['onWrite', '0', undefined, 1],
+				['onWrite', 'length', 0, 1],
+				['onWrite', 'length', 1, 0],
+			]
+		)
 	})
 })

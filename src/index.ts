@@ -104,19 +104,36 @@ const NATIVE_POP: ArrayMethod = Array.prototype.pop as ArrayMethod
 
 type ArrayTarget = ProxyTarget & unknown[]
 
-// What the direct push and pop of one array act on: its raw target and its composed hooks
-type DirectArrayContext = {
-	hooks: StateHooks<object> | undefined
-	onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined
-	onRead: HookFunction<[PropertyKey, unknown, object]> | undefined
-	onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
-	target: ArrayTarget
+// What the direct push and pop of one array act on: its raw target and its composed hooks. An array target
+// carries it in its [HOOKS] slot, where the shared wrappers read it through the Proxy receiver's internal-symbol
+// guard: a WeakMap keyed by the Proxy cost 2.7x on array state creation (GC ephemeron work). A class, so the
+// wrappers can tell it from the hooks object a non-array target keeps in the same slot
+class DirectArrayContext {
+	readonly hooks: StateHooks<object> | undefined
+	readonly onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined
+	readonly onRead: HookFunction<[PropertyKey, unknown, object]> | undefined
+	readonly onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
+	readonly target: ArrayTarget
+
+	constructor(
+		target: ArrayTarget,
+		hooks: StateHooks<object> | undefined,
+		onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined,
+		onRead: HookFunction<[PropertyKey, unknown, object]> | undefined,
+		onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
+	) {
+		this.hooks = hooks
+		this.onDelete = onDelete
+		this.onRead = onRead
+		this.onWrite = onWrite
+		this.target = target
+	}
 }
 
-// Keyed by the Proxy, which is the receiver the shared push and pop wrappers see; registered in state() for
-// array targets, so the get trap's lookup stays the one every property read already paid for
-const directArrayContexts: WeakMap<object, DirectArrayContext> = new WeakMap()
-const frozenHooksCache: WeakMap<object, StateHooks> = new WeakMap()
+// What the [HOOKS] slot of a target holds: the hooks of a non-array target, the direct context of an array
+type HooksSlot = StateHooks | DirectArrayContext | undefined
+
+const frozenHooksCache: WeakMap<object, StateHooks | DirectArrayContext> = new WeakMap()
 const MAX_IDLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
 // Up to this many subscribers a scan is cheaper than the per-property index lookups
@@ -151,6 +168,7 @@ type SubscribersObject = ProxyTarget & {
 }
 
 type ProxyObject = ProxyTarget & {
+	[HOOKS]?: HooksSlot
 	[PROXY]?: object
 }
 
@@ -187,17 +205,18 @@ function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
 	return wrapped
 }
 
-// The wrappers the cache hands out for the native push and pop: a receiver with a context is a reactive array
-// and takes the direct path; any other receiver, such as push.call(otherArray), runs the native method in a batch
+// The wrappers the cache hands out for the native push and pop: a receiver whose [HOOKS] slot holds a context is
+// a reactive array and takes the direct path; any other receiver, such as push.call(otherArray), runs the native
+// method in a batch
 function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
-	const context = directArrayContexts.get(this as object)
-	if (context === undefined) return applyInBatch(NATIVE_PUSH, this, items)
+	const context = (this as ProxyObject)[HOOKS]
+	if (!(context instanceof DirectArrayContext)) return applyInBatch(NATIVE_PUSH, this, items)
 	return applyInBatch(directPush as ArrayMethod, context, items)
 }
 
 function directPopWrapper(this: unknown, ...args: unknown[]): unknown {
-	const context = directArrayContexts.get(this as object)
-	if (context === undefined) return applyInBatch(NATIVE_POP, this, args)
+	const context = (this as ProxyObject)[HOOKS]
+	if (!(context instanceof DirectArrayContext)) return applyInBatch(NATIVE_POP, this, args)
 	return applyInBatch(directPop as ArrayMethod, context, args)
 }
 
@@ -714,23 +733,22 @@ function createGetHandler<T>(
 	}
 }
 
-// An array target gets the context its direct push and pop find through the Proxy receiver
-function registerArrayContext<T>(
+// An array target's [HOOKS] slot holds the context its direct push and pop find through the Proxy receiver
+function hooksSlotFor<T>(
 	target: ProxyTarget,
-	proxy: object,
 	hooks: StateHooks<T> | undefined,
 	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
-): void {
-	if (!Array.isArray(target)) return
-	directArrayContexts.set(proxy, {
-		hooks: hooks as StateHooks<object> | undefined,
-		onDelete: onDelete as DirectArrayContext['onDelete'],
-		onRead: onRead as DirectArrayContext['onRead'],
-		onWrite: onWrite as DirectArrayContext['onWrite'],
-		target: target as ArrayTarget,
-	})
+): HooksSlot {
+	if (!Array.isArray(target)) return hooks as StateHooks | undefined
+	return new DirectArrayContext(
+		target as ArrayTarget,
+		hooks as StateHooks<object> | undefined,
+		onDelete as DirectArrayContext['onDelete'],
+		onRead as DirectArrayContext['onRead'],
+		onWrite as DirectArrayContext['onWrite']
+	)
 }
 
 function createHasHandler<T>(
@@ -882,13 +900,13 @@ function performWrite<T>(
 	return true
 }
 
-function storeHooksForFrozenTarget(target: ProxyTarget, hooks: StateHooks | undefined): void {
+function storeHooksForFrozenTarget(target: ProxyTarget, hooks: HooksSlot): void {
 	if (hooks) {
 		frozenHooksCache.set(target, hooks)
 	}
 }
 
-function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: StateHooks | undefined): void {
+function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): void {
 	Object.defineProperty(target, PROXY, {
 		configurable: true,
 		enumerable: false,
@@ -905,7 +923,7 @@ function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: Stat
 	}
 }
 
-function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: StateHooks | undefined): void {
+function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): void {
 	try {
 		if (Object.isExtensible(target)) {
 			definePropertyOnTarget(target, proxy, hooks)
@@ -940,8 +958,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	if (!hooks) {
 		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
 		proxyCache.set(target, proxy)
-		defineProxyProperties(target, proxy, undefined)
-		registerArrayContext(target, proxy, undefined, undefined, undefined, undefined)
+		defineProxyProperties(target, proxy, hooksSlotFor(target, undefined, undefined, undefined, undefined))
 		return proxy
 	}
 
@@ -961,8 +978,7 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 
 	const proxy = new Proxy(target, handler) as T
 	proxyCache.set(target, proxy)
-	defineProxyProperties(target, proxy, hooks as StateHooks | undefined)
-	registerArrayContext(target, proxy, hooks, onDelete, onRead, onWrite)
+	defineProxyProperties(target, proxy, hooksSlotFor(target, hooks, onDelete, onRead, onWrite))
 	return proxy
 }
 
