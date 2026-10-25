@@ -465,6 +465,24 @@ function stateCreationSealed(): number {
 	return performance.now() - start
 }
 
+// One hook is enough: any hook makes state() build the hooked handler and the slot value
+const creationHooks: StateHooks<{ v: number }> = {
+	onRead: (): void => {},
+}
+
+function stateCreationHooks(): number {
+	const start = performance.now()
+	for (let i = 0; i < STATE_CREATION_COUNT; i++) {
+		state(
+			{
+				v: i,
+			},
+			creationHooks
+		)
+	}
+	return performance.now() - start
+}
+
 function stateReadNested(): number {
 	const s = state({
 		inner: {
@@ -630,6 +648,10 @@ const suite: SuiteEntry[] = [
 	{
 		fn: stateCreationSealed,
 		name: 'state creation (sealed)   ',
+	},
+	{
+		fn: stateCreationHooks,
+		name: 'state creation (hooks)    ',
 	},
 	{
 		fn: stateReadNested,
