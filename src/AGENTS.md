@@ -73,12 +73,13 @@ Effect tracking data stored directly on the function object (O(1) property acces
 
 ### Proxy Handlers
 
-Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object.
+Five handler factories, each returns a ProxyHandler method, and a sixth for the array set trap. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`, or `HOOKLESS_ARRAY_HANDLER` for an array target; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object that is not an array.
 
 | Handler | Traps | Key behavior |
 |---------|-------|-------------|
 | `createGetHandler()` | `get` | One keyed load of the raw target, then the internal-symbol early return (a separate load site for the symbols saw only array maps, lost its feedback when those arrays were collected, and deoptimized the trap on the next direct push/pop); delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; both variants route mutating array methods through `getWrappedArrayMethod` before the non-object early return |
-| `createSetHandler()` | `set` | One trap for hooked and hookless state: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
+| `createSetHandler()` | `set` | One trap for hooked and hookless state of a non-array target: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
+| `createArraySetHandler()` | `set` | The same trap for an array target, `state()` picks it by `Array.isArray` once per call; its batch branch is `handleBatchArrayWrite`, so no set trap closure and no batch write function sees both arrays and objects |
 | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
 | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
 | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
@@ -106,7 +107,8 @@ Handler helpers:
 | `performUnbatchedWrite` | Outside any effect and batch: skips an unchanged write (`isUnchangedWrite`), skips scheduling when the target has no subscribers, else notifies per property |
 | `performWrite` | Checks infinite loop, skips an unchanged write (`isUnchangedWrite`), notifies subscribers |
 | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
+| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty; object targets only |
+| `handleBatchArrayWrite` | The array twin of `handleBatchFastPath`: the same write, equal skip and `onWrite`, then one `ARRAY_DIRTY_PROPS` entry for the array. Kept apart because arrays written through the shared path (once `fill` and `copyWithin` went through it) made its `[SUBSCRIBERS]` load deoptimize on every benchmark cycle and slowed `many dependencies` by 10.6% on medians and 6.8% on totals (interleaved 10-cycle A/B against 87c8823) |
 | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
 | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
 

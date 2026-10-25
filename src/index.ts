@@ -756,12 +756,13 @@ function createGetHandler<T>(
 // Only an array target gets a [HOOKS] slot: the context its direct push and pop find through the Proxy receiver
 function hooksSlotFor<T>(
 	target: ProxyTarget,
+	isArray: boolean,
 	hooks: StateHooks<T> | undefined,
 	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): HooksSlot {
-	if (!Array.isArray(target)) return undefined
+	if (!isArray) return undefined
 	return new DirectArrayContext(
 		target as ArrayTarget,
 		hooks as StateHooks<object> | undefined,
@@ -820,7 +821,6 @@ function handleBatchFastPath<T>(
 
 	// A target already in dirtyTargets had subscribers at its first write, so only the first write looks them up
 	const props = dirtyTargets.get(rawTarget)
-	if (props === ARRAY_DIRTY_PROPS) return true
 	if (props) {
 		props.add(prop)
 		return true
@@ -833,11 +833,34 @@ function handleBatchFastPath<T>(
 	}
 	if (!subs?.size) return true
 
-	if (Array.isArray(rawTarget)) {
-		dirtyTargets.set(rawTarget, ARRAY_DIRTY_PROPS)
-	} else {
-		dirtyTargets.set(rawTarget, new Set<PropertyKey>([prop]))
+	dirtyTargets.set(rawTarget, new Set<PropertyKey>([prop]))
+	return true
+}
+
+// The array twin of handleBatchFastPath, a separate function so that the object path never sees an array: once
+// fill and copyWithin wrote arrays through the shared path, its [SUBSCRIBERS] load deoptimized on every benchmark
+// cycle and `many dependencies` ran 10.6% slower on medians and 6.8% on totals (interleaved 10-cycle A/B against
+// 87c8823). An array goes dirty once and wakes all its subscribers
+function handleBatchArrayWrite<T>(
+	rawTarget: ProxyTarget,
+	prop: PropertyKey,
+	value: unknown,
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+): boolean {
+	const oldValue = rawTarget[prop]
+	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
+
+	rawTarget[prop] = value
+	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
+
+	if (dirtyTargets.get(rawTarget) === ARRAY_DIRTY_PROPS) return true
+
+	// inlined, not findSubscribers: the call cost 2.2% on the fill benchmark
+	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+	if (subs === undefined && (hasFallbackSubs || (rawTarget as ProxyObject)[PROXY] === undefined)) {
+		subs = proxyCacheSubs.get(rawTarget)
 	}
+	if (subs?.size) dirtyTargets.set(rawTarget, ARRAY_DIRTY_PROPS)
 	return true
 }
 
@@ -868,6 +891,22 @@ function createSetHandler<T>(
 	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
 		if (batchDepth > 0 && !currentEffect) {
 			return handleBatchFastPath(rawTarget, prop, value, onWrite)
+		}
+		if (!currentEffect) {
+			return performUnbatchedWrite(rawTarget, prop, value, onWrite)
+		}
+		return performWrite(rawTarget, prop, value, onWrite)
+	}
+}
+
+// The set trap of an array target: createSetHandler with the batch branch on handleBatchArrayWrite, a literal of
+// its own so that no trap closure calls both batch paths
+function createArraySetHandler<T>(
+	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+): NonNullable<ProxyHandler<ProxyTarget>['set']> {
+	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
+		if (batchDepth > 0 && !currentEffect) {
+			return handleBatchArrayWrite(rawTarget, prop, value, onWrite)
 		}
 		if (!currentEffect) {
 			return performUnbatchedWrite(rawTarget, prop, value, onWrite)
@@ -959,6 +998,11 @@ const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
 	set: createSetHandler(undefined),
 }
 
+const HOOKLESS_ARRAY_HANDLER: ProxyHandler<ProxyTarget> = {
+	...HOOKLESS_HANDLER,
+	set: createArraySetHandler(undefined),
+}
+
 /** Wrap an object in a reactive Proxy. Property reads are tracked, writes notify subscribers. */
 export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	if (initial === null || initial === undefined || typeof initial !== 'object') return initial
@@ -971,9 +1015,12 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 	const cached = proxyCache.get(target)
 	if (cached) return cached as T
 
+	const isArray = Array.isArray(target)
 	if (!hooks) {
-		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
-		if (!defineProxyProperties(target, proxy, hooksSlotFor(target, undefined, undefined, undefined, undefined))) {
+		const proxy = new Proxy(target, isArray ? HOOKLESS_ARRAY_HANDLER : HOOKLESS_HANDLER) as T
+		if (
+			!defineProxyProperties(target, proxy, hooksSlotFor(target, isArray, undefined, undefined, undefined, undefined))
+		) {
 			proxyCache.set(target, proxy)
 		}
 		return proxy
@@ -990,11 +1037,11 @@ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
 		get: createGetHandler(onRead, hooks),
 		has: createHasHandler(onHas),
 		ownKeys: createOwnKeysHandler(onOwnKeys),
-		set: createSetHandler(onWrite),
+		set: isArray ? createArraySetHandler(onWrite) : createSetHandler(onWrite),
 	} as ProxyHandler<ProxyTarget>
 
 	const proxy = new Proxy(target, handler) as T
-	if (!defineProxyProperties(target, proxy, hooksSlotFor(target, hooks, onDelete, onRead, onWrite))) {
+	if (!defineProxyProperties(target, proxy, hooksSlotFor(target, isArray, hooks, onDelete, onRead, onWrite))) {
 		proxyCache.set(target, proxy)
 	}
 	return proxy
