@@ -13,6 +13,10 @@ Reactive state SHALL expose the same behavior for the nine mutating array method
 - **WHEN** an effect reads index 0 and `length` of an empty reactive array, and `push(1)` is called from outside any effect, on state created without hooks and on state created with hooks
 - **THEN** the effect re-runs exactly once on each
 
+#### Scenario: Same wake count for fill on both kinds of state
+- **WHEN** an effect reads every index of a reactive array `[1, 2, 3]` and `fill(9)` is called from outside any effect, on state created without hooks and on state created with hooks
+- **THEN** the effect re-runs exactly once on each
+
 #### Scenario: Same loop outcome on both kinds of state
 - **WHEN** a synchronous top-level effect calls a mutating method on a reactive array, on state created without hooks and on state created with hooks
 - **THEN** both raise the same infinite-loop error
@@ -39,8 +43,24 @@ A mutating array method called from outside any batch SHALL wake each subscriber
 - **WHEN** an effect reads index 0 and `length` of an empty reactive array and `push(1)` is called from outside any effect
 - **THEN** the effect re-runs exactly once, and sees the element and the new length
 
+#### Scenario: Subscriber of every index wakes once after fill
+- **WHEN** an effect reads every index of a reactive array `[1, 2, 3]` and `fill(9)` is called from outside any effect
+- **THEN** the effect re-runs exactly once and reads `[9, 9, 9]`
+
+#### Scenario: Subscriber of every index wakes once after copyWithin
+- **WHEN** an effect reads every index of a reactive array `[1, 2, 3]` and `copyWithin(0, 1)` is called from outside any effect
+- **THEN** the effect re-runs exactly once and reads `[2, 3, 3]`
+
 #### Scenario: Method that changes nothing wakes nobody
 - **WHEN** an effect reads every index of a sorted reactive array and `sort()` is called from outside any effect
+- **THEN** the effect does not re-run
+
+#### Scenario: Fill with the value every element holds wakes nobody
+- **WHEN** an effect reads every index of a reactive array `[9, 9, 9]` and `fill(9)` is called from outside any effect
+- **THEN** the effect does not re-run
+
+#### Scenario: copyWithin that moves equal values wakes nobody
+- **WHEN** an effect reads every index of a reactive array `[7, 7, 7]` and `copyWithin(0, 1)` is called from outside any effect
 - **THEN** the effect does not re-run
 
 ### Requirement: Mutating methods compose with batches
@@ -50,12 +70,24 @@ A mutating array method called inside a batch SHALL defer its wakes to the outer
 - **WHEN** an effect reads `length` of a reactive array and a batch calls `push(1)` then `pop()` on it
 - **THEN** the effect does not re-run before the batch ends and re-runs at most once after it
 
+#### Scenario: Fill and copyWithin in one batch wake once
+- **WHEN** an effect reads every index of a reactive array `[1, 2, 3]` and a batch calls `fill(9, 0, 1)` then `copyWithin(2, 0)` on it
+- **THEN** the effect does not re-run before the batch ends and re-runs exactly once after it, reading `[9, 2, 9]`
+
 ### Requirement: Mutating methods are subject to loop detection
-A mutating array method reads the properties it writes. When a synchronous top-level effect calls one on a reactive array and the call writes a property, the system SHALL raise the same infinite-loop error it raises for an effect that writes a property it read. A call that writes nothing SHALL raise nothing. Child effects and microtask effects SHALL keep their exemption; the system SHALL NOT add a new exemption or counter for array methods.
+A mutating array method reads the properties it writes. When a synchronous top-level effect calls one on a reactive array and the call writes a property, the system SHALL raise the same infinite-loop error it raises for an effect that writes a property it read. A call that writes nothing SHALL raise nothing. A method whose writes are not all to properties it read, `fill` and `copyWithin`, SHALL raise the error only when the call writes a property the effect read, by the same rule and with no exemption. Child effects and microtask effects SHALL keep their exemption; the system SHALL NOT add a new exemption or counter for array methods.
 
 #### Scenario: Each method throws in a synchronous top-level effect
 - **WHEN** a synchronous top-level effect calls `push`, `pop`, `shift`, `unshift`, `splice`, `sort` or `reverse` on a reactive array it did not otherwise read, the array holding at least two elements for `sort` and `reverse`
 - **THEN** the effect's first run raises the infinite-loop error, and the error names the effect when it has a name
+
+#### Scenario: Fill throws only when the effect read an index it writes
+- **WHEN** a synchronous top-level effect calls `fill(9)` on a reactive array `[1, 2, 3]` it did not otherwise read, and another synchronous top-level effect reads index 0 of such an array and then calls `fill(9)` on it
+- **THEN** the first effect raises nothing and the array reads `[9, 9, 9]`, and the second effect's first run raises the infinite-loop error
+
+#### Scenario: copyWithin throws only when its ranges overlap
+- **WHEN** a synchronous top-level effect calls `copyWithin(2, 0, 1)` on a reactive array `[1, 2, 3]` it did not otherwise read, and another synchronous top-level effect calls `copyWithin(0, 1)` on such an array
+- **THEN** the first effect raises nothing and the array reads `[1, 2, 1]`, and the second effect's first run raises the infinite-loop error
 
 #### Scenario: Method that writes nothing does not throw
 - **WHEN** a synchronous top-level effect calls `sort` or `reverse` on a reactive array with fewer than two elements
@@ -64,6 +96,10 @@ A mutating array method reads the properties it writes. When a synchronous top-l
 #### Scenario: Child effect does not throw
 - **WHEN** a child effect calls `push` on a reactive array
 - **THEN** no infinite-loop error is raised
+
+#### Scenario: Child and microtask effects do not throw for fill or copyWithin
+- **WHEN** a child effect and a microtask effect each read index 0 of a reactive array `[1, 2, 3]` and call `fill(9)` on it, and another pair each call `copyWithin(0, 1)` on such an array
+- **THEN** no infinite-loop error is raised for any of them
 
 #### Scenario: Microtask effect converges
 - **WHEN** a microtask effect pushes onto a reactive array while its `length` is below 3
@@ -80,6 +116,14 @@ On state created with hooks, the `onRead` hook SHALL see the method name read an
 - **WHEN** state with an `onRead` hook holds an array and `push(1)` is called
 - **THEN** the hook is called with `push` and with `length`
 
+#### Scenario: Hooks see a fill
+- **WHEN** state with `onRead` and `onWrite` hooks holds `[1, 2, 3]` and `fill(9, 1)` is called
+- **THEN** `onRead` is called with `fill` and with `length`, and `onWrite` is called for index `1` with old value `2` and new value `9` and for index `2` with old value `3` and new value `9`, and for no other property
+
+#### Scenario: Hooks see a copyWithin
+- **WHEN** state with `onRead` and `onWrite` hooks holds `[1, 2, 3]` and `copyWithin(0, 2)` is called
+- **THEN** `onRead` is called with `copyWithin`, with `length` and with index `2`, and `onWrite` is called for index `0` with old value `1` and new value `3`, and for no other property
+
 ### Requirement: Results equal the native method
 The return value of a wrapped method and the contents of the array afterwards SHALL equal those of the same native method on a plain array with the same contents and arguments, for every argument shape the native method accepts. On a non-extensible array the native method's error SHALL propagate unchanged.
 
@@ -91,9 +135,21 @@ The return value of a wrapped method and the contents of the array afterwards SH
 - **WHEN** `sort((a, b) => b - a)` is called on a reactive array `[1, 3, 2]`
 - **THEN** it returns the same array and the array reads `[3, 2, 1]`
 
+#### Scenario: Fill with negative and out-of-range bounds
+- **WHEN** `fill(9, -2)` and then `fill(0, 1, 100)` are called on a reactive array `[1, 2, 3]`
+- **THEN** each returns the same array, the array reads `[1, 9, 9]` after the first call and `[1, 0, 0]` after the second, and `length` stays `3`
+
+#### Scenario: copyWithin with negative and overlapping bounds
+- **WHEN** `copyWithin(-2, 0)` is called on a reactive array `[1, 2, 3, 4]`
+- **THEN** it returns the same array and the array reads `[1, 2, 1, 2]`
+
 #### Scenario: Push of undefined creates the element
 - WHEN `push(undefined)` is called on a reactive array `[0, 1, 2]`, on state created without hooks and on state created with hooks
 - THEN `length` reads `4`, index `3` is an own property as it is on a plain array, and on hooked state `onWrite` is called for index `3` with old value `undefined` and new value `undefined`
 #### Scenario: Push on a sealed array
 - **WHEN** `push(1)` is called on reactive state over a sealed array
+- **THEN** a `TypeError` is raised, as the native method raises, and the system stays usable
+
+#### Scenario: Fill on a frozen array
+- **WHEN** `fill(9)` is called on reactive state over a frozen array holding at least one element
 - **THEN** a `TypeError` is raised, as the native method raises, and the system stays usable

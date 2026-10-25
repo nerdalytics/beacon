@@ -1,0 +1,5 @@
+# Same-value writes to frozen targets do not throw
+
+**Status:** needs-triage
+
+A native array rejects every write to a frozen target with a TypeError, whether or not the value changes: `Object.freeze([9]).fill(9)`, `Object.freeze([1, 2]).sort()` and a strict-mode `frozen[0] = 9` all throw. Reactive state over the same frozen arrays throws only when the value differs, because the set trap returns early on an unchanged write before it reaches the frozen target. Probed on `a7e06bc` with Node v24.21.0 during the `wrap-fill-and-copywithin` run: `state(Object.freeze([9])).fill(9)`, `state(Object.freeze([9]))[0] = 9` and `state(Object.freeze([1, 2])).sort()` return without throwing, while `state(Object.freeze([1, 2, 3])).fill(9)` and `state(Object.freeze([9]))[0] = 5` throw the native TypeError. The root cause is the unchanged-write check shared by every write, not an array method, so the fix touches the write path the benchmark gate measures. The user ruled on Q5 of that run that it is fixed as its own change; ticket 02 of `wrap-fill-and-copywithin` tests the frozen case with `[1, 2, 3]` only.

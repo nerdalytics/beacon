@@ -1,0 +1,5 @@
+# The array-mutation loop-detection requirement contradicts its own fill scenario
+
+**Status:** needs-triage
+
+In the `array-mutation` spec as the `wrap-fill-and-copywithin` delta writes it, the requirement "Mutating methods are subject to loop detection" says in its second sentence that when a synchronous top-level effect calls a mutating method and the call writes a property, the system raises the infinite-loop error. The third sentence and the scenario "Fill throws only when the effect read an index it writes" say that `fill` alone writes properties and raises nothing. The scenario "Same loop outcome on both kinds of state" under the first requirement says both kinds raise the same error for a mutating method call, which is false for `fill` alone, where neither raises. The scout of the apply run found both on 2026-10-25. Code is unaffected; the fix is one sentence in the requirement and one qualifier in the scenario, through `/opsx:update` while the change is open or in the main spec after archive. The `tests/AGENTS.md` table also lists the test count of `state-hooks.test.ts` as 19 and goes stale when ticket 03 adds hook assertions there.

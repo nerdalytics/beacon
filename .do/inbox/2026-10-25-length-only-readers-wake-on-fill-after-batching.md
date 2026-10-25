@@ -1,0 +1,5 @@
+# Length-only readers wake on fill and copyWithin once they are batched
+
+**Status:** needs-triage
+
+An effect that reads only `length` of a reactive array never re-runs on `fill` today, because `fill` writes no `length` and the unwrapped call notifies per written index. Once `fill` and `copyWithin` run inside the batch wrapper, as the `wrap-fill-and-copywithin` change makes them, the batch marks the whole array dirty and wakes every subscriber of the array once per call, so a length-only reader re-runs once per `fill` call. Probed on `a7e06bc` with Node v24.21.0: two `fill` calls give a length-only effect 0 re-runs unbatched and 2 re-runs batched. This follows the rule the `array-mutation` spec already states for every wrapped method, "regardless of which properties the subscriber read", and `push(3)` wakes an effect that reads only index 1 today for the same reason. Whether a method call should wake only subscribers of the properties it changed is a question about that rule, not about this change. The inside-effect variant is in `.do/inbox/2026-10-23-per-property-wake-inside-effects.md`.
