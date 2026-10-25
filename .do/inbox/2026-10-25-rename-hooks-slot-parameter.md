@@ -1,0 +1,5 @@
+# Rename the `hooks` parameter of the Proxy-setup functions to `slot`
+
+**Status:** needs-triage
+
+Review round 2 of ticket 02 in change `drop-unread-hooks-slot-on-objects` (commit `198e195`) left one low standards finding, recorded here instead of a third round. In `src/index.ts`, `definePropertyOnTarget(target, proxy, hooks: HooksSlot)` and `defineProxyProperties(target, proxy, hooks: HooksSlot)` keep the parameter name `hooks` although that change narrowed `HooksSlot` to `DirectArrayContext | undefined`, so the value is never a hooks object; the reviewer called it a possible Mysterious Name and proposed renaming the parameter to `slot` at both sites. The signature lines were not in the diff, only their meaning changed, which is why it was recorded rather than fixed. Smallest change: rename the parameter at the two definitions and nowhere else, since both are called positionally; a `refactor(state)` commit, no test or doc change, no benchmark gate needed. Could ride along with step 3 of the object-side chain (`2026-10-25-define-property-and-prototype-writes-bypass-traps.md`), which touches the same region of `state()`.
