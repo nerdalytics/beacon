@@ -2,12 +2,12 @@
 
 ## Purpose
 
-Defines how a mutating array method (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`) called on reactive state notifies subscribers, composes with batches, is checked for self-feeding loops, and is observed by state hooks, identically for state created with and without hooks; and that the presence of a hook never changes which subscribers a write wakes or when.
+Defines how a mutating array method (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`) called on reactive state notifies subscribers, composes with batches, is checked for self-feeding loops, and is observed by state hooks, identically for state created with and without hooks; and that the presence of a hook never changes which subscribers a write wakes or when.
 
 ## Requirements
 
 ### Requirement: Mutating methods behave the same with and without hooks
-Reactive state SHALL expose the same behavior for the seven mutating array methods whether the state was created with hooks or without. Hooks SHALL only observe; they SHALL NOT change which subscribers wake, how often, or whether a loop error is raised.
+Reactive state SHALL expose the same behavior for the nine mutating array methods (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`) whether the state was created with hooks or without. Hooks SHALL only observe; they SHALL NOT change which subscribers wake, how often, or whether a loop error is raised.
 
 #### Scenario: Same wake count on both kinds of state
 - **WHEN** an effect reads index 0 and `length` of an empty reactive array, and `push(1)` is called from outside any effect, on state created without hooks and on state created with hooks
