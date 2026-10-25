@@ -1,0 +1,419 @@
+# Review package: ticket 02, 3be0a77..73c6e7d
+
+## Commits
+### 73c6e7d
+perf(state): drop the unread hooks slot on objects and the frozen hooks cache
+
+A hooked non-array target kept its StateHooks under the HOOKS symbol, and
+a hooked non-extensible target was written into frozenHooksCache, but
+nothing read either: every trap reaches the hooks through its handler
+closure. Only an array target needs the slot, for the DirectArrayContext
+its direct push and pop read through the Proxy receiver.
+
+hooksSlotFor now returns undefined for a non-array target, so the symbol
+is defined exactly on extensible arrays, and the cache with its writer is
+gone. The HooksSlot type says so. No consumer-visible change: hooks fire
+as before on every kind of target, direct push and pop on hooked arrays
+behave as before, and a non-extensible target still gets its Proxy
+registered in proxyCache.
+
+Closes HOOKS_TODO.md item C1.
+
+
+## Files changed
+ HOOKS_TODO.md                        |  2 +-
+ src/AGENTS.md                        | 12 +++++-------
+ src/hooks/AGENTS.md                  |  3 +--
+ src/index.ts                         | 21 +++++++--------------
+ tests/AGENTS.md                      |  2 +-
+ tests/array-push-pop.test.ts         |  2 +-
+ tests/property-frozen-sealed.test.ts |  4 ++--
+ tests/state-hooks.test.ts            | 15 +++++++++++++++
+ 8 files changed, 33 insertions(+), 28 deletions(-)
+
+## Diff
+diff --git a/HOOKS_TODO.md b/HOOKS_TODO.md
+index 8f70812..a5afd7c 100644
+--- a/HOOKS_TODO.md
++++ b/HOOKS_TODO.md
+@@ -34,21 +34,21 @@ ## Hook contract
+ 6. `onCompute` fires before `computeFn` with the previous value. The new value is only visible through `onCacheHit`.
+ 7. Hooks bind by closure at `state()` / `effect()` / `derive()` / `batch()` call time. Nested objects wrapped later inherit the parent's hooks through that closure, not through any per-target storage.
+ 8. The presence of a hook never changes which subscribers wake or when. Hooked and hookless state share one set trap, so a write notifies the same subscribers at the same moment on every path: outside a batch, inside a batch from outside any effect, and inside an effect.
+ 
+ Anything that needs veto, throw-through, delay, or post-run timing is `blocked` until a new slot or a return-value contract exists.
+ 
+ ## Open core items
+ 
+ | # | Item | Status | Evidence |
+ |---|------|--------|----------|
+-| C1 | `frozenHooksCache` is written (`storeHooksForFrozenTarget`) and never read. The `HOOKS` symbol is defined on extensible targets and never read. Hooks on frozen targets fire through the closure either way. | `decide` | `grep -n frozenHooksCache src/index.ts` shows the declaration and one `set`; probe: `state(raw, {onRead})` then `Object.freeze(raw)`, a read fires the hook once |
++| C1 | The `HOOKS` symbol is defined only on extensible array targets, holding the `DirectArrayContext` their direct `push`/`pop` read; a non-array target gets no slot and no cache entry, since hooks fire through the handler closure on every target. | `shipped` | `tests/state-hooks.test.ts`, "defines the hooks symbol on an array target only" |
+ | C2 | `state(obj, hooksB)` on an already-proxied `obj` returns the cached proxy and drops `hooksB` silently. A nested object proxied before its parent keeps its own (possibly empty) hooks. | `decide` | probe: parent `onRead` sees `["inner"]` only; a second `state()` call fires hooksA, never hooksB |
+ | C3 | Reading a nested object through a frozen proxy throws a Proxy invariant `TypeError`, with or without hooks. | `open` | probe: `Object.freeze(state({nested:{b:2}}))` then `.nested.b` |
+ | C4 | File layout for built-in hooks: one file per hook under `src/hooks/` (original Phase 4 plan) or a single `src/hooks/builtins.ts`. | `decide` | none yet |
+ 
+ ## Catalog
+ 
+ Import path for anything built here is `@nerdalytics/beacon/hooks`. Per-hook subpaths such as `@nerdalytics/beacon/hooks/logRead` are not in the exports map and are not planned.
+ 
+ ### Debugging
+ 
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 39f0baf..7d366f1 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -52,30 +52,29 @@ ## EffectFunction Properties
+ | `__schedule` | `EffectSchedule \| undefined` | `'microtask'` routes scheduling through `pendingMicroEffects` |
+ | `effectName` | `string \| undefined` | Optional name for debugging/hooks |
+ 
+ ## Internal Data Structures (WeakMap-based)
+ 
+ | WeakMap | Type | Purpose |
+ |---------|------|---------|
+ | `proxyCache` | `object → object` | The Proxy of a target that could not take the `[PROXY]` symbol (non-extensible, or a define that threw); an extensible target carries its Proxy in `[PROXY]` and gets no entry, since an entry per `state()` cost 2.6x on creation (GC ephemeron work) |
+ | `proxyCacheSubs` | `object → Set<EffectFunction>` | Fallback subscriber storage for frozen/sealed objects |
+ | `arrayMethodCache` | `ArrayMethod → ArrayMethod` | One wrapper per native mutating array method; every wrapper acts on its call receiver, so no per-target entry is needed (`push` and `pop` map to `directPushWrapper`/`directPopWrapper`) |
+-| `frozenHooksCache` | `object → StateHooks \| DirectArrayContext` | What the `[HOOKS]` slot would have held, for non-extensible targets; written, never read (see `HOOKS_TODO.md` C1) |
+ 
+ ## Symbols
+ 
+ | Symbol | Purpose |
+ |--------|---------|
+ | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
+ | `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
+ | `PROXY` | Stores Proxy reference on target objects |
+-| `HOOKS` | On an extensible array target: its `DirectArrayContext` (raw target, raw hooks, composed `onDelete`/`onRead`/`onWrite`), which the direct `push`/`pop` read through the Proxy receiver (`proxy[HOOKS]` returns the raw slot; the raw target as receiver runs the native method silently, Q71 b). On any other extensible hooked target: its StateHooks, never read (nested propagation is by closure). A WeakMap keyed by the Proxy cost 2.7x on array state creation |
++| `HOOKS` | Only on an extensible array target: its `DirectArrayContext` (raw target, raw hooks, composed `onDelete`/`onRead`/`onWrite`), which the direct `push`/`pop` read through the Proxy receiver (`proxy[HOOKS]` returns the raw slot; the raw target as receiver runs the native method silently, Q71 b). A non-array target gets no slot: its hooks reach the traps by closure, and nested propagation is by closure too. A WeakMap keyed by the Proxy cost 2.7x on array state creation |
+ 
+ ## Internal Function Architecture
+ 
+ ### Proxy Handlers
+ 
+ Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object.
+ 
+ | Handler | Traps | Key behavior |
+ |---------|-------|-------------|
+ | `createGetHandler()` | `get` | One keyed load of the raw target, then the internal-symbol early return (a separate load site for the symbols saw only array maps, lost its feedback when those arrays were collected, and deoptimized the trap on the next direct push/pop); delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; both variants route mutating array methods through `getWrappedArrayMethod` before the non-object early return |
+@@ -91,22 +90,22 @@ ### Proxy Handlers
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+ | `recordEffectRead` | Non-silent: records into `__deps`/`__reads` + fires `onDependencyAdd`. Silent: advances the read-list replay while it matches, else replays the prefix into temp collections and falls back to `recordSilentRead` |
+ | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
+ | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
+ | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
+ | `wrapNestedObject` | Returns the nested object's `[PROXY]`, else `state()` (which finds a non-extensible object's Proxy in `proxyCache` or wraps it) |
+ | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
+ | `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check). Its body is a read-path hot spot: any change to it, even code a plain-object read never reaches, cost 2 to 5% on the read benchmark, so the direct `push`/`pop` dispatch lives in the cached wrappers |
+ | `applyInBatch` | Runs a method on a receiver inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure); shared by the Proxy-receiver wrappers and the direct `push`/`pop` |
+ | `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: the native `push` and `pop` get `directPushWrapper`/`directPopWrapper`; the other five get a wrapper that applies them via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+-| `directPushWrapper` / `directPopWrapper` | Read the receiver's `[HOOKS]` slot (optional chaining, so a nullish receiver reads no slot): a `DirectArrayContext` (checked with `instanceof`, since a hooked object receiver keeps its hooks there) on a receiver that is not the context's own raw target runs `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`, the raw array target, `null` or `undefined`) gets the native method inside `applyInBatch`: the raw target never enters the traps, so the call is silent (no hook call, no wake, Q71 b), and a nullish receiver raises the native TypeError |
+-| `hooksSlotFor` | What `state()` stores in the `[HOOKS]` slot: for an array target a new `DirectArrayContext`, otherwise the hooks |
++| `directPushWrapper` / `directPopWrapper` | Read the receiver's `[HOOKS]` slot (optional chaining, so a nullish receiver reads no slot): a `DirectArrayContext` (checked with `instanceof`, so only a reactive array's slot qualifies) on a receiver that is not the context's own raw target runs `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`, the raw array target, `null` or `undefined`) gets the native method inside `applyInBatch`: the raw target never enters the traps, so the call is silent (no hook call, no wake, Q71 b), and a nullish receiver raises the native TypeError |
++| `hooksSlotFor` | What `state()` stores in the `[HOOKS]` slot: for an array target a new `DirectArrayContext`, otherwise `undefined` (no slot) |
+ | `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
+ | `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
+ | `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed: the loop check (inside an effect only), the equal skip, then `onWrite`, shared by both paths; only the scheduling branches: per property inside an effect (plus `length` for an index write that grew the array), one `ARRAY_DIRTY_PROPS` entry per batch outside. A write that grew the array went to an absent index, so it is never skipped as equal (Q65 a) |
+ | `isUnchangedWrite` | The equal skip of every set path: `Object.is` against the current read, and for an equal `undefined` a `prop in rawTarget` check, so a write of `undefined` to an absent property counts as a change (Q65 a); a read that is not `undefined` proves the property exists |
+ | `performUnbatchedWrite` | Outside any effect and batch: skips an unchanged write (`isUnchangedWrite`), skips scheduling when the target has no subscribers, else notifies per property |
+ | `performWrite` | Checks infinite loop, skips an unchanged write (`isUnchangedWrite`), notifies subscribers |
+ | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
+ | `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
+ | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
+ | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
+@@ -203,23 +202,22 @@ ### Settle Observation
+ | `onIdle()` | Public API — adds a callback to `idleCallbacks`, returns an unsubscribe |
+ | `notifyIfIdle` | Calls idle callbacks (errors swallowed) when the graph is idle (no effect queued, no microtask flush armed) and work happened since the last call; a pending async derive does not block it |
+ | `notifyIdleOutsideFlush` | Notify entry outside `flushEffects`: sets `isNotifying` around `notifyIfIdle` so callback writes queue, then `flushEffects` |
+ | `until()` | Public API — throws inside a reactive scope, rejects at once on an aborted signal, else wraps `runUntil` in a Promise |
+ | `runUntil` | Runs the predicate in an effect; resolves on a microtask once it is truthy and no read derive was pending; `timeout`/`signal` reject; a throwing predicate rejects with its error on a microtask instead of propagating to the writer; disposes its effect, timer and abort listener on resolve or reject |
+ 
+ ### Proxy Setup
+ 
+ | Function | Purpose |
+ |----------|---------|
+-| `defineProxyProperties` | Stores `[PROXY]` and `[HOOKS]` symbols on extensible targets and returns `true`; falls back to `storeHooksForFrozenTarget` and returns `false` otherwise, which makes `state()` register the Proxy in `proxyCache` |
+-| `definePropertyOnTarget` | `Object.defineProperty` for the `PROXY` symbol, and for the `HOOKS` symbol when the slot has a value |
+-| `storeHooksForFrozenTarget` | Writes the `HOOKS` slot value to `frozenHooksCache` for non-extensible targets |
++| `defineProxyProperties` | Stores the `[PROXY]` symbol, and `[HOOKS]` on an array, on an extensible target and returns `true`; returns `false` for a non-extensible target or a define that threw, which makes `state()` register the Proxy in `proxyCache` |
++| `definePropertyOnTarget` | `Object.defineProperty` for the `PROXY` symbol, and for the `HOOKS` symbol when the slot has a value (array targets only) |
+ 
+ ### Utilities
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `callHookSafe` | Invokes hook in try-catch — hook errors never propagate to core |
+ | `didEffectReadProp` | Checks if effect read a specific property (for infinite loop detection) |
+ | `depsMatch` | Compares two dep sets by size + per-target property sets |
+ 
+ ## Critical Invariants
+diff --git a/src/hooks/AGENTS.md b/src/hooks/AGENTS.md
+index 429bff0..b66e44a 100644
+--- a/src/hooks/AGENTS.md
++++ b/src/hooks/AGENTS.md
+@@ -44,16 +44,15 @@ ## Integration with Core
+ - `state(initial, hooks?: StateHooks<T>)`
+ - `effect(fn, name?, hooks?: EffectHooks, options?: EffectOptions)`
+ - `derive(computeFn, hooks?: DeriveHooks<T>)`
+ - `batch(fn, hooks?: BatchHooks)`
+ 
+ The core `index.ts` imports `composeHook` from `./hooks/compose.ts`. Published as the `./hooks` subpath export (`package.json`, `jsr.json`).
+ 
+ ## Design Constraints
+ 
+ - All hook invocations wrapped in try-catch — never propagate to core
+-- State hooks propagate to nested objects by closure: the get handler passes the parent's hooks to `state(value, hooks)` when wrapping a nested object. The `HOOKS` symbol is defined on extensible targets but never read
+-- Non-extensible targets get their hooks stored in `frozenHooksCache`; nothing reads it (see `HOOKS_TODO.md` item C1)
++- State hooks propagate to nested objects by closure: the get handler passes the parent's hooks to `state(value, hooks)` when wrapping a nested object. The `HOOKS` symbol is defined only on extensible array targets, holding the `DirectArrayContext` their direct `push`/`pop` read; no target stores its hooks object anywhere
+ - All hooks fire synchronously during their respective operations
+ - Types defined in `../types.ts`, not in this module
+ 
+ <!-- BEACON-START -->[Hooks Module Index]|root: ./src/hooks|IMPORTANT: Hook types live in ../types.ts. This module only re-exports and composes.|.:{index.ts,compose.ts}<!-- BEACON-END -->
+diff --git a/src/index.ts b/src/index.ts
+index dfdcc7b..e103daa 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -102,21 +102,21 @@ type ArrayMethod = (...args: unknown[]) => unknown
+ const arrayMethodCache: WeakMap<ArrayMethod, ArrayMethod> = new WeakMap()
+ // Only these two take the direct path (Q52 a); any other function under their names keeps the Proxy receiver
+ const NATIVE_PUSH: ArrayMethod = Array.prototype.push as ArrayMethod
+ const NATIVE_POP: ArrayMethod = Array.prototype.pop as ArrayMethod
+ 
+ type ArrayTarget = ProxyTarget & unknown[]
+ 
+ // What the direct push and pop of one array act on: its raw target and its composed hooks. An array target
+ // carries it in its [HOOKS] slot, where the shared wrappers read it through the Proxy receiver's internal-symbol
+ // guard: a WeakMap keyed by the Proxy cost 2.7x on array state creation (GC ephemeron work). A class, so the
+-// wrappers can tell it from the hooks object a non-array target keeps in the same slot
++// wrappers can tell a reactive array's slot from whatever another receiver holds under the same symbol
+ class DirectArrayContext {
+ 	readonly hooks: StateHooks<object> | undefined
+ 	readonly onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined
+ 	readonly onRead: HookFunction<[PropertyKey, unknown, object]> | undefined
+ 	readonly onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
+ 	readonly target: ArrayTarget
+ 
+ 	constructor(
+ 		target: ArrayTarget,
+ 		hooks: StateHooks<object> | undefined,
+@@ -125,24 +125,24 @@ class DirectArrayContext {
+ 		onWrite: HookFunction<[PropertyKey, unknown, unknown, object]> | undefined
+ 	) {
+ 		this.hooks = hooks
+ 		this.onDelete = onDelete
+ 		this.onRead = onRead
+ 		this.onWrite = onWrite
+ 		this.target = target
+ 	}
+ }
+ 
+-// What the [HOOKS] slot of a target holds: the hooks of a non-array target, the direct context of an array
+-type HooksSlot = StateHooks | DirectArrayContext | undefined
++// What the [HOOKS] slot holds: the direct context of an array target; a non-array target has no slot, since
++// its hooks reach every trap by closure
++type HooksSlot = DirectArrayContext | undefined
+ 
+-const frozenHooksCache: WeakMap<object, StateHooks | DirectArrayContext> = new WeakMap()
+ const MAX_IDLE_CYCLES = 100
+ const MAX_MICROTASK_FLUSH_CHAIN = 100
+ // Up to this many subscribers a scan is cheaper than the per-property index lookups
+ const INDEXED_SCHEDULE_MIN_SUBSCRIBERS = 4
+ 
+ // Hooks consulted on the hot path; stored on the effect only when at least one is set
+ type EffectInternalHooks = {
+ 	onDependencyAdd?: HookFunction<[object, PropertyKey, string | undefined]> | undefined
+ 	onDependencyChange?: HookFunction<[object, PropertyKey]> | undefined
+ 	onSchedule?: HookFunction<[string | undefined]> | undefined
+@@ -736,29 +736,29 @@ function createGetHandler<T>(
+ 		callHookSafe(onRead, prop, value, rawTarget as T)
+ 
+ 		const wrapped = getWrappedArrayMethod(rawTarget, prop, value)
+ 		if (wrapped) return wrapped
+ 
+ 		if (value === null || typeof value !== 'object') return value
+ 		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
+ 	}
+ }
+ 
+-// An array target's [HOOKS] slot holds the context its direct push and pop find through the Proxy receiver
++// Only an array target gets a [HOOKS] slot: the context its direct push and pop find through the Proxy receiver
+ function hooksSlotFor<T>(
+ 	target: ProxyTarget,
+ 	hooks: StateHooks<T> | undefined,
+ 	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
+ 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+ 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+ ): HooksSlot {
+-	if (!Array.isArray(target)) return hooks as StateHooks | undefined
++	if (!Array.isArray(target)) return undefined
+ 	return new DirectArrayContext(
+ 		target as ArrayTarget,
+ 		hooks as StateHooks<object> | undefined,
+ 		onDelete as DirectArrayContext['onDelete'],
+ 		onRead as DirectArrayContext['onRead'],
+ 		onWrite as DirectArrayContext['onWrite']
+ 	)
+ }
+ 
+ function createHasHandler<T>(
+@@ -904,26 +904,20 @@ function performWrite<T>(
+ 	rawTarget[prop] = value
+ 
+ 	callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
+ 
+ 	scheduleSubscribersForTarget(rawTarget, prop)
+ 	notifyLengthChangeIfNeeded(rawTarget, oldLength)
+ 
+ 	return true
+ }
+ 
+-function storeHooksForFrozenTarget(target: ProxyTarget, hooks: HooksSlot): void {
+-	if (hooks) {
+-		frozenHooksCache.set(target, hooks)
+-	}
+-}
+-
+ function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): void {
+ 	Object.defineProperty(target, PROXY, {
+ 		configurable: true,
+ 		enumerable: false,
+ 		value: proxy,
+ 		writable: false,
+ 	})
+ 	if (hooks) {
+ 		Object.defineProperty(target, HOOKS, {
+ 			configurable: true,
+@@ -934,23 +928,22 @@ function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: Hook
+ 	}
+ }
+ 
+ // Returns whether the target took the [PROXY] symbol; only a target that did not needs the proxyCache entry
+ function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): boolean {
+ 	try {
+ 		if (Object.isExtensible(target)) {
+ 			definePropertyOnTarget(target, proxy, hooks)
+ 			return true
+ 		}
+-		storeHooksForFrozenTarget(target, hooks)
+ 	} catch {
+-		storeHooksForFrozenTarget(target, hooks)
++		// a Proxy target that rejects symbol defines
+ 	}
+ 	return false
+ }
+ 
+ const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
+ 	deleteProperty: createDeleteHandler(undefined),
+ 	get: createGetHandler(undefined, undefined),
+ 	has: createHasHandler(undefined),
+ 	ownKeys: createOwnKeysHandler(undefined),
+ 	set: createSetHandler(undefined),
+diff --git a/tests/AGENTS.md b/tests/AGENTS.md
+index 98de6ab..4dae5d6 100644
+--- a/tests/AGENTS.md
++++ b/tests/AGENTS.md
+@@ -85,17 +85,17 @@ ## Coverage Gate
+ - Lines: 90%
+ - Includes: `src/**/*.ts`
+ - Excludes: `scripts/**/*.ts`
+ 
+ ## Hooks Tests
+ 
+ Test hooks instrumentation for each primitive. Each file verifies backward compatibility (works without hooks), individual hook firing, and error isolation (hook errors never break core).
+ 
+ | File | Tests | Covers |
+ |------|-------|--------|
+-| `state-hooks.test.ts` | 18 | `onRead`, `onWrite`, batched `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks |
++| `state-hooks.test.ts` | 19 | `onRead`, `onWrite`, batched `onWrite`, `onDelete`, `onHas`, `onOwnKeys`, nested propagation, nested proxy wrapping, array methods, multiple hooks, hooks symbol on array targets only |
+ | `effect-hooks.test.ts` | 11 | `onRun`, `onDispose`, `onError`, `onDependencyAdd`, `onSchedule` |
+ | `derive-hooks.test.ts` | 12 | `onCompute`, `onCacheHit`, `onDispose`, `onError`, `onDependencyChange` |
+ | `batch-hooks.test.ts` | 7 | `onBatchStart`, `onBatchEnd`, `onBatchError`, nested depth |
+ | `hooks-compose.test.ts` | 7 | `composeHook` utility — undefined, single, array, forwarding, error isolation |
+ 
+ <!-- BEACON-START -->[Tests Index]|root: ./tests|IMPORTANT: Follow naming conventions and always dispose effects/derives in tests|.:{*.test.ts,PROPERTY_BASED_TESTING.md,biome.json}<!-- BEACON-END -->
+diff --git a/tests/array-push-pop.test.ts b/tests/array-push-pop.test.ts
+index 793fc01..12d6abf 100644
+--- a/tests/array-push-pop.test.ts
++++ b/tests/array-push-pop.test.ts
+@@ -418,21 +418,21 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
+ 				assert.strictEqual(method.call(rawList, ...args), result, `${name} ${kind}`)
+ 				assert.deepStrictEqual(rawList, after, `${name} ${kind}`)
+ 				assert.deepStrictEqual(calls, [], `${name} ${kind}`)
+ 				assert.deepStrictEqual(subscription.woken(), [], `${name} ${kind}`)
+ 				subscription.dispose()
+ 			}
+ 		}
+ 	})
+ 
+ 	it('runs push and pop called with another receiver on that receiver', (): void => {
+-		// A hooked object state is the receiver that carries hooks where an array carries its direct context
++		// A hooked object state has no slot where an array carries its direct context, so it takes the native path
+ 		const calls: HookCall[] = []
+ 		const rawObject: Record<string, unknown> = { length: 0 }
+ 		const $object = state(rawObject, recordingHooks(calls, rawObject as unknown as unknown[]))
+ 		for (const [kind, $list] of bothKinds([0])) {
+ 			const subscription = subscribe($list)
+ 			const plain = [9]
+ 
+ 			assert.strictEqual($list.push.call(plain, 1), 2, kind)
+ 			assert.strictEqual($list.pop.call(plain), 1, kind)
+ 			assert.strictEqual($list.push.call($object, 1), 1, kind)
+diff --git a/tests/property-frozen-sealed.test.ts b/tests/property-frozen-sealed.test.ts
+index e666236..3f853c0 100644
+--- a/tests/property-frozen-sealed.test.ts
++++ b/tests/property-frozen-sealed.test.ts
+@@ -1,22 +1,22 @@
+ import assert from 'node:assert/strict'
+ import { describe, it } from 'node:test'
+ import fc from 'fast-check'
+ import { batch, derive, effect, state } from '../src/index.ts'
+ 
+ /**
+  * Property-based tests for frozen and sealed object reactivity.
+  *
+  * When Object.isExtensible(target) is false, Beacon falls back to WeakMap
+  * storage for subscribers (proxyCacheSubs). Array method wrappers always
+- * live in arrayMethodCache, and frozenHooksCache is written but never read;
+- * hooks fire through the handler closure. These tests verify that the
++ * live in arrayMethodCache, and hooks fire through the handler closure, so
++ * a non-extensible target stores nothing else. These tests verify that the
+  * subscriber fallback path works correctly.
+  *
+  * Key behavior notes:
+  * - Every write path resolves subscribers by checking rawTarget[SUBSCRIBERS]
+  *   first and proxyCacheSubs second. So direct writes, batched writes and
+  *   cross-effect writes to sealed objects all notify the effects that read
+  *   the written property.
+  * - Frozen objects cannot be written to (properties are non-writable).
+  *
+  * @see tests/PROPERTY_BASED_TESTING.md — Opportunity #11
+diff --git a/tests/state-hooks.test.ts b/tests/state-hooks.test.ts
+index 1239abf..e2153d4 100644
+--- a/tests/state-hooks.test.ts
++++ b/tests/state-hooks.test.ts
+@@ -361,11 +361,26 @@ describe('State Hooks', {
+ 			{
+ 				onRead: (prop: PropertyKey) => {
+ 					reads.push(prop)
+ 				},
+ 			}
+ 		)
+ 
+ 		assert.strictEqual($frozen.limit, 10)
+ 		assert.deepStrictEqual(reads, ['limit'])
+ 	})
++
++	it('defines the hooks symbol on an array target only', () => {
++		// Counted before any read or subscription: the subscribers symbol is added lazily on first subscription
++		const hooks = { onRead: (): void => {} }
++		const hookedObject = { count: 0 }
++		const hookedArray = [0]
++		const hooklessObject = { count: 0 }
++		state(hookedObject, hooks)
++		state(hookedArray, hooks)
++		state(hooklessObject)
++
++		assert.strictEqual(Object.getOwnPropertySymbols(hookedObject).length, 1)
++		assert.strictEqual(Object.getOwnPropertySymbols(hookedArray).length, 2)
++		assert.strictEqual(Object.getOwnPropertySymbols(hooklessObject).length, 1)
++	})
+ })

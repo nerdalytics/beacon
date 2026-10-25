@@ -12,6 +12,8 @@ const BENCH_RUNS = 7
 
 const EFFECT_TRIGGER_WRITES = 50_000
 const ARRAY_PUSH_POP_CALLS = 50_000
+const ARRAY_FILL_CALLS = 50_000
+const ARRAY_FILL_LENGTH = 3
 const MULTI_SOURCE_COUNT = 100
 const MULTI_SOURCE_ITERATIONS = 100
 const DERIVE_CHAIN_DEPTH = 10
@@ -317,6 +319,20 @@ const arrayPushPopHookless = (): number => arrayPushPop(state<number[]>([]))
 
 const arrayPushPopHooks = (): number => arrayPushPop(state<number[]>([], noopStateHooks))
 
+// The effect reads every index because fill never changes length: a length-only reader would not wake at all.
+// Alternating the fill value changes every element on every call
+function arrayFillHookless(): number {
+	const items = state<number[]>(new Array(ARRAY_FILL_LENGTH).fill(0))
+	const cleanup: Unsubscribe = effect((): void => {
+		for (let i = 0; i < items.length; i++) void items[i]
+	})
+	const start = performance.now()
+	for (let i = 0; i < ARRAY_FILL_CALLS; i++) items.fill((i % 2) + 1)
+	const end = performance.now()
+	cleanup()
+	return end - start
+}
+
 function manyDependencies(): number {
 	const sources = Array.from(
 		{
@@ -606,6 +622,10 @@ const suite: SuiteEntry[] = [
 	{
 		fn: arrayPushPopHooks,
 		name: 'array push/pop (hooks)    ',
+	},
+	{
+		fn: arrayFillHookless,
+		name: 'array fill (hookless)     ',
 	},
 	{
 		fn: manyDependencies,

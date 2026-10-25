@@ -371,6 +371,123 @@ describe('Infinite Loop Detection', {
 		}
 	})
 
+	it('raises nothing when fill alone in a sync effect writes indices it did not read', (): void => {
+		for (const [, $list] of bothKinds([1, 2, 3])) {
+			unsubscribes.push(
+				effect((): void => {
+					$list.fill(9)
+				})
+			)
+			assert.deepStrictEqual([...$list], [9, 9, 9])
+		}
+	})
+
+	it('raises the loop error when a sync effect reads an index before fill writes it on both kinds of state', (): void => {
+		for (const [kind, $list] of bothKinds([1, 2, 3])) {
+			assert.throws(
+				(): void => {
+					unsubscribes.push(
+						effect((): void => {
+							void $list[0]
+							$list.fill(9)
+						}, 'filler')
+					)
+				},
+				/Infinite loop detected: effect "filler" cannot update property "/,
+				kind
+			)
+		}
+	})
+
+	it('raises nothing when copyWithin in a sync effect has source and target ranges that do not overlap', (): void => {
+		for (const [, $list] of bothKinds([1, 2, 3])) {
+			unsubscribes.push(
+				effect((): void => {
+					$list.copyWithin(2, 0, 1)
+				})
+			)
+			assert.deepStrictEqual([...$list], [1, 2, 1])
+		}
+	})
+
+	it('raises the loop error when copyWithin in a sync effect has overlapping ranges on both kinds of state', (): void => {
+		for (const [kind, $list] of bothKinds([1, 2, 3])) {
+			assert.throws(
+				(): void => {
+					unsubscribes.push(
+						effect((): void => {
+							$list.copyWithin(0, 1)
+						}, 'copier')
+					)
+				},
+				/Infinite loop detected: effect "copier" cannot update property "/,
+				kind
+			)
+		}
+	})
+
+	it('lets a child effect call fill and copyWithin on indices it read without raising', (): void => {
+		for (const [, $list] of bothKinds([1, 2, 3])) {
+			unsubscribes.push(
+				effect((): void => {
+					effect((): void => {
+						void $list[0]
+						$list.fill(9)
+					})
+				})
+			)
+			assert.deepStrictEqual([...$list], [9, 9, 9])
+		}
+		for (const [, $list] of bothKinds([1, 2, 3])) {
+			unsubscribes.push(
+				effect((): void => {
+					effect((): void => {
+						$list.copyWithin(0, 1)
+					})
+				})
+			)
+			assert.deepStrictEqual([...$list], [2, 3, 3])
+		}
+	})
+
+	it('lets a microtask effect call fill and copyWithin on indices it read without raising', async (): Promise<void> => {
+		const settle = async (): Promise<void> => {
+			// A few turns cover the one re-run each call causes, plus a spare to prove it stops
+			for (let turn = 0; turn < 4; turn++) {
+				await new Promise<void>((resolve): void => queueMicrotask(resolve))
+			}
+		}
+		for (const [, $list] of bothKinds([1, 2, 3])) {
+			unsubscribes.push(
+				effect(
+					(): void => {
+						void $list[0]
+						$list.fill(9)
+					},
+					undefined,
+					undefined,
+					{ schedule: 'microtask' }
+				)
+			)
+			await settle()
+			assert.deepStrictEqual([...$list], [9, 9, 9])
+		}
+		for (const [, $list] of bothKinds([1, 2, 3])) {
+			unsubscribes.push(
+				effect(
+					(): void => {
+						$list.copyWithin(0, 1)
+					},
+					undefined,
+					undefined,
+					{ schedule: 'microtask' }
+				)
+			)
+			await settle()
+			assert.deepStrictEqual([...$list], [3, 3, 3])
+		}
+	})
+
 	it('lets a child effect push onto a reactive array without raising', (): void => {
 		for (const [, $list] of bothKinds([])) {
 			unsubscribes.push(

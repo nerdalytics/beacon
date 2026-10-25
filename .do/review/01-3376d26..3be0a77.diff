@@ -1,0 +1,86 @@
+# Review package: ticket 01, 3376d26..3be0a77
+
+## Commits
+### 3be0a77
+test(state): add hooked state creation benchmark case
+
+The blind-spots group names creation of a target that takes a second
+symbol as a gap, but no case timed it. Add one shaped like the hookless
+creation case with a single no-op onRead hook built once at module
+level, so the next change can compare hooked creation against this
+baseline.
+
+
+## Files changed
+ scripts/benchmark.ts | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+## Diff
+diff --git a/scripts/benchmark.ts b/scripts/benchmark.ts
+index e46ab1a..9685a7b 100644
+--- a/scripts/benchmark.ts
++++ b/scripts/benchmark.ts
+@@ -458,20 +458,38 @@ function stateCreationSealed(): number {
+ 	for (let i = 0; i < STATE_CREATION_COUNT; i++) {
+ 		state(
+ 			Object.seal({
+ 				v: i,
+ 			})
+ 		)
+ 	}
+ 	return performance.now() - start
+ }
+ 
++// One hook is enough: any hook makes state() build the hooked handler and the slot value
++const creationHooks: StateHooks<{ v: number }> = {
++	onRead: (): void => {},
++}
++
++function stateCreationHooks(): number {
++	const start = performance.now()
++	for (let i = 0; i < STATE_CREATION_COUNT; i++) {
++		state(
++			{
++				v: i,
++			},
++			creationHooks
++		)
++	}
++	return performance.now() - start
++}
++
+ function stateReadNested(): number {
+ 	const s = state({
+ 		inner: {
+ 			v: 42,
+ 		},
+ 	})
+ 	const start = performance.now()
+ 	for (let i = 0; i < STATE_READ_COUNT; i++) {
+ 		void s.inner.v
+ 	}
+@@ -624,20 +642,24 @@ const suite: SuiteEntry[] = [
+ 		header: '--- Blind spots (creation shapes, nested read, equal and undefined writes) ---',
+ 	},
+ 	{
+ 		fn: stateCreationArray,
+ 		name: 'state creation (array)    ',
+ 	},
+ 	{
+ 		fn: stateCreationSealed,
+ 		name: 'state creation (sealed)   ',
+ 	},
++	{
++		fn: stateCreationHooks,
++		name: 'state creation (hooks)    ',
++	},
+ 	{
+ 		fn: stateReadNested,
+ 		name: 'state read nested         ',
+ 	},
+ 	{
+ 		fn: stateWriteEqualValue,
+ 		name: 'state write equal value   ',
+ 	},
+ 	{
+ 		fn: arrayPushPopUndefined,
