@@ -279,6 +279,48 @@ describe('State Hooks', {
 		assert.ok(reads.includes('length'))
 	})
 
+	it('fires onRead with the method name and length and onWrite only for the indices fill changes', () => {
+		const reads: PropertyKey[] = []
+		const writes: unknown[][] = []
+		const $list = state([1, 2, 3], {
+			onRead: (prop: PropertyKey) => {
+				reads.push(prop)
+			},
+			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown) => {
+				writes.push([prop, oldValue, newValue])
+			},
+		})
+
+		$list.fill(9, 1)
+
+		assert.ok(reads.includes('fill'))
+		assert.ok(reads.includes('length'))
+		assert.deepStrictEqual(writes, [
+			['1', 2, 9],
+			['2', 3, 9],
+		])
+	})
+
+	it('fires onRead with the method name, length and source index and onWrite only for the target index of copyWithin', () => {
+		const reads: PropertyKey[] = []
+		const writes: unknown[][] = []
+		const $list = state([1, 2, 3], {
+			onRead: (prop: PropertyKey) => {
+				reads.push(prop)
+			},
+			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown) => {
+				writes.push([prop, oldValue, newValue])
+			},
+		})
+
+		$list.copyWithin(0, 2)
+
+		assert.ok(reads.includes('copyWithin'))
+		assert.ok(reads.includes('length'))
+		assert.ok(reads.includes('2'))
+		assert.deepStrictEqual(writes, [['0', 1, 3]])
+	})
+
 	it('fires onWrite for direct array index assignment', () => {
 		const writes: string[] = []
 		const $s = state(
