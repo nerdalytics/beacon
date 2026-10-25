@@ -1,0 +1,298 @@
+# Review package: ticket 04, 8464f3f..2dbcee2
+
+## Commits
+### 2dbcee2
+perf(state): keep array writes off the object batch path
+
+Once fill and copyWithin run through the Proxy inside a batch, array
+targets reach handleBatchFastPath, which until then sees only plain
+objects. Its [SUBSCRIBERS] load then deoptimizes 36 times per 10-cycle
+run (wrong map), and the case 'many dependencies', which runs after
+'array fill (hookless)', gets slower: +10.6% on medians and +6.8% on
+totals over three interleaved A/B runs of 10 cycles against 87c8823
+(A/A spread 4.3% and 2.4%).
+
+Control: on 87c8823, with fill wrapped by hand in batch(), the same
+slowdown and the same deopt pattern appear (2.2 ms against 1.8 ms on a
+fill-then-many-dependencies sequence). The cause is arrays on the
+shared batch write path, not the two names added to the method set,
+its Set lookup or code layout.
+
+handleBatchArrayWrite now serves arrays through a set trap of its own,
+picked by one Array.isArray per state() call, shared with hooksSlotFor.
+Interleaved A/B after the change, against 87c8823: many dependencies
+-0.5% on medians and -1.4% on totals, array fill -50.2%, no case
+slower beyond its A/A spread. The subscriber lookup stays inlined:
+calling findSubscribers instead costs 2.2% on medians and 2.4% on
+totals of array fill (three interleaved 10-cycle pairs).
+
+
+## Files changed
+ src/AGENTS.md |  8 ++++---
+ src/index.ts  | 67 ++++++++++++++++++++++++++++++++++++++++++++++++++---------
+ 2 files changed, 62 insertions(+), 13 deletions(-)
+
+## Diff
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index ca2b18e..0a445c9 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -66,26 +66,27 @@ ## Symbols
+ |--------|---------|
+ | `OWN_KEYS_SYMBOL` | Tracks key enumeration reads (ownKeys trap) |
+ | `SUBSCRIBERS` | Stores the subscriber Set on target objects; absent until the first subscription and on targets that cannot take it (those keep the set in `proxyCacheSubs`) |
+ | `PROXY` | Stores Proxy reference on target objects |
+ | `HOOKS` | Only on an extensible array target: its `DirectArrayContext` (raw target, raw hooks, composed `onDelete`/`onRead`/`onWrite`), which the direct `push`/`pop` read through the Proxy receiver (`proxy[HOOKS]` returns the raw slot; the raw target as receiver runs the native method silently, Q71 b). A non-array target gets no slot: its hooks reach the traps by closure, and nested propagation is by closure too. A WeakMap keyed by the Proxy cost 2.7x on array state creation |
+ 
+ ## Internal Function Architecture
+ 
+ ### Proxy Handlers
+ 
+-Five handler factories, each returns a ProxyHandler method. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object.
++Five handler factories, each returns a ProxyHandler method, and a sixth for the array set trap. `state()` without hooks shares one prebuilt `HOOKLESS_HANDLER`, or `HOOKLESS_ARRAY_HANDLER` for an array target; the get factory returns a leaner variant when no hooks are passed, the set factory returns one trap for every state object that is not an array.
+ 
+ | Handler | Traps | Key behavior |
+ |---------|-------|-------------|
+ | `createGetHandler()` | `get` | One keyed load of the raw target, then the internal-symbol early return (a separate load site for the symbols saw only array maps, lost its feedback when those arrays were collected, and deoptimized the trap on the next direct push/pop); delegates to `trackDependency` for reads and `wrapNestedObject` for nested wrapping; both variants route mutating array methods through `getWrappedArrayMethod` before the non-object early return |
+-| `createSetHandler()` | `set` | One trap for hooked and hookless state: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
++| `createSetHandler()` | `set` | One trap for hooked and hookless state of a non-array target: `handleBatchFastPath` during batch from outside any effect, `performUnbatchedWrite` outside any effect, `performWrite` inside an effect; `onWrite` only observes after the raw write on every path |
++| `createArraySetHandler()` | `set` | The same trap for an array target, `state()` picks it by `Array.isArray` once per call; its batch branch is `handleBatchArrayWrite`, so no set trap closure and no batch write function sees both arrays and objects |
+ | `createDeleteHandler()` | `deleteProperty` | Deletion with subscriber notification |
+ | `createHasHandler()` | `has` | `in` operator tracking via `trackDependency` |
+ | `createOwnKeysHandler()` | `ownKeys` | Key enumeration tracking via `OWN_KEYS_SYMBOL` |
+ 
+ Handler helpers:
+ 
+ | Function | Purpose |
+ |----------|---------|
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+ | `recordEffectRead` | Non-silent: records into `__deps`/`__reads` + fires `onDependencyAdd`. Silent: advances the read-list replay while it matches, else replays the prefix into temp collections and falls back to `recordSilentRead` |
+@@ -99,21 +100,22 @@ ### Proxy Handlers
+ | `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: the native `push` and `pop` get `directPushWrapper`/`directPopWrapper`; the other seven get a wrapper that applies them via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+ | `directPushWrapper` / `directPopWrapper` | Read the receiver's `[HOOKS]` slot (optional chaining, so a nullish receiver reads no slot): a `DirectArrayContext` (checked with `instanceof`, so only a reactive array's slot qualifies) on a receiver that is not the context's own raw target runs `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`, the raw array target, `null` or `undefined`) gets the native method inside `applyInBatch`: the raw target never enters the traps, so the call is silent (no hook call, no wake, Q71 b), and a nullish receiver raises the native TypeError |
+ | `hooksSlotFor` | What `state()` stores in the `[HOOKS]` slot: for an array target a new `DirectArrayContext`, otherwise `undefined` (no slot) |
+ | `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
+ | `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
+ | `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed: the loop check (inside an effect only), the equal skip, then `onWrite`, shared by both paths; only the scheduling branches: per property inside an effect (plus `length` for an index write that grew the array), one `ARRAY_DIRTY_PROPS` entry per batch outside. A write that grew the array went to an absent index, so it is never skipped as equal (Q65 a) |
+ | `isUnchangedWrite` | The equal skip of every set path: `Object.is` against the current read, and for an equal `undefined` a `prop in rawTarget` check, so a write of `undefined` to an absent property counts as a change (Q65 a); a read that is not `undefined` proves the property exists |
+ | `performUnbatchedWrite` | Outside any effect and batch: skips an unchanged write (`isUnchangedWrite`), skips scheduling when the target has no subscribers, else notifies per property |
+ | `performWrite` | Checks infinite loop, skips an unchanged write (`isUnchangedWrite`), notifies subscribers |
+ | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
+-| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
++| `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty; object targets only |
++| `handleBatchArrayWrite` | The array twin of `handleBatchFastPath`: the same write, equal skip and `onWrite`, then one `ARRAY_DIRTY_PROPS` entry for the array. Kept apart because arrays written through the shared path (once `fill` and `copyWithin` went through it) made its `[SUBSCRIBERS]` load deoptimize on every benchmark cycle and slowed `many dependencies` by 10.6% on medians and 6.8% on totals (interleaved 10-cycle A/B against 87c8823) |
+ | `getArrayLengthBeforeMutation` | Captures array length before index assignment |
+ | `notifyLengthChangeIfNeeded` | Notifies `length` subscribers if array grew/shrank |
+ 
+ ### Subscriber Scheduling Pipeline
+ 
+ ```
+ scheduleSubscribersForTarget(target, prop?)
+   → findSubscribers(target)
+   → for each subscriber:
+       prop undefined → addPendingEffect(subscriber)
+diff --git a/src/index.ts b/src/index.ts
+index 2a3f490..4d82aa6 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -749,26 +749,27 @@ function createGetHandler<T>(
+ 		if (wrapped) return wrapped
+ 
+ 		if (value === null || typeof value !== 'object') return value
+ 		return wrapNestedObject(value as object, hooks as StateHooks<object> | undefined)
+ 	}
+ }
+ 
+ // Only an array target gets a [HOOKS] slot: the context its direct push and pop find through the Proxy receiver
+ function hooksSlotFor<T>(
+ 	target: ProxyTarget,
++	isArray: boolean,
+ 	hooks: StateHooks<T> | undefined,
+ 	onDelete: HookFunction<[PropertyKey, boolean, T]> | undefined,
+ 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
+ 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+ ): HooksSlot {
+-	if (!Array.isArray(target)) return undefined
++	if (!isArray) return undefined
+ 	return new DirectArrayContext(
+ 		target as ArrayTarget,
+ 		hooks as StateHooks<object> | undefined,
+ 		onDelete as DirectArrayContext['onDelete'],
+ 		onRead as DirectArrayContext['onRead'],
+ 		onWrite as DirectArrayContext['onWrite']
+ 	)
+ }
+ 
+ function createHasHandler<T>(
+@@ -813,38 +814,60 @@ function handleBatchFastPath<T>(
+ 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+ ): boolean {
+ 	const oldValue = rawTarget[prop]
+ 	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
+ 
+ 	rawTarget[prop] = value
+ 	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
+ 
+ 	// A target already in dirtyTargets had subscribers at its first write, so only the first write looks them up
+ 	const props = dirtyTargets.get(rawTarget)
+-	if (props === ARRAY_DIRTY_PROPS) return true
+ 	if (props) {
+ 		props.add(prop)
+ 		return true
+ 	}
+ 
+ 	// inlined, not findSubscribers: the call cost ~5% on the batch + derive benchmarks
+ 	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
+ 	if (subs === undefined && (hasFallbackSubs || (rawTarget as ProxyObject)[PROXY] === undefined)) {
+ 		subs = proxyCacheSubs.get(rawTarget)
+ 	}
+ 	if (!subs?.size) return true
+ 
+-	if (Array.isArray(rawTarget)) {
+-		dirtyTargets.set(rawTarget, ARRAY_DIRTY_PROPS)
+-	} else {
+-		dirtyTargets.set(rawTarget, new Set<PropertyKey>([prop]))
++	dirtyTargets.set(rawTarget, new Set<PropertyKey>([prop]))
++	return true
++}
++
++// The array twin of handleBatchFastPath, a separate function so that the object path never sees an array: once
++// fill and copyWithin wrote arrays through the shared path, its [SUBSCRIBERS] load deoptimized on every benchmark
++// cycle and `many dependencies` ran 10.6% slower on medians and 6.8% on totals (interleaved 10-cycle A/B against
++// 87c8823). An array goes dirty once and wakes all its subscribers
++function handleBatchArrayWrite<T>(
++	rawTarget: ProxyTarget,
++	prop: PropertyKey,
++	value: unknown,
++	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
++): boolean {
++	const oldValue = rawTarget[prop]
++	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
++
++	rawTarget[prop] = value
++	if (onWrite) callHookSafe(onWrite, prop, oldValue, value, rawTarget as T)
++
++	if (dirtyTargets.get(rawTarget) === ARRAY_DIRTY_PROPS) return true
++
++	// inlined, not findSubscribers: the call cost 2.2% on the fill benchmark
++	let subs = (rawTarget as SubscribersObject)[SUBSCRIBERS]
++	if (subs === undefined && (hasFallbackSubs || (rawTarget as ProxyObject)[PROXY] === undefined)) {
++		subs = proxyCacheSubs.get(rawTarget)
+ 	}
++	if (subs?.size) dirtyTargets.set(rawTarget, ARRAY_DIRTY_PROPS)
+ 	return true
+ }
+ 
+ // Equal means equal to the value of a property that exists: a write of undefined to an absent property is a
+ // change, as it is on a plain object (Q65 a). A read that is not undefined proves the property exists, so only
+ // an equal undefined write pays the existence check; `in` costs 4% there where Object.hasOwn cost 35%
+ function isUnchangedWrite(rawTarget: ProxyTarget, prop: PropertyKey, oldValue: unknown, value: unknown): boolean {
+ 	return Object.is(oldValue, value) && (value !== undefined || prop in rawTarget)
+ }
+ 
+@@ -869,20 +892,36 @@ function createSetHandler<T>(
+ 		if (batchDepth > 0 && !currentEffect) {
+ 			return handleBatchFastPath(rawTarget, prop, value, onWrite)
+ 		}
+ 		if (!currentEffect) {
+ 			return performUnbatchedWrite(rawTarget, prop, value, onWrite)
+ 		}
+ 		return performWrite(rawTarget, prop, value, onWrite)
+ 	}
+ }
+ 
++// The set trap of an array target: createSetHandler with the batch branch on handleBatchArrayWrite, a literal of
++// its own so that no trap closure calls both batch paths
++function createArraySetHandler<T>(
++	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
++): NonNullable<ProxyHandler<ProxyTarget>['set']> {
++	return (rawTarget: ProxyTarget, prop: PropertyKey, value: unknown): boolean => {
++		if (batchDepth > 0 && !currentEffect) {
++			return handleBatchArrayWrite(rawTarget, prop, value, onWrite)
++		}
++		if (!currentEffect) {
++			return performUnbatchedWrite(rawTarget, prop, value, onWrite)
++		}
++		return performWrite(rawTarget, prop, value, onWrite)
++	}
++}
++
+ // Outside any effect and batch: no loop check, and a target without subscribers skips scheduling
+ function performUnbatchedWrite<T>(
+ 	rawTarget: ProxyTarget,
+ 	prop: PropertyKey,
+ 	value: unknown,
+ 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
+ ): boolean {
+ 	const oldValue = rawTarget[prop]
+ 	if (isUnchangedWrite(rawTarget, prop, oldValue, value)) return true
+ 	const subs = findSubscribers(rawTarget)
+@@ -952,56 +991,64 @@ function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: Hooks
+ }
+ 
+ const HOOKLESS_HANDLER: ProxyHandler<ProxyTarget> = {
+ 	deleteProperty: createDeleteHandler(undefined),
+ 	get: createGetHandler(undefined, undefined),
+ 	has: createHasHandler(undefined),
+ 	ownKeys: createOwnKeysHandler(undefined),
+ 	set: createSetHandler(undefined),
+ }
+ 
++const HOOKLESS_ARRAY_HANDLER: ProxyHandler<ProxyTarget> = {
++	...HOOKLESS_HANDLER,
++	set: createArraySetHandler(undefined),
++}
++
+ /** Wrap an object in a reactive Proxy. Property reads are tracked, writes notify subscribers. */
+ export function state<T extends object>(initial: T, hooks?: StateHooks<T>): T {
+ 	if (initial === null || initial === undefined || typeof initial !== 'object') return initial
+ 
+ 	const initialWithProxy = initial as ProxyObject
+ 	const existingProxy = initialWithProxy?.[PROXY]
+ 	if (existingProxy) return existingProxy as T
+ 
+ 	const target = initial as ProxyTarget
+ 	const cached = proxyCache.get(target)
+ 	if (cached) return cached as T
+ 
++	const isArray = Array.isArray(target)
+ 	if (!hooks) {
+-		const proxy = new Proxy(target, HOOKLESS_HANDLER) as T
+-		if (!defineProxyProperties(target, proxy, hooksSlotFor(target, undefined, undefined, undefined, undefined))) {
++		const proxy = new Proxy(target, isArray ? HOOKLESS_ARRAY_HANDLER : HOOKLESS_HANDLER) as T
++		if (
++			!defineProxyProperties(target, proxy, hooksSlotFor(target, isArray, undefined, undefined, undefined, undefined))
++		) {
+ 			proxyCache.set(target, proxy)
+ 		}
+ 		return proxy
+ 	}
+ 
+ 	const onDelete = composeHook(hooks.onDelete)
+ 	const onHas = composeHook(hooks.onHas)
+ 	const onOwnKeys = composeHook(hooks.onOwnKeys)
+ 	const onRead = composeHook(hooks.onRead)
+ 	const onWrite = composeHook(hooks.onWrite)
+ 
+ 	const handler: ProxyHandler<ProxyTarget> = {
+ 		deleteProperty: createDeleteHandler(onDelete),
+ 		get: createGetHandler(onRead, hooks),
+ 		has: createHasHandler(onHas),
+ 		ownKeys: createOwnKeysHandler(onOwnKeys),
+-		set: createSetHandler(onWrite),
++		set: isArray ? createArraySetHandler(onWrite) : createSetHandler(onWrite),
+ 	} as ProxyHandler<ProxyTarget>
+ 
+ 	const proxy = new Proxy(target, handler) as T
+-	if (!defineProxyProperties(target, proxy, hooksSlotFor(target, hooks, onDelete, onRead, onWrite))) {
++	if (!defineProxyProperties(target, proxy, hooksSlotFor(target, isArray, hooks, onDelete, onRead, onWrite))) {
+ 		proxyCache.set(target, proxy)
+ 	}
+ 	return proxy
+ }
+ 
+ function disposeChildEffects(eff: EffectFunction): void {
+ 	const existing = eff.__children
+ 	if (!existing?.size) return
+ 	eff.__children = undefined
+ 	for (const c of existing) {

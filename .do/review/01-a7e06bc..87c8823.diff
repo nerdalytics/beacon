@@ -1,0 +1,105 @@
+# Review package: ticket 01, a7e06bc..87c8823
+
+## Commits
+### 87c8823
+perf(state): add array fill benchmark case for the baseline
+
+The wrap-fill-and-copywithin change alters how many wakes one fill call
+causes. This case subscribes one effect that reads every index of a
+hookless array and times fill calls that change every element, so the
+unchanged library records the baseline. Typed perf because it measures
+performance; no library behaviour changes.
+
+
+## Files changed
+ scripts/benchmark.ts | 20 ++++++++++++++++++++
+ 1 file changed, 20 insertions(+)
+
+## Diff
+diff --git a/scripts/benchmark.ts b/scripts/benchmark.ts
+index 9685a7b..30a3d81 100644
+--- a/scripts/benchmark.ts
++++ b/scripts/benchmark.ts
+@@ -5,20 +5,22 @@ import { batch, derive, effect, state } from '../src/index.ts'
+ import type { StateHooks } from '../src/types.ts'
+ 
+ const DEFAULT_RUN_COUNT = 10
+ const LOOP_LENGTH = 1_000_000
+ const ERROR_FREQUENCY = 1000
+ const WARMUP_RUNS = 3
+ const BENCH_RUNS = 7
+ 
+ const EFFECT_TRIGGER_WRITES = 50_000
+ const ARRAY_PUSH_POP_CALLS = 50_000
++const ARRAY_FILL_CALLS = 50_000
++const ARRAY_FILL_LENGTH = 3
+ const MULTI_SOURCE_COUNT = 100
+ const MULTI_SOURCE_ITERATIONS = 100
+ const DERIVE_CHAIN_DEPTH = 10
+ const DERIVE_CHAIN_ITERATIONS = 1_000
+ const STATE_CREATION_COUNT = 100_000
+ const STATE_READ_COUNT = 1_000_000
+ const SINGLE_SUB_WRITES = 100_000
+ const MANY_SUB_COUNT = 100
+ const MANY_SUB_WRITES = 10_000
+ const DISJOINT_PROP_COUNT = 100
+@@ -310,20 +312,34 @@ function arrayPushPop(items: number[]): number {
+ 	}
+ 	const end = performance.now()
+ 	cleanup()
+ 	return end - start
+ }
+ 
+ const arrayPushPopHookless = (): number => arrayPushPop(state<number[]>([]))
+ 
+ const arrayPushPopHooks = (): number => arrayPushPop(state<number[]>([], noopStateHooks))
+ 
++// The effect reads every index because fill never changes length: a length-only reader would not wake at all.
++// Alternating the fill value changes every element on every call
++function arrayFillHookless(): number {
++	const items = state<number[]>(new Array(ARRAY_FILL_LENGTH).fill(0))
++	const cleanup: Unsubscribe = effect((): void => {
++		for (let i = 0; i < items.length; i++) void items[i]
++	})
++	const start = performance.now()
++	for (let i = 0; i < ARRAY_FILL_CALLS; i++) items.fill((i % 2) + 1)
++	const end = performance.now()
++	cleanup()
++	return end - start
++}
++
+ function manyDependencies(): number {
+ 	const sources = Array.from(
+ 		{
+ 			length: MULTI_SOURCE_COUNT,
+ 		},
+ 		(
+ 			_: unknown,
+ 			i: number
+ 		): {
+ 			v: number
+@@ -600,20 +616,24 @@ const suite: SuiteEntry[] = [
+ 		name: 'effect triggers           ',
+ 	},
+ 	{
+ 		fn: arrayPushPopHookless,
+ 		name: 'array push/pop (hookless) ',
+ 	},
+ 	{
+ 		fn: arrayPushPopHooks,
+ 		name: 'array push/pop (hooks)    ',
+ 	},
++	{
++		fn: arrayFillHookless,
++		name: 'array fill (hookless)     ',
++	},
+ 	{
+ 		fn: manyDependencies,
+ 		name: 'many dependencies         ',
+ 	},
+ 	{
+ 		fn: deriveChainDepth10,
+ 		name: 'derive chain depth 10     ',
+ 	},
+ 	{
+ 		fn: update100StatesIndividual,

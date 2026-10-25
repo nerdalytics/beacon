@@ -1,0 +1,320 @@
+# Review package: ticket 03, 5b42960..8464f3f
+
+## Commits
+### 8464f3f
+docs(state): name nine mutating array methods in spec and agent docs
+
+The main array-mutation spec purpose and requirement, the root key
+behaviors and the source wrapArrayMethod row now count fill and
+copyWithin.
+
+### 17a14c5
+test(state): pin loop detection and hooks for fill and copyWithin
+
+A sync effect that only calls fill raises nothing and raises once it
+also read a written index. copyWithin raises only when its source and
+target ranges overlap. Child and microtask effects raise nothing.
+
+On hooked state, onRead sees the method name and every property read,
+and onWrite sees every property written and no other.
+
+
+## Files changed
+ AGENTS.md                             |   2 +-
+ openspec/specs/array-mutation/spec.md |   4 +-
+ src/AGENTS.md                         |   2 +-
+ tests/infinite-loop.test.ts           | 117 ++++++++++++++++++++++++++++++++++
+ tests/state-hooks.test.ts             |  42 ++++++++++++
+ 5 files changed, 163 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/AGENTS.md b/AGENTS.md
+index cee1f32..38443eb 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -26,21 +26,21 @@ ## Architecture
+ - `onIdle(callback: IdleCallback): Unsubscribe` — runs the callback each time the graph goes idle after doing work (no effect queued, no microtask flush armed); a pending async computation does not keep the graph busy
+ - `until<T>(predicate: () => T, options?: UntilOptions): Promise<T>` — resolves once the predicate is truthy with no derive pending; `timeout` and `signal` reject; throws inside a reactive scope
+ - Types: `Unsubscribe`, `EffectCallback`, `EffectName`, `DerivedValue`, `EffectSchedule`, `EffectOptions`, `UntilOptions`, `IdleCallback`
+ - Subpath `@nerdalytics/beacon/hooks`: hook types and `composeHook`
+ 
+ **Key behaviors:**
+ - Dependency tracking via WeakMaps + Symbols at the property level
+ - Nested objects automatically wrapped in Proxies (deep reactivity)
+ - Infinite loop detection: throws if effect writes to a state property it reads from (child effects and microtask effects are exempt; microtask re-runs stop after 100 chained microtask flushes with a `console.error`)
+ - Cyclic dependencies between different effects: allowed via queue-based non-recursive `flushEffects`
+-- Array mutating methods intercepted on state with and without hooks: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`
++- Array mutating methods intercepted on state with and without hooks: `push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`
+   - Each runs through the Proxy inside a batch, so it wakes each subscriber of the array at most once per call, is subject to the loop check inside an effect, and is seen by the read and write hooks
+ - Frozen/sealed objects: fallback to WeakMap storage
+ - `derive()` must be disposed to prevent memory leaks (creates internal state + effect pair)
+ 
+ ## Versioning
+ 
+ Epoch Semantic Versioning: `{EPOCH * 1000 + MAJOR}.MINOR.PATCH`
+ - Current: v2002.0.0 (`package.json` and `jsr.json` must match)
+ 
+ Commit format: `<type>(<scope>): <summary>` — imperative, present tense, no period, under 72 chars.
+diff --git a/openspec/specs/array-mutation/spec.md b/openspec/specs/array-mutation/spec.md
+index b0bd9b0..8ed4f3b 100644
+--- a/openspec/specs/array-mutation/spec.md
++++ b/openspec/specs/array-mutation/spec.md
+@@ -1,20 +1,20 @@
+ # array-mutation Specification
+ 
+ ## Purpose
+ 
+-Defines how a mutating array method (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`) called on reactive state notifies subscribers, composes with batches, is checked for self-feeding loops, and is observed by state hooks, identically for state created with and without hooks; and that the presence of a hook never changes which subscribers a write wakes or when.
++Defines how a mutating array method (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`) called on reactive state notifies subscribers, composes with batches, is checked for self-feeding loops, and is observed by state hooks, identically for state created with and without hooks; and that the presence of a hook never changes which subscribers a write wakes or when.
+ 
+ ## Requirements
+ 
+ ### Requirement: Mutating methods behave the same with and without hooks
+-Reactive state SHALL expose the same behavior for the seven mutating array methods whether the state was created with hooks or without. Hooks SHALL only observe; they SHALL NOT change which subscribers wake, how often, or whether a loop error is raised.
++Reactive state SHALL expose the same behavior for the nine mutating array methods (`push`, `pop`, `shift`, `unshift`, `splice`, `sort`, `reverse`, `fill`, `copyWithin`) whether the state was created with hooks or without. Hooks SHALL only observe; they SHALL NOT change which subscribers wake, how often, or whether a loop error is raised.
+ 
+ #### Scenario: Same wake count on both kinds of state
+ - **WHEN** an effect reads index 0 and `length` of an empty reactive array, and `push(1)` is called from outside any effect, on state created without hooks and on state created with hooks
+ - **THEN** the effect re-runs exactly once on each
+ 
+ #### Scenario: Same loop outcome on both kinds of state
+ - **WHEN** a synchronous top-level effect calls a mutating method on a reactive array, on state created without hooks and on state created with hooks
+ - **THEN** both raise the same infinite-loop error
+ 
+ ### Requirement: Hook presence does not change notification
+diff --git a/src/AGENTS.md b/src/AGENTS.md
+index 7d366f1..ca2b18e 100644
+--- a/src/AGENTS.md
++++ b/src/AGENTS.md
+@@ -89,21 +89,21 @@ ### Proxy Handlers
+ |----------|---------|
+ | `trackDependency` | First run: adds `currentEffect` to the target's subscribers, then `recordEffectRead`. Re-run (`isTrackingOnly`): `recordEffectRead` in silent mode |
+ | `recordEffectRead` | Non-silent: records into `__deps`/`__reads` + fires `onDependencyAdd`. Silent: advances the read-list replay while it matches, else replays the prefix into temp collections and falls back to `recordSilentRead` |
+ | `recordSilentRead` | Records into `rerunTempDeps`/`rerunTempReads` (and `buildingReadList`) without hooks or subscriber registration |
+ | `readListMatchesRead` | Checks the next `[target, prop]` pair of the replayed read list |
+ | `replayReadListToTempCollections` | Copies the matched read-list prefix into fresh temp collections when the fast path breaks |
+ | `wrapNestedObject` | Returns the nested object's `[PROXY]`, else `state()` (which finds a non-extensible object's Proxy in `proxyCache` or wraps it) |
+ | `isInternalSymbol` | Guards access to `SUBSCRIBERS`, `PROXY`, `HOOKS` symbols |
+ | `getWrappedArrayMethod` | Returns the wrapper for a mutating array method read from an array target (`Array.isArray` first, so plain-object reads pay one call and one check; then the `arrayMethodCache` hit, before the method-name check). Its body is a read-path hot spot: any change to it, even code a plain-object read never reaches, cost 2 to 5% on the read benchmark, so the direct `push`/`pop` dispatch lives in the cached wrappers |
+ | `applyInBatch` | Runs a method on a receiver inside the hookless batch bookkeeping (`batchDepth++`, then `abortBatch` or `endBatch`, without the `batch(fn)` closure); shared by the Proxy-receiver wrappers and the direct `push`/`pop` |
+-| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: the native `push` and `pop` get `directPushWrapper`/`directPopWrapper`; the other five get a wrapper that applies them via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
++| `wrapArrayMethod` | Wraps a native mutating array method once, cached in `arrayMethodCache`: the native `push` and `pop` get `directPushWrapper`/`directPopWrapper`; the other seven get a wrapper that applies them via `applyInBatch` to the call receiver (the Proxy), so every read and write passes the traps (seen by `onRead`/`onWrite`, subject to the loop check inside an effect) and each subscriber wakes at most once per call |
+ | `directPushWrapper` / `directPopWrapper` | Read the receiver's `[HOOKS]` slot (optional chaining, so a nullish receiver reads no slot): a `DirectArrayContext` (checked with `instanceof`, so only a reactive array's slot qualifies) on a receiver that is not the context's own raw target runs `directPush`/`directPop` on it inside `applyInBatch`; any other receiver (such as `push.call(otherArray)`, the raw array target, `null` or `undefined`) gets the native method inside `applyInBatch`: the raw target never enters the traps, so the call is silent (no hook call, no wake, Q71 b), and a nullish receiver raises the native TypeError |
+ | `hooksSlotFor` | What `state()` stores in the `[HOOKS]` slot: for an array target a new `DirectArrayContext`, otherwise `undefined` (no slot) |
+ | `directPush` / `directPop` | Run the native method on the raw target inside `applyInBatch` and replay by hand what the traps would have done: `push` reads `length`, then sets each new index and `length`; `pop` reads `length` and the last index, deletes that index (`onDelete`, readers of the index scheduled, no loop or equal check) and sets `length`; `pop` returns the nested wrapper the get trap would |
+ | `recordDirectRead` | The get trap's bookkeeping for a property the native method read: `trackDependency` inside an effect, then `onRead` |
+ | `recordDirectWrite` | The set trap's bookkeeping for a write the native method already performed: the loop check (inside an effect only), the equal skip, then `onWrite`, shared by both paths; only the scheduling branches: per property inside an effect (plus `length` for an index write that grew the array), one `ARRAY_DIRTY_PROPS` entry per batch outside. A write that grew the array went to an absent index, so it is never skipped as equal (Q65 a) |
+ | `isUnchangedWrite` | The equal skip of every set path: `Object.is` against the current read, and for an equal `undefined` a `prop in rawTarget` check, so a write of `undefined` to an absent property counts as a change (Q65 a); a read that is not `undefined` proves the property exists |
+ | `performUnbatchedWrite` | Outside any effect and batch: skips an unchanged write (`isUnchangedWrite`), skips scheduling when the target has no subscribers, else notifies per property |
+ | `performWrite` | Checks infinite loop, skips an unchanged write (`isUnchangedWrite`), notifies subscribers |
+ | `checkInfiniteLoop` | Throws if effect writes to a property it read (exempt: child effects, microtask effects) |
+ | `handleBatchFastPath` | Defers writes to `dirtyTargets` during batch (skips an unchanged write via `isUnchangedWrite`, calls `onWrite`, skips the loop check); inlines the `findSubscribers` lookup, and only for a target not yet dirty |
+diff --git a/tests/infinite-loop.test.ts b/tests/infinite-loop.test.ts
+index c7bf841..249d985 100644
+--- a/tests/infinite-loop.test.ts
++++ b/tests/infinite-loop.test.ts
+@@ -364,20 +364,137 @@ describe('Infinite Loop Detection', {
+ 				unsubscribes.push(
+ 					effect((): void => {
+ 						$list.reverse()
+ 					})
+ 				)
+ 				assert.deepStrictEqual([...$list], initial)
+ 			}
+ 		}
+ 	})
+ 
++	it('raises nothing when fill alone in a sync effect writes indices it did not read', (): void => {
++		for (const [, $list] of bothKinds([1, 2, 3])) {
++			unsubscribes.push(
++				effect((): void => {
++					$list.fill(9)
++				})
++			)
++			assert.deepStrictEqual([...$list], [9, 9, 9])
++		}
++	})
++
++	it('raises the loop error when a sync effect reads an index before fill writes it on both kinds of state', (): void => {
++		for (const [kind, $list] of bothKinds([1, 2, 3])) {
++			assert.throws(
++				(): void => {
++					unsubscribes.push(
++						effect((): void => {
++							void $list[0]
++							$list.fill(9)
++						}, 'filler')
++					)
++				},
++				/Infinite loop detected: effect "filler" cannot update property "/,
++				kind
++			)
++		}
++	})
++
++	it('raises nothing when copyWithin in a sync effect has source and target ranges that do not overlap', (): void => {
++		for (const [, $list] of bothKinds([1, 2, 3])) {
++			unsubscribes.push(
++				effect((): void => {
++					$list.copyWithin(2, 0, 1)
++				})
++			)
++			assert.deepStrictEqual([...$list], [1, 2, 1])
++		}
++	})
++
++	it('raises the loop error when copyWithin in a sync effect has overlapping ranges on both kinds of state', (): void => {
++		for (const [kind, $list] of bothKinds([1, 2, 3])) {
++			assert.throws(
++				(): void => {
++					unsubscribes.push(
++						effect((): void => {
++							$list.copyWithin(0, 1)
++						}, 'copier')
++					)
++				},
++				/Infinite loop detected: effect "copier" cannot update property "/,
++				kind
++			)
++		}
++	})
++
++	it('lets a child effect call fill and copyWithin on indices it read without raising', (): void => {
++		for (const [, $list] of bothKinds([1, 2, 3])) {
++			unsubscribes.push(
++				effect((): void => {
++					effect((): void => {
++						void $list[0]
++						$list.fill(9)
++					})
++				})
++			)
++			assert.deepStrictEqual([...$list], [9, 9, 9])
++		}
++		for (const [, $list] of bothKinds([1, 2, 3])) {
++			unsubscribes.push(
++				effect((): void => {
++					effect((): void => {
++						$list.copyWithin(0, 1)
++					})
++				})
++			)
++			assert.deepStrictEqual([...$list], [2, 3, 3])
++		}
++	})
++
++	it('lets a microtask effect call fill and copyWithin on indices it read without raising', async (): Promise<void> => {
++		const settle = async (): Promise<void> => {
++			// A few turns cover the one re-run each call causes, plus a spare to prove it stops
++			for (let turn = 0; turn < 4; turn++) {
++				await new Promise<void>((resolve): void => queueMicrotask(resolve))
++			}
++		}
++		for (const [, $list] of bothKinds([1, 2, 3])) {
++			unsubscribes.push(
++				effect(
++					(): void => {
++						void $list[0]
++						$list.fill(9)
++					},
++					undefined,
++					undefined,
++					{ schedule: 'microtask' }
++				)
++			)
++			await settle()
++			assert.deepStrictEqual([...$list], [9, 9, 9])
++		}
++		for (const [, $list] of bothKinds([1, 2, 3])) {
++			unsubscribes.push(
++				effect(
++					(): void => {
++						$list.copyWithin(0, 1)
++					},
++					undefined,
++					undefined,
++					{ schedule: 'microtask' }
++				)
++			)
++			await settle()
++			assert.deepStrictEqual([...$list], [3, 3, 3])
++		}
++	})
++
+ 	it('lets a child effect push onto a reactive array without raising', (): void => {
+ 		for (const [, $list] of bothKinds([])) {
+ 			unsubscribes.push(
+ 				effect((): void => {
+ 					effect((): void => {
+ 						$list.push(1)
+ 					})
+ 				})
+ 			)
+ 			assert.deepStrictEqual([...$list], [1])
+diff --git a/tests/state-hooks.test.ts b/tests/state-hooks.test.ts
+index e2153d4..6e7efa0 100644
+--- a/tests/state-hooks.test.ts
++++ b/tests/state-hooks.test.ts
+@@ -272,20 +272,62 @@ describe('State Hooks', {
+ 				reads.push(prop)
+ 			},
+ 		})
+ 
+ 		$list.push(1)
+ 
+ 		assert.ok(reads.includes('push'))
+ 		assert.ok(reads.includes('length'))
+ 	})
+ 
++	it('fires onRead with the method name and length and onWrite only for the indices fill changes', () => {
++		const reads: PropertyKey[] = []
++		const writes: unknown[][] = []
++		const $list = state([1, 2, 3], {
++			onRead: (prop: PropertyKey) => {
++				reads.push(prop)
++			},
++			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown) => {
++				writes.push([prop, oldValue, newValue])
++			},
++		})
++
++		$list.fill(9, 1)
++
++		assert.ok(reads.includes('fill'))
++		assert.ok(reads.includes('length'))
++		assert.deepStrictEqual(writes, [
++			['1', 2, 9],
++			['2', 3, 9],
++		])
++	})
++
++	it('fires onRead with the method name, length and source index and onWrite only for the target index of copyWithin', () => {
++		const reads: PropertyKey[] = []
++		const writes: unknown[][] = []
++		const $list = state([1, 2, 3], {
++			onRead: (prop: PropertyKey) => {
++				reads.push(prop)
++			},
++			onWrite: (prop: PropertyKey, oldValue: unknown, newValue: unknown) => {
++				writes.push([prop, oldValue, newValue])
++			},
++		})
++
++		$list.copyWithin(0, 2)
++
++		assert.ok(reads.includes('copyWithin'))
++		assert.ok(reads.includes('length'))
++		assert.ok(reads.includes('2'))
++		assert.deepStrictEqual(writes, [['0', 1, 3]])
++	})
++
+ 	it('fires onWrite for direct array index assignment', () => {
+ 		const writes: string[] = []
+ 		const $s = state(
+ 			{
+ 				items: [1, 2, 3],
+ 			},
+ 			{
+ 				onWrite: (prop: PropertyKey) => {
+ 					writes.push(String(prop))
+ 				},

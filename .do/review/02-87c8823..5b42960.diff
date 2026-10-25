@@ -1,0 +1,452 @@
+# Review package: ticket 02, 87c8823..5b42960
+
+## Commits
+### 5b42960
+fix(state): wrap fill and copyWithin through the Proxy
+
+A reactive array hands out the native fill and copyWithin, so each
+element write wakes an every-index subscriber on its own. Add both
+names to the mutating method set so they run in a batch and wake each
+subscriber once after the call returns.
+
+Cover wake counts, batches, bounds and frozen arrays on both kinds of
+state, and add fill and copyWithin to the property-based array test.
+
+
+## Files changed
+ src/index.ts                           | 14 ++++-
+ tests/array-methods.test.ts            | 99 ++++++++++++++++++++++++++++++++++
+ tests/property-array-mutations.test.ts | 86 ++++++++++++++++++++++++++++-
+ 3 files changed, 195 insertions(+), 4 deletions(-)
+
+## Diff
+diff --git a/src/index.ts b/src/index.ts
+index e103daa..2a3f490 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -87,21 +87,31 @@ let hasFallbackSubs = false
+ const proxyCache: WeakMap<object, object> = new WeakMap<object, object>()
+ const proxyCacheSubs: WeakMap<object, Set<EffectFunction>> = new WeakMap<object, Set<EffectFunction>>()
+ // Effects by the property they read, per subscriber Set. It may hold stale entries: scheduling re-checks __reads,
+ // so it only has to be a superset of the true readers. Kept off the Set: an own property there cost ~8% on
+ // single-subscriber writes in the benchmark suite
+ const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<EffectFunction>>> = new WeakMap<
+ 	Set<EffectFunction>,
+ 	Map<PropertyKey, Set<EffectFunction>>
+ >()
+ 
+-const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
++const MUTATING_ARRAY_METHODS: Set<string> = new Set([
++	'push',
++	'pop',
++	'shift',
++	'unshift',
++	'splice',
++	'sort',
++	'reverse',
++	'fill',
++	'copyWithin',
++])
+ 
+ // A native mutating array method, or the wrapper the Proxy hands out in its place
+ type ArrayMethod = (...args: unknown[]) => unknown
+ // Keyed by the native method: the wrapper acts on its call receiver, so one wrapper serves every array
+ const arrayMethodCache: WeakMap<ArrayMethod, ArrayMethod> = new WeakMap()
+ // Only these two take the direct path (Q52 a); any other function under their names keeps the Proxy receiver
+ const NATIVE_PUSH: ArrayMethod = Array.prototype.push as ArrayMethod
+ const NATIVE_POP: ArrayMethod = Array.prototype.pop as ArrayMethod
+ 
+ type ArrayTarget = ProxyTarget & unknown[]
+@@ -204,21 +214,21 @@ function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
+ 		}
+ 		arrayMethodCache.set(nativeMethod, wrapped)
+ 	}
+ 	return wrapped
+ }
+ 
+ // The wrappers the cache hands out for the native push and pop: a Proxy receiver whose [HOOKS] slot holds a
+ // context is a reactive array and takes the direct path; any other receiver, such as push.call(otherArray), runs
+ // the native method in a batch. A nullish receiver has no slot to read, so the native method raises its own
+ // TypeError. The raw target carries the same slot but never enters the traps, so a call on it runs the native
+-// method silently, as the other five wrappers and a direct write on the raw object do (Q71 b)
++// method silently, as the other seven wrappers and a direct write on the raw object do (Q71 b)
+ function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
+ 	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
+ 	if (!(context instanceof DirectArrayContext) || this === context.target) {
+ 		return applyInBatch(NATIVE_PUSH, this, items)
+ 	}
+ 	return applyInBatch(directPush as ArrayMethod, context, items)
+ }
+ 
+ function directPopWrapper(this: unknown, ...args: unknown[]): unknown {
+ 	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
+diff --git a/tests/array-methods.test.ts b/tests/array-methods.test.ts
+index 84fc79d..fd9205e 100644
+--- a/tests/array-methods.test.ts
++++ b/tests/array-methods.test.ts
+@@ -100,36 +100,135 @@ describe('Array Mutating Methods', {
+ 	it('returns what the native method returns and leaves the same contents', (): void => {
+ 		const descending = (a: number, b: number): number => b - a
+ 		const cases: [string, (list: number[]) => unknown][] = [
+ 			['push', (list: number[]): unknown => list.push(4, 5)],
+ 			['pop', (list: number[]): unknown => list.pop()],
+ 			['shift', (list: number[]): unknown => list.shift()],
+ 			['unshift', (list: number[]): unknown => list.unshift(8, 9)],
+ 			['splice', (list: number[]): unknown => list.splice(1, 2, 9)],
+ 			['sort', (list: number[]): unknown => list.sort(descending)],
+ 			['reverse', (list: number[]): unknown => list.reverse()],
++			['fill', (list: number[]): unknown => list.fill(9, -3, 3)],
++			['copyWithin', (list: number[]): unknown => list.copyWithin(1, 2)],
+ 		]
+ 		for (const [name, call] of cases) {
+ 			const plain = [0, 1, 2, 3]
+ 			const expected = call(plain)
+ 			for (const $list of bothKinds([0, 1, 2, 3])) {
+ 				const result = call($list)
+ 				assert.deepStrictEqual(
+ 					result === $list ? '<receiver>' : result,
+ 					expected === plain ? '<receiver>' : expected,
+ 					name
+ 				)
+ 				assert.deepStrictEqual([...$list], plain, name)
+ 			}
+ 		}
+ 	})
+ 
++	it('wakes an effect reading every index once after fill and once after copyWithin', (): void => {
++		const cases: [string, (list: number[]) => unknown, number[]][] = [
++			['fill', (list: number[]): unknown => list.fill(9), [9, 9, 9]],
++			['copyWithin', (list: number[]): unknown => list.copyWithin(0, 1), [2, 3, 3]],
++		]
++		for (const [name, call, expected] of cases) {
++			for (const $list of bothKinds([1, 2, 3])) {
++				const seen: number[][] = []
++				const dispose = effect((): void => {
++					seen.push([0, 1, 2].map((i: number): number => $list[i] as number))
++				})
++
++				call($list)
++
++				assert.deepStrictEqual(seen, [[1, 2, 3], expected], name)
++				dispose()
++			}
++		}
++	})
++
++	it('does not wake an effect when fill or copyWithin changes no element', (): void => {
++		const cases: [string, (list: number[]) => unknown, number[]][] = [
++			['fill', (list: number[]): unknown => list.fill(9), [9, 9, 9]],
++			['copyWithin', (list: number[]): unknown => list.copyWithin(0, 1), [7, 7, 7]],
++		]
++		for (const [name, call, initial] of cases) {
++			for (const $list of bothKinds(initial)) {
++				let runs = 0
++				const dispose = effect((): void => {
++					runs++
++					for (let i = 0; i < 3; i++) void $list[i]
++				})
++
++				call($list)
++
++				assert.strictEqual(runs, 1, name)
++				dispose()
++			}
++		}
++	})
++
++	it('defers wakes from fill and copyWithin to the end of a user batch', (): void => {
++		for (const $list of bothKinds([1, 2, 3])) {
++			const seen: number[][] = []
++			const dispose = effect((): void => {
++				seen.push([0, 1, 2].map((i: number): number => $list[i] as number))
++			})
++
++			batch((): void => {
++				$list.fill(9, 0, 1)
++				$list.copyWithin(2, 0)
++				assert.strictEqual(seen.length, 1)
++			})
++
++			assert.deepStrictEqual(seen, [
++				[1, 2, 3],
++				[9, 2, 9],
++			])
++			dispose()
++		}
++	})
++
++	it('resolves negative and out-of-range bounds in fill and copyWithin like the native method', (): void => {
++		for (const $list of bothKinds([1, 2, 3])) {
++			assert.strictEqual($list.fill(9, -2), $list)
++			assert.deepStrictEqual([...$list], [1, 9, 9])
++			assert.strictEqual($list.fill(0, 1, 100), $list)
++			assert.deepStrictEqual([...$list], [1, 0, 0])
++			assert.strictEqual($list.length, 3)
++		}
++
++		for (const $list of bothKinds([1, 2, 3, 4])) {
++			assert.strictEqual($list.copyWithin(-2, 0), $list)
++			assert.deepStrictEqual([...$list], [1, 2, 1, 2])
++		}
++	})
++
++	it('propagates the TypeError from fill on a frozen array and stays usable', (): void => {
++		const frozen = (): number[] => Object.freeze([1, 2, 3]) as number[]
++		for (const $list of [state(frozen()), state(frozen(), observingHooks)]) {
++			const $other = state({ n: 0 })
++			let runs = 0
++			const dispose = effect((): void => {
++				runs++
++				void $other.n
++			})
++
++			assert.throws((): void => {
++				$list.fill(9)
++			}, TypeError)
++
++			$other.n = 1
++			assert.strictEqual(runs, 2)
++			dispose()
++		}
++	})
++
+ 	it('propagates the TypeError from push on a sealed array and stays usable', (): void => {
+ 		for (const $list of [state(Object.seal([1])), state(Object.seal([1]), observingHooks)]) {
+ 			let runs = 0
+ 			const dispose = effect((): void => {
+ 				runs++
+ 				void $list[0]
+ 			})
+ 
+ 			assert.throws((): void => {
+ 				$list.push(2)
+diff --git a/tests/property-array-mutations.test.ts b/tests/property-array-mutations.test.ts
+index af965c6..e2d8c71 100644
+--- a/tests/property-array-mutations.test.ts
++++ b/tests/property-array-mutations.test.ts
+@@ -8,20 +8,34 @@ import { batch, effect, state } from '../src/index.ts'
+  *
+  * Uses model-based testing where a plain JavaScript Array serves as the
+  * oracle. Every operation is applied to both a reactive state array and
+  * a plain array, then their contents are compared.
+  *
+  * @see tests/PROPERTY_BASED_TESTING.md — Opportunity #1
+  */
+ 
+ // --- Operation types (keys sorted per Biome useSortedKeys) ---
+ 
++interface CopyWithinOp {
++	end: number | undefined
++	op: 'copyWithin'
++	start: number
++	target: number
++}
++
++interface FillOp {
++	end: number | undefined
++	op: 'fill'
++	start: number | undefined
++	value: number
++}
++
+ interface PopOp {
+ 	op: 'pop'
+ }
+ 
+ interface PushOp {
+ 	args: number[]
+ 	op: 'push'
+ }
+ 
+ interface ReverseOp {
+@@ -41,26 +55,30 @@ interface SpliceOp {
+ 	items: number[]
+ 	op: 'splice'
+ 	start: number
+ }
+ 
+ interface UnshiftOp {
+ 	args: number[]
+ 	op: 'unshift'
+ }
+ 
+-type ArrayOp = PopOp | PushOp | ReverseOp | ShiftOp | SortOp | SpliceOp | UnshiftOp
++type ArrayOp = CopyWithinOp | FillOp | PopOp | PushOp | ReverseOp | ShiftOp | SortOp | SpliceOp | UnshiftOp
+ 
+ // --- Operations that return a meaningful value (not the array itself) ---
+ 
+ type ValueReturningOp = PopOp | PushOp | ShiftOp | SpliceOp | UnshiftOp
+ 
++// --- Operations that return the receiver ---
++
++type ReceiverReturningOp = CopyWithinOp | FillOp | ReverseOp | SortOp
++
+ // --- Arbitraries ---
+ 
+ const pushArb: fc.Arbitrary<PushOp> = fc.record({
+ 	args: fc.array(
+ 		fc.integer({
+ 			max: 1000,
+ 			min: -1000,
+ 		}),
+ 		{
+ 			maxLength: 5,
+@@ -111,30 +129,57 @@ const spliceArb: fc.Arbitrary<SpliceOp> = fc.record({
+ })
+ 
+ const sortArb: fc.Arbitrary<SortOp> = fc.record({
+ 	op: fc.constant('sort' as const),
+ })
+ 
+ const reverseArb: fc.Arbitrary<ReverseOp> = fc.record({
+ 	op: fc.constant('reverse' as const),
+ })
+ 
++// Bounds reach past both ends of arrays of up to 20 elements, so negative and out-of-range cases occur
++const boundArb: fc.Arbitrary<number> = fc.integer({
++	max: 30,
++	min: -30,
++})
++
++const fillArb: fc.Arbitrary<FillOp> = fc.record({
++	end: fc.option(boundArb, { nil: undefined }),
++	op: fc.constant('fill' as const),
++	start: fc.option(boundArb, { nil: undefined }),
++	value: fc.integer({
++		max: 1000,
++		min: -1000,
++	}),
++})
++
++const copyWithinArb: fc.Arbitrary<CopyWithinOp> = fc.record({
++	end: fc.option(boundArb, { nil: undefined }),
++	op: fc.constant('copyWithin' as const),
++	start: boundArb,
++	target: boundArb,
++})
++
+ const arrayOpArb: fc.Arbitrary<ArrayOp> = fc.oneof(
+ 	pushArb,
+ 	popArb,
+ 	shiftArb,
+ 	unshiftArb,
+ 	spliceArb,
+ 	sortArb,
+-	reverseArb
++	reverseArb,
++	fillArb,
++	copyWithinArb
+ )
+ 
++const receiverReturningOpArb: fc.Arbitrary<ReceiverReturningOp> = fc.oneof(sortArb, reverseArb, fillArb, copyWithinArb)
++
+ const valueReturningOpArb: fc.Arbitrary<ValueReturningOp> = fc.oneof(pushArb, popArb, shiftArb, unshiftArb, spliceArb)
+ 
+ const initialArrayArb: fc.Arbitrary<number[]> = fc.array(
+ 	fc.integer({
+ 		max: 1000,
+ 		min: -1000,
+ 	}),
+ 	{
+ 		maxLength: 20,
+ 		minLength: 0,
+@@ -143,20 +188,26 @@ const initialArrayArb: fc.Arbitrary<number[]> = fc.array(
+ 
+ const opsArb: fc.Arbitrary<ArrayOp[]> = fc.array(arrayOpArb, {
+ 	maxLength: 15,
+ 	minLength: 1,
+ })
+ 
+ // --- Helpers ---
+ 
+ function applyOp(arr: number[], op: ArrayOp): void {
+ 	switch (op.op) {
++		case 'copyWithin':
++			arr.copyWithin(op.target, op.start, op.end)
++			break
++		case 'fill':
++			arr.fill(op.value, op.start, op.end)
++			break
+ 		case 'pop':
+ 			arr.pop()
+ 			break
+ 		case 'push':
+ 			arr.push(...op.args)
+ 			break
+ 		case 'reverse':
+ 			arr.reverse()
+ 			break
+ 		case 'shift':
+@@ -182,20 +233,33 @@ function applyOpWithReturn(arr: number[], op: ValueReturningOp): number | number
+ 			return arr.push(...op.args)
+ 		case 'shift':
+ 			return arr.shift()
+ 		case 'splice':
+ 			return arr.splice(op.start, op.deleteCount, ...op.items)
+ 		case 'unshift':
+ 			return arr.unshift(...op.args)
+ 	}
+ }
+ 
++function applyOpWithReceiver(arr: number[], op: ReceiverReturningOp): number[] {
++	switch (op.op) {
++		case 'copyWithin':
++			return arr.copyWithin(op.target, op.start, op.end)
++		case 'fill':
++			return arr.fill(op.value, op.start, op.end)
++		case 'reverse':
++			return arr.reverse()
++		case 'sort':
++			return arr.sort()
++	}
++}
++
+ // --- Tests ---
+ 
+ describe('Property-Based: Array Mutations', {
+ 	concurrency: true,
+ 	timeout: 30000,
+ }, (): void => {
+ 	it('produces same contents as a plain array after arbitrary mutations', (): void => {
+ 		fc.assert(
+ 			fc.property(initialArrayArb, opsArb, (initial: number[], ops: ArrayOp[]): void => {
+ 				const $reactive = state([...initial])
+@@ -226,20 +290,38 @@ describe('Property-Based: Array Mutations', {
+ 
+ 				assert.deepStrictEqual(reactiveResult, plainResult)
+ 				assert.deepStrictEqual([...$reactive], plain)
+ 			}),
+ 			{
+ 				numRuns: 300,
+ 			}
+ 		)
+ 	})
+ 
++	it('returns the receiver from fill, copyWithin, sort and reverse', (): void => {
++		fc.assert(
++			fc.property(initialArrayArb, receiverReturningOpArb, (initial: number[], op: ReceiverReturningOp): void => {
++				const $reactive = state([...initial])
++				const plain = [...initial]
++
++				const reactiveResult = applyOpWithReceiver($reactive, op)
++				applyOpWithReceiver(plain, op)
++
++				assert.strictEqual(reactiveResult, $reactive)
++				assert.deepStrictEqual([...$reactive], plain)
++			}),
++			{
++				numRuns: 300,
++			}
++		)
++	})
++
+ 	it('fires effect at most once per batch of mutations', (): void => {
+ 		fc.assert(
+ 			fc.property(initialArrayArb, opsArb, (initial: number[], ops: ArrayOp[]): void => {
+ 				const $arr = state([...initial])
+ 				const plain = [...initial]
+ 				let effectRuns = 0
+ 
+ 				const dispose = effect((): void => {
+ 					effectRuns++
+ 					// Subscribe to length and all indices
