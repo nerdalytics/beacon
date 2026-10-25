@@ -368,4 +368,19 @@ describe('State Hooks', {
 		assert.strictEqual($frozen.limit, 10)
 		assert.deepStrictEqual(reads, ['limit'])
 	})
+
+	it('defines the hooks symbol on an array target only', () => {
+		// Counted before any read or subscription: the subscribers symbol is added lazily on first subscription
+		const hooks = { onRead: (): void => {} }
+		const hookedObject = { count: 0 }
+		const hookedArray = [0]
+		const hooklessObject = { count: 0 }
+		state(hookedObject, hooks)
+		state(hookedArray, hooks)
+		state(hooklessObject)
+
+		assert.strictEqual(Object.getOwnPropertySymbols(hookedObject).length, 1)
+		assert.strictEqual(Object.getOwnPropertySymbols(hookedArray).length, 2)
+		assert.strictEqual(Object.getOwnPropertySymbols(hooklessObject).length, 1)
+	})
 })

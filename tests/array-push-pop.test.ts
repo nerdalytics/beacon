@@ -425,7 +425,7 @@ describe('Array push and pop', { concurrency: true, timeout: 1000 }, (): void =>
 	})
 
 	it('runs push and pop called with another receiver on that receiver', (): void => {
-		// A hooked object state is the receiver that carries hooks where an array carries its direct context
+		// A hooked object state has no slot where an array carries its direct context, so it takes the native path
 		const calls: HookCall[] = []
 		const rawObject: Record<string, unknown> = { length: 0 }
 		const $object = state(rawObject, recordingHooks(calls, rawObject as unknown as unknown[]))

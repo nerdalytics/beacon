@@ -8,8 +8,8 @@ import { batch, derive, effect, state } from '../src/index.ts'
  *
  * When Object.isExtensible(target) is false, Beacon falls back to WeakMap
  * storage for subscribers (proxyCacheSubs). Array method wrappers always
- * live in arrayMethodCache, and frozenHooksCache is written but never read;
- * hooks fire through the handler closure. These tests verify that the
+ * live in arrayMethodCache, and hooks fire through the handler closure, so
+ * a non-extensible target stores nothing else. These tests verify that the
  * subscriber fallback path works correctly.
  *
  * Key behavior notes:
