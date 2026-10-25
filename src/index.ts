@@ -94,7 +94,17 @@ const subscribersByProp: WeakMap<Set<EffectFunction>, Map<PropertyKey, Set<Effec
 	Map<PropertyKey, Set<EffectFunction>>
 >()
 
-const MUTATING_ARRAY_METHODS: Set<string> = new Set(['push', 'pop', 'shift', 'unshift', 'splice', 'sort', 'reverse'])
+const MUTATING_ARRAY_METHODS: Set<string> = new Set([
+	'push',
+	'pop',
+	'shift',
+	'unshift',
+	'splice',
+	'sort',
+	'reverse',
+	'fill',
+	'copyWithin',
+])
 
 // A native mutating array method, or the wrapper the Proxy hands out in its place
 type ArrayMethod = (...args: unknown[]) => unknown
@@ -211,7 +221,7 @@ function wrapArrayMethod(nativeMethod: ArrayMethod): ArrayMethod {
 // context is a reactive array and takes the direct path; any other receiver, such as push.call(otherArray), runs
 // the native method in a batch. A nullish receiver has no slot to read, so the native method raises its own
 // TypeError. The raw target carries the same slot but never enters the traps, so a call on it runs the native
-// method silently, as the other five wrappers and a direct write on the raw object do (Q71 b)
+// method silently, as the other seven wrappers and a direct write on the raw object do (Q71 b)
 function directPushWrapper(this: unknown, ...items: unknown[]): unknown {
 	const context = (this as ProxyObject | null | undefined)?.[HOOKS]
 	if (!(context instanceof DirectArrayContext) || this === context.target) {

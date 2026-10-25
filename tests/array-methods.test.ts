@@ -107,6 +107,8 @@ describe('Array Mutating Methods', {
 			['splice', (list: number[]): unknown => list.splice(1, 2, 9)],
 			['sort', (list: number[]): unknown => list.sort(descending)],
 			['reverse', (list: number[]): unknown => list.reverse()],
+			['fill', (list: number[]): unknown => list.fill(9, -3, 3)],
+			['copyWithin', (list: number[]): unknown => list.copyWithin(1, 2)],
 		]
 		for (const [name, call] of cases) {
 			const plain = [0, 1, 2, 3]
@@ -120,6 +122,103 @@ describe('Array Mutating Methods', {
 				)
 				assert.deepStrictEqual([...$list], plain, name)
 			}
+		}
+	})
+
+	it('wakes an effect reading every index once after fill and once after copyWithin', (): void => {
+		const cases: [string, (list: number[]) => unknown, number[]][] = [
+			['fill', (list: number[]): unknown => list.fill(9), [9, 9, 9]],
+			['copyWithin', (list: number[]): unknown => list.copyWithin(0, 1), [2, 3, 3]],
+		]
+		for (const [name, call, expected] of cases) {
+			for (const $list of bothKinds([1, 2, 3])) {
+				const seen: number[][] = []
+				const dispose = effect((): void => {
+					seen.push([0, 1, 2].map((i: number): number => $list[i] as number))
+				})
+
+				call($list)
+
+				assert.deepStrictEqual(seen, [[1, 2, 3], expected], name)
+				dispose()
+			}
+		}
+	})
+
+	it('does not wake an effect when fill or copyWithin changes no element', (): void => {
+		const cases: [string, (list: number[]) => unknown, number[]][] = [
+			['fill', (list: number[]): unknown => list.fill(9), [9, 9, 9]],
+			['copyWithin', (list: number[]): unknown => list.copyWithin(0, 1), [7, 7, 7]],
+		]
+		for (const [name, call, initial] of cases) {
+			for (const $list of bothKinds(initial)) {
+				let runs = 0
+				const dispose = effect((): void => {
+					runs++
+					for (let i = 0; i < 3; i++) void $list[i]
+				})
+
+				call($list)
+
+				assert.strictEqual(runs, 1, name)
+				dispose()
+			}
+		}
+	})
+
+	it('defers wakes from fill and copyWithin to the end of a user batch', (): void => {
+		for (const $list of bothKinds([1, 2, 3])) {
+			const seen: number[][] = []
+			const dispose = effect((): void => {
+				seen.push([0, 1, 2].map((i: number): number => $list[i] as number))
+			})
+
+			batch((): void => {
+				$list.fill(9, 0, 1)
+				$list.copyWithin(2, 0)
+				assert.strictEqual(seen.length, 1)
+			})
+
+			assert.deepStrictEqual(seen, [
+				[1, 2, 3],
+				[9, 2, 9],
+			])
+			dispose()
+		}
+	})
+
+	it('resolves negative and out-of-range bounds in fill and copyWithin like the native method', (): void => {
+		for (const $list of bothKinds([1, 2, 3])) {
+			assert.strictEqual($list.fill(9, -2), $list)
+			assert.deepStrictEqual([...$list], [1, 9, 9])
+			assert.strictEqual($list.fill(0, 1, 100), $list)
+			assert.deepStrictEqual([...$list], [1, 0, 0])
+			assert.strictEqual($list.length, 3)
+		}
+
+		for (const $list of bothKinds([1, 2, 3, 4])) {
+			assert.strictEqual($list.copyWithin(-2, 0), $list)
+			assert.deepStrictEqual([...$list], [1, 2, 1, 2])
+		}
+	})
+
+	it('propagates the TypeError from fill on a frozen array and stays usable', (): void => {
+		const frozen = (): number[] => Object.freeze([1, 2, 3]) as number[]
+		for (const $list of [state(frozen()), state(frozen(), observingHooks)]) {
+			const $other = state({ n: 0 })
+			let runs = 0
+			const dispose = effect((): void => {
+				runs++
+				void $other.n
+			})
+
+			assert.throws((): void => {
+				$list.fill(9)
+			}, TypeError)
+
+			$other.n = 1
+			assert.strictEqual(runs, 2)
+			dispose()
 		}
 	})
 

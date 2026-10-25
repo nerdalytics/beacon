@@ -15,6 +15,20 @@ import { batch, effect, state } from '../src/index.ts'
 
 // --- Operation types (keys sorted per Biome useSortedKeys) ---
 
+interface CopyWithinOp {
+	end: number | undefined
+	op: 'copyWithin'
+	start: number
+	target: number
+}
+
+interface FillOp {
+	end: number | undefined
+	op: 'fill'
+	start: number | undefined
+	value: number
+}
+
 interface PopOp {
 	op: 'pop'
 }
@@ -48,11 +62,15 @@ interface UnshiftOp {
 	op: 'unshift'
 }
 
-type ArrayOp = PopOp | PushOp | ReverseOp | ShiftOp | SortOp | SpliceOp | UnshiftOp
+type ArrayOp = CopyWithinOp | FillOp | PopOp | PushOp | ReverseOp | ShiftOp | SortOp | SpliceOp | UnshiftOp
 
 // --- Operations that return a meaningful value (not the array itself) ---
 
 type ValueReturningOp = PopOp | PushOp | ShiftOp | SpliceOp | UnshiftOp
+
+// --- Operations that return the receiver ---
+
+type ReceiverReturningOp = CopyWithinOp | FillOp | ReverseOp | SortOp
 
 // --- Arbitraries ---
 
@@ -118,6 +136,29 @@ const reverseArb: fc.Arbitrary<ReverseOp> = fc.record({
 	op: fc.constant('reverse' as const),
 })
 
+// Bounds reach past both ends of arrays of up to 20 elements, so negative and out-of-range cases occur
+const boundArb: fc.Arbitrary<number> = fc.integer({
+	max: 30,
+	min: -30,
+})
+
+const fillArb: fc.Arbitrary<FillOp> = fc.record({
+	end: fc.option(boundArb, { nil: undefined }),
+	op: fc.constant('fill' as const),
+	start: fc.option(boundArb, { nil: undefined }),
+	value: fc.integer({
+		max: 1000,
+		min: -1000,
+	}),
+})
+
+const copyWithinArb: fc.Arbitrary<CopyWithinOp> = fc.record({
+	end: fc.option(boundArb, { nil: undefined }),
+	op: fc.constant('copyWithin' as const),
+	start: boundArb,
+	target: boundArb,
+})
+
 const arrayOpArb: fc.Arbitrary<ArrayOp> = fc.oneof(
 	pushArb,
 	popArb,
@@ -125,8 +166,12 @@ const arrayOpArb: fc.Arbitrary<ArrayOp> = fc.oneof(
 	unshiftArb,
 	spliceArb,
 	sortArb,
-	reverseArb
+	reverseArb,
+	fillArb,
+	copyWithinArb
 )
+
+const receiverReturningOpArb: fc.Arbitrary<ReceiverReturningOp> = fc.oneof(sortArb, reverseArb, fillArb, copyWithinArb)
 
 const valueReturningOpArb: fc.Arbitrary<ValueReturningOp> = fc.oneof(pushArb, popArb, shiftArb, unshiftArb, spliceArb)
 
@@ -150,6 +195,12 @@ const opsArb: fc.Arbitrary<ArrayOp[]> = fc.array(arrayOpArb, {
 
 function applyOp(arr: number[], op: ArrayOp): void {
 	switch (op.op) {
+		case 'copyWithin':
+			arr.copyWithin(op.target, op.start, op.end)
+			break
+		case 'fill':
+			arr.fill(op.value, op.start, op.end)
+			break
 		case 'pop':
 			arr.pop()
 			break
@@ -189,6 +240,19 @@ function applyOpWithReturn(arr: number[], op: ValueReturningOp): number | number
 	}
 }
 
+function applyOpWithReceiver(arr: number[], op: ReceiverReturningOp): number[] {
+	switch (op.op) {
+		case 'copyWithin':
+			return arr.copyWithin(op.target, op.start, op.end)
+		case 'fill':
+			return arr.fill(op.value, op.start, op.end)
+		case 'reverse':
+			return arr.reverse()
+		case 'sort':
+			return arr.sort()
+	}
+}
+
 // --- Tests ---
 
 describe('Property-Based: Array Mutations', {
@@ -225,6 +289,24 @@ describe('Property-Based: Array Mutations', {
 				const plainResult = applyOpWithReturn(plain, op)
 
 				assert.deepStrictEqual(reactiveResult, plainResult)
+				assert.deepStrictEqual([...$reactive], plain)
+			}),
+			{
+				numRuns: 300,
+			}
+		)
+	})
+
+	it('returns the receiver from fill, copyWithin, sort and reverse', (): void => {
+		fc.assert(
+			fc.property(initialArrayArb, receiverReturningOpArb, (initial: number[], op: ReceiverReturningOp): void => {
+				const $reactive = state([...initial])
+				const plain = [...initial]
+
+				const reactiveResult = applyOpWithReceiver($reactive, op)
+				applyOpWithReceiver(plain, op)
+
+				assert.strictEqual(reactiveResult, $reactive)
 				assert.deepStrictEqual([...$reactive], plain)
 			}),
 			{
