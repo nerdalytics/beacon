@@ -109,7 +109,7 @@ type ArrayTarget = ProxyTarget & unknown[]
 // What the direct push and pop of one array act on: its raw target and its composed hooks. An array target
 // carries it in its [HOOKS] slot, where the shared wrappers read it through the Proxy receiver's internal-symbol
 // guard: a WeakMap keyed by the Proxy cost 2.7x on array state creation (GC ephemeron work). A class, so the
-// wrappers can tell it from the hooks object a non-array target keeps in the same slot
+// wrappers can tell a reactive array's slot from whatever another receiver holds under the same symbol
 class DirectArrayContext {
 	readonly hooks: StateHooks<object> | undefined
 	readonly onDelete: HookFunction<[PropertyKey, boolean, object]> | undefined
@@ -132,10 +132,10 @@ class DirectArrayContext {
 	}
 }
 
-// What the [HOOKS] slot of a target holds: the hooks of a non-array target, the direct context of an array
-type HooksSlot = StateHooks | DirectArrayContext | undefined
+// What the [HOOKS] slot holds: the direct context of an array target; a non-array target has no slot, since
+// its hooks reach every trap by closure
+type HooksSlot = DirectArrayContext | undefined
 
-const frozenHooksCache: WeakMap<object, StateHooks | DirectArrayContext> = new WeakMap()
 const MAX_IDLE_CYCLES = 100
 const MAX_MICROTASK_FLUSH_CHAIN = 100
 // Up to this many subscribers a scan is cheaper than the per-property index lookups
@@ -743,7 +743,7 @@ function createGetHandler<T>(
 	}
 }
 
-// An array target's [HOOKS] slot holds the context its direct push and pop find through the Proxy receiver
+// Only an array target gets a [HOOKS] slot: the context its direct push and pop find through the Proxy receiver
 function hooksSlotFor<T>(
 	target: ProxyTarget,
 	hooks: StateHooks<T> | undefined,
@@ -751,7 +751,7 @@ function hooksSlotFor<T>(
 	onRead: HookFunction<[PropertyKey, unknown, T]> | undefined,
 	onWrite: HookFunction<[PropertyKey, unknown, unknown, T]> | undefined
 ): HooksSlot {
-	if (!Array.isArray(target)) return hooks as StateHooks | undefined
+	if (!Array.isArray(target)) return undefined
 	return new DirectArrayContext(
 		target as ArrayTarget,
 		hooks as StateHooks<object> | undefined,
@@ -911,12 +911,6 @@ function performWrite<T>(
 	return true
 }
 
-function storeHooksForFrozenTarget(target: ProxyTarget, hooks: HooksSlot): void {
-	if (hooks) {
-		frozenHooksCache.set(target, hooks)
-	}
-}
-
 function definePropertyOnTarget(target: ProxyTarget, proxy: unknown, hooks: HooksSlot): void {
 	Object.defineProperty(target, PROXY, {
 		configurable: true,
@@ -941,9 +935,8 @@ function defineProxyProperties(target: ProxyTarget, proxy: unknown, hooks: Hooks
 			definePropertyOnTarget(target, proxy, hooks)
 			return true
 		}
-		storeHooksForFrozenTarget(target, hooks)
 	} catch {
-		storeHooksForFrozenTarget(target, hooks)
+		// a Proxy target that rejects symbol defines
 	}
 	return false
 }

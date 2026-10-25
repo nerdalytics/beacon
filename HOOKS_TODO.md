@@ -41,7 +41,7 @@ Anything that needs veto, throw-through, delay, or post-run timing is `blocked` 
 
 | # | Item | Status | Evidence |
 |---|------|--------|----------|
-| C1 | `frozenHooksCache` is written (`storeHooksForFrozenTarget`) and never read. The `HOOKS` symbol is defined on extensible targets and never read. Hooks on frozen targets fire through the closure either way. | `decide` | `grep -n frozenHooksCache src/index.ts` shows the declaration and one `set`; probe: `state(raw, {onRead})` then `Object.freeze(raw)`, a read fires the hook once |
+| C1 | The `HOOKS` symbol is defined only on extensible array targets, holding the `DirectArrayContext` their direct `push`/`pop` read; a non-array target gets no slot and no cache entry, since hooks fire through the handler closure on every target. | `shipped` | `tests/state-hooks.test.ts`, "defines the hooks symbol on an array target only" |
 | C2 | `state(obj, hooksB)` on an already-proxied `obj` returns the cached proxy and drops `hooksB` silently. A nested object proxied before its parent keeps its own (possibly empty) hooks. | `decide` | probe: parent `onRead` sees `["inner"]` only; a second `state()` call fires hooksA, never hooksB |
 | C3 | Reading a nested object through a frozen proxy throws a Proxy invariant `TypeError`, with or without hooks. | `open` | probe: `Object.freeze(state({nested:{b:2}}))` then `.nested.b` |
 | C4 | File layout for built-in hooks: one file per hook under `src/hooks/` (original Phase 4 plan) or a single `src/hooks/builtins.ts`. | `decide` | none yet |
